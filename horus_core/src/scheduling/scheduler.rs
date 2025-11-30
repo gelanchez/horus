@@ -99,7 +99,15 @@ impl Default for Scheduler {
 }
 
 impl Scheduler {
-    /// Create an empty scheduler.
+    /// Create an empty scheduler with **deterministic defaults**.
+    ///
+    /// By default, the scheduler:
+    /// - Disables learning phase (no runtime profiling)
+    /// - Uses sequential execution (predictable order)
+    /// - Is fully deterministic from tick 0
+    ///
+    /// For adaptive optimization, use `Scheduler::new().enable_learning()`
+    /// or load a pre-computed profile with `Scheduler::with_profile()`.
     pub fn new() -> Self {
         let running = Arc::new(Mutex::new(true));
         let now = Instant::now();
@@ -112,7 +120,7 @@ impl Scheduler {
             scheduler_name: "DefaultScheduler".to_string(),
             working_dir: std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/")),
 
-            // Initialize intelligence layer
+            // Initialize intelligence layer - DETERMINISTIC BY DEFAULT
             profiler: RuntimeProfiler::new_default(),
             dependency_graph: None,
             classifier: None,
@@ -120,7 +128,7 @@ impl Scheduler {
             async_io_executor: None,
             async_result_rx: None,
             async_result_tx: None,
-            learning_complete: false,
+            learning_complete: true, // CHANGED: Default to deterministic (no learning)
 
             // JIT compilation
             jit_compiled_nodes: HashMap::new(),
@@ -228,6 +236,138 @@ impl Scheduler {
     /// Set scheduler name (for debugging/logging)
     pub fn with_name(mut self, name: &str) -> Self {
         self.scheduler_name = name.to_string();
+        self
+    }
+
+    // ============================================================================
+    // Profile-Based Optimization (Deterministic Alternative to Learning)
+    // ============================================================================
+
+    /// Load a pre-computed profile for deterministic, optimized execution.
+    ///
+    /// This is the recommended way to get both determinism AND optimization:
+    /// 1. Profile once: `horus profile my_robot.rs --output robot.profile`
+    /// 2. Use profile: `Scheduler::with_profile("robot.profile")`
+    ///
+    /// The scheduler will use the pre-computed tier classifications without
+    /// any runtime learning phase, ensuring deterministic execution from tick 0.
+    ///
+    /// # Example
+    /// ```ignore
+    /// use horus_core::Scheduler;
+    ///
+    /// let scheduler = Scheduler::with_profile("robot.profile")?;
+    /// // Deterministic AND optimized - best of both worlds
+    /// ```
+    pub fn with_profile<P: AsRef<std::path::Path>>(
+        path: P,
+    ) -> Result<Self, super::intelligence::ProfileError> {
+        let profile = super::intelligence::ProfileData::load(&path)?;
+
+        // Print warnings if hardware differs
+        let warnings = profile.check_compatibility();
+        for warning in &warnings {
+            eprintln!("[PROFILE] Warning: {}", warning);
+        }
+
+        let mut scheduler = Self::new();
+        scheduler.scheduler_name = format!("ProfiledScheduler({})", profile.name);
+
+        // Store profile for use when adding nodes
+        // The classifier will be populated from the profile
+        let mut classifier = super::intelligence::TierClassifier {
+            assignments: std::collections::HashMap::new(),
+        };
+
+        for (name, node_profile) in &profile.nodes {
+            classifier
+                .assignments
+                .insert(name.clone(), node_profile.tier.to_execution_tier());
+        }
+
+        scheduler.classifier = Some(classifier);
+
+        println!("[OK] Loaded profile '{}' ({} nodes)", profile.name, profile.nodes.len());
+        println!("   - Determinism: ENABLED (from profile)");
+        println!("   - Execution: Optimized per-node tiers");
+
+        Ok(scheduler)
+    }
+
+    /// Enable the learning phase (opt-in for adaptive optimization).
+    ///
+    /// **Warning**: This makes execution non-deterministic!
+    ///
+    /// The learning phase profiles nodes for ~100 ticks and then
+    /// automatically classifies them into execution tiers. Results
+    /// may vary between runs due to system noise.
+    ///
+    /// For deterministic optimization, use `with_profile()` instead.
+    ///
+    /// # Example
+    /// ```ignore
+    /// use horus_core::Scheduler;
+    ///
+    /// // Opt-in to non-deterministic learning
+    /// let scheduler = Scheduler::new()
+    ///     .enable_learning();  // WARNING: Non-deterministic!
+    /// ```
+    pub fn enable_learning(mut self) -> Self {
+        self.learning_complete = false;
+        self.classifier = None;
+        println!("[WARN] Learning phase enabled - execution will be non-deterministic");
+        println!("       For deterministic optimization, use Scheduler::with_profile() instead");
+        self
+    }
+
+    /// Add a node with explicit tier annotation (deterministic optimization).
+    ///
+    /// Use this when you know a node's characteristics at compile time.
+    /// This avoids the non-deterministic runtime learning phase.
+    ///
+    /// # Arguments
+    /// * `node` - The node to add
+    /// * `priority` - Priority level (0 = highest)
+    /// * `tier` - Explicit execution tier
+    ///
+    /// # Example
+    /// ```ignore
+    /// use horus_core::{Scheduler, scheduling::NodeTier};
+    ///
+    /// let scheduler = Scheduler::new()
+    ///     .add_with_tier(Box::new(pid_controller), 0, NodeTier::Jit)
+    ///     .add_with_tier(Box::new(sensor_reader), 1, NodeTier::Fast)
+    ///     .add_with_tier(Box::new(data_logger), 5, NodeTier::Background);
+    /// ```
+    pub fn add_with_tier(
+        &mut self,
+        node: Box<dyn Node>,
+        priority: u32,
+        tier: super::intelligence::NodeTier,
+    ) -> &mut Self {
+        let node_name = node.name().to_string();
+
+        // Add node with default logging
+        self.add(node, priority, None);
+
+        // Set explicit tier in classifier
+        if self.classifier.is_none() {
+            self.classifier = Some(super::intelligence::TierClassifier {
+                assignments: std::collections::HashMap::new(),
+            });
+        }
+
+        if let Some(ref mut classifier) = self.classifier {
+            classifier
+                .assignments
+                .insert(node_name.clone(), tier.to_execution_tier());
+        }
+
+        println!(
+            "Added node '{}' with explicit tier: {:?}",
+            node_name, tier
+        );
+
         self
     }
 

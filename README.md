@@ -64,16 +64,16 @@ HORUS includes **32 production-ready nodes** with hardware drivers integrated. U
 Built-in nodes connect via **topics** - just like ROS, but simpler. Here's a complete obstacle-avoiding robot:
 
 ```
-┌────────────────┐    "lidar/scan"    ┌───────────────────┐    "obstacles"    ┌───────────────┐
+┌────────────────┐    "lidar.scan"    ┌───────────────────┐    "obstacles"    ┌───────────────┐
 │   LidarNode    │ ─────────────────► │ CollisionDetector │ ────────────────► │  PathPlanner  │
 │   (Priority 1) │                    │    (Priority 2)   │                   │  (Priority 3) │
 └────────────────┘                    └───────────────────┘                   └───────┬───────┘
                                                                                       │
-                                                                              "cmd_vel"
+                                                                                  "cmd_vel"
                                                                                       │
-┌────────────────┐    "motor/left"    ┌───────────────────┐                          │
-│  BldcMotorNode │ ◄───────────────── │ DifferentialDrive │ ◄────────────────────────┘
-│  (Priority 5)  │    "motor/right"   │    (Priority 4)   │
+┌────────────────┐    "motor.left"    ┌───────────────────┐                           │
+│  BldcMotorNode │ ◄───────────────── │ DifferentialDrive │ ◄─────────────────────────┘
+│  (Priority 5)  │    "motor.right"   │    (Priority 4)   │
 └────────────────┘ ◄───────────────── └───────────────────┘
 ```
 

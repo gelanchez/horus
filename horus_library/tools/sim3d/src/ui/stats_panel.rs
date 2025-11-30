@@ -125,6 +125,11 @@ pub fn stats_panel_system(
         }
     }
 
+    // Safely get context, return early if not initialized
+    let Some(ctx) = contexts.try_ctx_mut() else {
+        return;
+    };
+
     // Toggle with 'S' key (handled elsewhere)
     if !*show_panel {
         *show_panel = true; // Default to showing
@@ -133,7 +138,7 @@ pub fn stats_panel_system(
     egui::Window::new("Statistics")
         .default_width(320.0)
         .default_pos([10.0, 100.0])
-        .show(contexts.ctx_mut(), |ui| {
+        .show(ctx, |ui| {
             ui.heading("Performance");
             ui.separator();
 
@@ -243,7 +248,23 @@ impl Plugin for StatsPanelPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<SimulationStats>()
             .init_resource::<FrameTimeBreakdown>()
-            .add_systems(Update, (collect_stats_system, stats_panel_system).chain());
+            .add_systems(Update, collect_stats_system);
+
+        #[cfg(feature = "visual")]
+        {
+            use bevy_egui::EguiSet;
+            app.add_systems(
+                Update,
+                stats_panel_system
+                    .after(collect_stats_system)
+                    .after(EguiSet::InitContexts),
+            );
+        }
+
+        #[cfg(not(feature = "visual"))]
+        {
+            app.add_systems(Update, stats_panel_system.after(collect_stats_system));
+        }
     }
 }
 

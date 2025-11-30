@@ -238,7 +238,13 @@ impl Plugin for ViewModePlugin {
         );
 
         #[cfg(feature = "visual")]
-        app.add_systems(Update, view_mode_panel_system);
+        {
+            use bevy_egui::EguiSet;
+            app.add_systems(
+                Update,
+                view_mode_panel_system.after(EguiSet::InitContexts),
+            );
+        }
     }
 }
 

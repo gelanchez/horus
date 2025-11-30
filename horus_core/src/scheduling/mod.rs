@@ -72,3 +72,8 @@ pub use record_replay::{
     NodeRecorder, NodeRecording, NodeReplayer, NodeTickSnapshot, RecordingConfig, RecordingManager,
     SchedulerRecording,
 };
+
+// Re-export offline profiling (deterministic alternative to learning phase)
+pub use intelligence::{
+    ExecutionTier, NodeProfile, NodeTier, OfflineProfiler, ProfileData, ProfileError,
+};

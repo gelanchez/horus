@@ -10,14 +10,17 @@ use horus_core::memory::shm_topics_dir;
 use ratatui::{
     backend::{Backend, CrosstermBackend},
     layout::{Alignment, Constraint, Direction, Layout, Rect},
-    style::{Color, Modifier, Style},
+    style::{Color, Modifier, Style, Stylize},
+    symbols::Marker,
     text::{Line, Span},
-    widgets::{Block, Borders, Cell, Paragraph, Row, Table, TableState, Tabs},
+    widgets::{
+        canvas::{Canvas, Line as CanvasLine},
+        Block, Borders, Cell, Paragraph, Row, Table, TableState, Tabs,
+    },
     Frame, Terminal,
 };
 use std::io::stdout;
 use std::time::{Duration, Instant};
-use tui_nodes::{Connection, LineType, NodeGraph, NodeLayout};
 
 // Import the monitoring structs and functions
 #[derive(Debug, Clone)]
@@ -520,6 +523,14 @@ impl TuiDashboard {
                         {
                             // Zoom out
                             self.graph_zoom = (self.graph_zoom / 1.2).max(0.2);
+                        }
+                        KeyCode::Char('r') | KeyCode::Char('R')
+                            if self.active_tab == Tab::Graph =>
+                        {
+                            // Reset pan and zoom
+                            self.graph_offset_x = 0;
+                            self.graph_offset_y = 0;
+                            self.graph_zoom = 1.0;
                         }
                         KeyCode::Left if self.active_tab == Tab::Graph && !self.show_log_panel => {
                             // Pan left
@@ -1062,16 +1073,15 @@ impl TuiDashboard {
     }
 
     fn draw_graph(&mut self, f: &mut Frame, area: Rect) {
-        use ratatui::widgets::StatefulWidget;
         use std::collections::HashMap;
 
-        // Create a block for the graph
-        // Legend: Blue = Publish (→), Magenta = Subscribe (←)
+        // Create a block for the graph with controls hint
         let block = Block::default()
             .title(format!(
-                "Graph - {} nodes, {} edges | Pub=Blue Sub=Magenta",
+                "Graph - {} nodes, {} edges | [←→↑↓] Pan [+/-] Zoom [{:.0}%] [R] Reset",
                 self.graph_nodes.len(),
-                self.graph_edges.len()
+                self.graph_edges.len(),
+                self.graph_zoom * 100.0
             ))
             .borders(Borders::ALL);
 
@@ -1079,7 +1089,6 @@ impl TuiDashboard {
         f.render_widget(block, area);
 
         if self.graph_nodes.is_empty() {
-            // Show message if no graph data
             let text = Paragraph::new(
                 "No nodes or topics detected. Start some HORUS nodes to see the graph.",
             )
@@ -1089,13 +1098,25 @@ impl TuiDashboard {
             return;
         }
 
-        // Build tui-nodes structures
-        // We need to map our internal node IDs to indices for tui-nodes
-        let mut id_to_index: HashMap<String, usize> = HashMap::new();
+        // Show info message if no edges (pub/sub relationships not registered)
+        if self.graph_edges.is_empty() && !self.graph_nodes.is_empty() {
+            // Still draw the graph but show a note
+            let note_area = Rect {
+                x: inner.x,
+                y: inner.y,
+                width: inner.width,
+                height: 1,
+            };
+            let note = Paragraph::new("Note: No pub/sub relationships found (check registry.json)")
+                .style(Style::default().fg(Color::DarkGray))
+                .alignment(Alignment::Center);
+            f.render_widget(note, note_area);
+        }
 
-        // Separate processes and topics for layout
+        // Separate processes and topics
         let mut processes: Vec<&TuiGraphNode> = Vec::new();
         let mut topics: Vec<&TuiGraphNode> = Vec::new();
+        let mut id_to_pos: HashMap<String, (f64, f64)> = HashMap::new();
 
         for node in &self.graph_nodes {
             match node.node_type {
@@ -1104,219 +1125,141 @@ impl TuiDashboard {
             }
         }
 
-        // Safety limits to prevent tui-nodes from panicking
-        // tui-nodes has bugs with coordinate calculations for large graphs
-        const MAX_NODES: usize = 10;
-        const MAX_EDGES: usize = 15;
-        let total_nodes = processes.len() + topics.len();
-        let total_edges = self.graph_edges.len();
+        // Calculate node positions using a simple two-column layout
+        // Processes on the left, topics on the right
+        let base_node_width = 14.0;
+        let h_spacing = 25.0;
+        let v_spacing = 5.0;
 
-        if total_nodes > MAX_NODES || total_edges > MAX_EDGES {
-            // Show a simplified text-based view for large graphs
-            let node_list = processes
-                .iter()
-                .map(|n| format!("  [P] {}", n.label))
-                .chain(topics.iter().map(|n| format!("  [T] {}", n.label)))
-                .collect::<Vec<_>>()
-                .join("\n");
-
-            // Build edge list showing pub/sub relationships
-            let edge_list: String = self
-                .graph_edges
-                .iter()
-                .take(10) // Limit to first 10 edges to fit screen
-                .map(|e| {
-                    let arrow = match e.edge_type {
-                        TuiEdgeType::Publish => "->",   // Process publishes to Topic
-                        TuiEdgeType::Subscribe => "<-", // Process subscribes from Topic
-                    };
-                    format!("  {} {} {}", e.from, arrow, e.to)
-                })
-                .collect::<Vec<_>>()
-                .join("\n");
-
-            let edge_suffix = if self.graph_edges.len() > 10 {
-                format!("\n  ... and {} more", self.graph_edges.len() - 10)
-            } else {
-                String::new()
-            };
-
-            let text = Paragraph::new(format!(
-                "Graph too complex for TUI ({} nodes, {} edges). Limits: {}/{}\n\
-                 Use web dashboard for full view.\n\n\
-                 Nodes: [P]=Process [T]=Topic\n{}\n\n\
-                 Edges: -> Pub, <- Sub\n{}{}",
-                total_nodes, total_edges, MAX_NODES, MAX_EDGES, node_list, edge_list, edge_suffix
-            ))
-            .style(Style::default().fg(Color::Yellow))
-            .alignment(Alignment::Left);
-            f.render_widget(text, inner);
-            return;
-        }
-
-        // Additional safety: check terminal size is sufficient
-        if inner.width < 40 || inner.height < 10 {
-            let text =
-                Paragraph::new("Terminal too small for graph view.\nResize or use web dashboard.")
-                    .style(Style::default().fg(Color::Yellow))
-                    .alignment(Alignment::Center);
-            f.render_widget(text, inner);
-            return;
-        }
-
-        // Calculate node sizes based on label length
-        let node_height = 3u16; // Fixed height for all nodes
-        let min_width = 12u16;
-
-        // First, collect all labels (to own the strings for the lifetime of this function)
-        let mut labels: Vec<String> = Vec::new();
-        let mut border_styles: Vec<Style> = Vec::new();
-        let mut widths_vec: Vec<u16> = Vec::new();
-
-        // Process labels
-        for node in &processes {
-            let label = if node.active {
-                format!("● {}", node.label)
-            } else {
-                format!("○ {}", node.label)
-            };
-            let width = (label.len() as u16 + 4).max(min_width);
-            let border_style = if node.active {
-                Style::default().fg(Color::Green)
-            } else {
-                Style::default().fg(Color::DarkGray)
-            };
-            labels.push(label);
-            border_styles.push(border_style);
-            widths_vec.push(width);
-        }
-
-        // Topic labels
-        for node in &topics {
-            let label = format!("◆ {}", node.label);
-            let width = (label.len() as u16 + 4).max(min_width);
-            let border_style = Style::default().fg(Color::Yellow);
-            labels.push(label);
-            border_styles.push(border_style);
-            widths_vec.push(width);
-        }
-
-        // Create NodeLayout for each node
-        // Order: processes first, then topics (for consistent indexing)
-        let mut node_layouts: Vec<NodeLayout> = Vec::new();
-        let mut current_index = 0usize;
-
-        // Add process nodes
+        // Position processes (left column)
+        let process_x = 5.0;
         for (i, node) in processes.iter().enumerate() {
-            let layout = NodeLayout::new((widths_vec[i], node_height))
-                .with_title(&labels[i])
-                .with_border_style(border_styles[i]);
-
-            node_layouts.push(layout);
-            id_to_index.insert(node.id.clone(), current_index);
-            current_index += 1;
+            let y = 5.0 + (i as f64) * v_spacing;
+            id_to_pos.insert(node.id.clone(), (process_x, y));
         }
 
-        // Add topic nodes
-        let offset = processes.len();
+        // Position topics (right column)
+        let topic_x = process_x + h_spacing;
         for (i, node) in topics.iter().enumerate() {
-            let idx = offset + i;
-            let layout = NodeLayout::new((widths_vec[idx], node_height))
-                .with_title(&labels[idx])
-                .with_border_style(border_styles[idx]);
-
-            node_layouts.push(layout);
-            id_to_index.insert(node.id.clone(), current_index);
-            current_index += 1;
+            let y = 5.0 + (i as f64) * v_spacing;
+            id_to_pos.insert(node.id.clone(), (topic_x, y));
         }
 
-        // Create connections
-        // tui-nodes uses port indices: each node can have multiple input/output ports
-        // For simplicity, we use port 0 for all connections
-        let mut connections: Vec<Connection> = Vec::new();
-        let node_count = node_layouts.len();
+        // Calculate canvas bounds with zoom and pan
+        let zoom = self.graph_zoom as f64;
+        let pan_x = self.graph_offset_x as f64;
+        let pan_y = self.graph_offset_y as f64;
 
-        for edge in &self.graph_edges {
-            if let (Some(&from_idx), Some(&to_idx)) =
-                (id_to_index.get(&edge.from), id_to_index.get(&edge.to))
-            {
-                // Bounds check to prevent panic in tui-nodes
-                if from_idx >= node_count || to_idx >= node_count {
-                    continue;
-                }
+        // Canvas coordinate system (with panning applied)
+        let x_min = -pan_x / zoom;
+        let x_max = (inner.width as f64) / zoom - pan_x / zoom;
+        let y_min = -pan_y / zoom;
+        let y_max = (inner.height as f64 * 2.0) / zoom - pan_y / zoom; // *2 for braille resolution
 
-                let line_style = match (&edge.edge_type, edge.active) {
-                    (TuiEdgeType::Publish, true) => Style::default().fg(Color::Blue),
-                    (TuiEdgeType::Publish, false) => Style::default().fg(Color::DarkGray),
-                    (TuiEdgeType::Subscribe, true) => Style::default().fg(Color::Magenta),
-                    (TuiEdgeType::Subscribe, false) => Style::default().fg(Color::DarkGray),
-                };
+        // Clone data for the closure
+        let edges = self.graph_edges.clone();
+        let id_to_pos_clone = id_to_pos.clone();
+        let processes_data: Vec<_> = processes
+            .iter()
+            .map(|n| (n.id.clone(), n.label.clone(), n.active))
+            .collect();
+        let topics_data: Vec<_> = topics
+            .iter()
+            .map(|n| (n.id.clone(), n.label.clone(), n.active))
+            .collect();
 
-                let connection = Connection::new(from_idx, 0, to_idx, 0)
-                    .with_line_type(LineType::Rounded)
-                    .with_line_style(line_style);
+        let canvas = Canvas::default()
+            .x_bounds([x_min, x_max])
+            .y_bounds([y_min, y_max])
+            .marker(Marker::HalfBlock)
+            .paint(move |ctx| {
+                // Draw edges first (so labels appear on top)
+                for edge in &edges {
+                    // Find source and target positions
+                    let from_pos = id_to_pos_clone.get(&edge.from);
+                    let to_pos = id_to_pos_clone.get(&edge.to);
 
-                connections.push(connection);
-            }
-        }
+                    if let (Some(&(from_x, from_y)), Some(&(to_x, to_y))) = (from_pos, to_pos) {
+                        let color = match (&edge.edge_type, edge.active) {
+                            (TuiEdgeType::Publish, true) => Color::Blue,
+                            (TuiEdgeType::Publish, false) => Color::DarkGray,
+                            (TuiEdgeType::Subscribe, true) => Color::Magenta,
+                            (TuiEdgeType::Subscribe, false) => Color::DarkGray,
+                        };
 
-        // Create the NodeGraph widget
-        let mut node_graph = NodeGraph::new(
-            node_layouts,
-            connections,
-            inner.width as usize,
-            inner.height as usize,
-        );
+                        // Draw line from source center-right to target center-left
+                        let start_x = from_x + base_node_width;
+                        let start_y = from_y + 1.5;
+                        let end_x = to_x;
+                        let end_y = to_y + 1.5;
 
-        // Calculate layout
-        node_graph.calculate();
+                        ctx.draw(&CanvasLine {
+                            x1: start_x,
+                            y1: start_y * 2.0,
+                            x2: end_x,
+                            y2: end_y * 2.0,
+                            color,
+                        });
 
-        // Get the sub-areas for each node
-        let node_areas = node_graph.split(inner);
-
-        // Render the graph using StatefulWidget
-        // NodeGraph requires a state, we use a unit tuple for now
-        let mut state = ();
-        StatefulWidget::render(node_graph, inner, f.buffer_mut(), &mut state);
-
-        // Render node content inside each node area
-        for (i, node_area) in node_areas.iter().enumerate() {
-            if node_area.width > 2 && node_area.height > 2 {
-                // Get the inner area (inside borders)
-                let content_area = Rect {
-                    x: node_area.x + 1,
-                    y: node_area.y + 1,
-                    width: node_area.width.saturating_sub(2),
-                    height: node_area.height.saturating_sub(2),
-                };
-
-                // Determine if this is a process or topic
-                let is_process = i < processes.len();
-                let node = if is_process {
-                    processes.get(i)
-                } else {
-                    topics.get(i - processes.len())
-                };
-
-                if let Some(node) = node {
-                    // Show additional info in the node
-                    let info = if is_process {
-                        if let Some(pid) = node.pid {
-                            format!("PID: {}", pid)
-                        } else {
-                            String::new()
-                        }
-                    } else {
-                        String::new()
-                    };
-
-                    if !info.is_empty() && content_area.height > 0 {
-                        let info_style = Style::default().fg(Color::Gray);
-                        let info_text = Paragraph::new(info).style(info_style);
-                        f.render_widget(info_text, content_area);
+                        // Draw arrow head at the end
+                        let arrow_size = 1.0;
+                        ctx.draw(&CanvasLine {
+                            x1: end_x,
+                            y1: end_y * 2.0,
+                            x2: end_x - arrow_size,
+                            y2: (end_y + 0.5) * 2.0,
+                            color,
+                        });
+                        ctx.draw(&CanvasLine {
+                            x1: end_x,
+                            y1: end_y * 2.0,
+                            x2: end_x - arrow_size,
+                            y2: (end_y - 0.5) * 2.0,
+                            color,
+                        });
                     }
                 }
-            }
+
+                // Draw process node labels (no boxes, just text)
+                for (id, label, active) in &processes_data {
+                    if let Some(&(x, y)) = id_to_pos_clone.get(id) {
+                        let color = if *active { Color::Green } else { Color::DarkGray };
+                        let marker = if *active { "●" } else { "○" };
+                        ctx.print(x, (y + 1.5) * 2.0, format!("{} {}", marker, label).fg(color));
+                    }
+                }
+
+                // Draw topic node labels (no boxes, just text)
+                for (id, label, _active) in &topics_data {
+                    if let Some(&(x, y)) = id_to_pos_clone.get(id) {
+                        let color = Color::Yellow;
+                        ctx.print(x, (y + 1.5) * 2.0, format!("◆ {}", label).fg(color));
+                    }
+                }
+            });
+
+        f.render_widget(canvas, inner);
+
+        // Draw legend at bottom
+        if inner.height > 3 {
+            let legend_area = Rect {
+                x: inner.x,
+                y: inner.y + inner.height - 1,
+                width: inner.width,
+                height: 1,
+            };
+            let legend = Paragraph::new(Line::from(vec![
+                Span::styled("■", Style::default().fg(Color::Green)),
+                Span::raw(" Process  "),
+                Span::styled("■", Style::default().fg(Color::Yellow)),
+                Span::raw(" Topic  "),
+                Span::styled("—", Style::default().fg(Color::Blue)),
+                Span::raw(" Pub  "),
+                Span::styled("—", Style::default().fg(Color::Magenta)),
+                Span::raw(" Sub"),
+            ]))
+            .alignment(Alignment::Center);
+            f.render_widget(legend, legend_area);
         }
     }
 

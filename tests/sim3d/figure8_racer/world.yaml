@@ -97,7 +97,9 @@ objects:
 robots:
   - name: "racer"
     urdf_path: "racer.urdf"
-    position: [0.0, 0.1, 0.0]
+    # With articulated physics, the robot will settle naturally on the ground
+    # Starting slightly above ground to let physics settle
+    position: [0.0, 0.15, 0.0]
     rotation_euler: [0.0, 0.0, 0.0]
 
 lighting:

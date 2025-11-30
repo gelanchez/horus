@@ -768,10 +768,15 @@ pub fn layout_panel_system(
     mut events: EventWriter<LayoutEvent>,
     mut save_name: Local<String>,
 ) {
+    // Safely get context, return early if not initialized
+    let Some(ctx) = contexts.try_ctx_mut() else {
+        return;
+    };
+
     egui::Window::new("Layouts")
         .default_pos([10.0, 500.0])
         .default_width(250.0)
-        .show(contexts.ctx_mut(), |ui| {
+        .show(ctx, |ui| {
             ui.heading("Layout Presets");
             ui.separator();
 
@@ -861,7 +866,13 @@ impl Plugin for LayoutPlugin {
             .add_systems(Update, (layout_hotkey_system, handle_layout_events).chain());
 
         #[cfg(feature = "visual")]
-        app.add_systems(Update, layout_panel_system);
+        {
+            use bevy_egui::EguiSet;
+            app.add_systems(
+                Update,
+                layout_panel_system.after(EguiSet::InitContexts),
+            );
+        }
     }
 }
 

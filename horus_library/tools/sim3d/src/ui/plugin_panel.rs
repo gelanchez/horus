@@ -401,10 +401,18 @@ impl Plugin for PluginPanelPlugin {
                 (
                     handle_settings_toggle,
                     handle_open_plugin_settings,
-                    unified_settings_panel_system,
                     settings_hotkey_system,
                 ),
             );
+
+        #[cfg(feature = "visual")]
+        {
+            use bevy_egui::EguiSet;
+            app.add_systems(
+                Update,
+                unified_settings_panel_system.after(EguiSet::InitContexts),
+            );
+        }
 
         tracing::info!("Plugin panel system initialized");
     }

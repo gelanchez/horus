@@ -842,13 +842,27 @@ impl Plugin for NotificationsPlugin {
             .add_event::<NotificationActionEvent>()
             .add_systems(
                 Update,
-                (
-                    process_notify_events,
-                    update_notifications_system,
-                    render_notifications_system,
-                )
-                    .chain(),
+                (process_notify_events, update_notifications_system).chain(),
             );
+
+        #[cfg(feature = "visual")]
+        {
+            use bevy_egui::EguiSet;
+            app.add_systems(
+                Update,
+                render_notifications_system
+                    .after(update_notifications_system)
+                    .after(EguiSet::InitContexts),
+            );
+        }
+
+        #[cfg(not(feature = "visual"))]
+        {
+            app.add_systems(
+                Update,
+                render_notifications_system.after(update_notifications_system),
+            );
+        }
     }
 }
 

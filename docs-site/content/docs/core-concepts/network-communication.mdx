@@ -222,15 +222,15 @@ let positions: Hub<Position> = Hub::new("positions@0.0.0.0:8000")?;
 
 ### Frequency Guidelines
 
-**Link Network** (5-15µs latency):
-- ✅ 1kHz (1ms period): Possible with headroom
-- ✅ 500Hz (2ms period): Comfortable
-- ✅ 100Hz (10ms period): Plenty of headroom
+**Link Network** (5-15us latency):
+- 1kHz (1ms period): Possible with headroom
+- 500Hz (2ms period): Comfortable
+- 100Hz (10ms period): Plenty of headroom
 
-**Hub Network** (&lt;50µs latency):
-- ✅ 100Hz (10ms period): Comfortable
-- ✅ 50Hz (20ms period): Safe
-- ✅ 30Hz (33ms period): Typical for camera streams
+**Hub Network** (&lt;50us latency):
+- 100Hz (10ms period): Comfortable
+- 50Hz (20ms period): Safe
+- 30Hz (33ms period): Typical for camera streams
 
 ## Multi-Machine Topologies
 
@@ -633,31 +633,31 @@ iwconfig wlan0
 
 ## Best Practices
 
-✅ **Use Link for critical paths**
+**Use Link for critical paths**
 ```rust
 // Critical control loop: Link over network
 let motors: Link<MotorCmd> = Link::producer("motors@robot:9000")?;
 ```
 
-✅ **Use Hub for broadcasting**
+**Use Hub for broadcasting**
 ```rust
 // Status to multiple subscribers: Hub
 let status: Hub<Status> = Hub::new("status@monitoring:8000")?;
 ```
 
-✅ **Keep critical loops local**
+**Keep critical loops local**
 ```rust
 // Flight control stays on-board (local)
 let imu: Link<ImuData> = Link::consumer("imu")?;  // 248ns, not network
 ```
 
-✅ **Use configuration files**
+**Use configuration files**
 ```rust
 // Don't hardcode IPs
 let telem: Hub<Status> = Hub::from_config("telemetry")?;
 ```
 
-✅ **Handle network failures**
+**Handle network failures**
 ```rust
 if telemetry.send(status, &mut ctx).is_err() {
     ctx.log_warning("Telemetry unavailable");
@@ -665,13 +665,13 @@ if telemetry.send(status, &mut ctx).is_err() {
 }
 ```
 
-❌ **Don't use network for 10kHz loops**
+**Avoid using network for 10kHz loops**
 ```rust
 // This won't work - network latency too high
 // Use local shared memory instead
 ```
 
-❌ **Don't ignore send errors**
+**Don't ignore send errors**
 ```rust
 telemetry.send(status, &mut ctx).ok();  // Bad! Silently fails
 ```

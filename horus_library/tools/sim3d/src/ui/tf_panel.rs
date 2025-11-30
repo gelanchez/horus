@@ -393,13 +393,22 @@ impl Plugin for TFPanelPlugin {
             .add_event::<TFFrameSelectEvent>()
             .add_systems(
                 Update,
-                (
-                    tf_panel_system,
-                    tf_panel_keyboard_system,
-                    handle_tf_select_events,
-                )
-                    .chain(),
+                (tf_panel_keyboard_system, handle_tf_select_events).chain(),
             );
+
+        #[cfg(feature = "visual")]
+        {
+            use bevy_egui::EguiSet;
+            app.add_systems(
+                Update,
+                tf_panel_system.after(EguiSet::InitContexts),
+            );
+        }
+
+        #[cfg(not(feature = "visual"))]
+        {
+            app.add_systems(Update, tf_panel_system);
+        }
     }
 }
 

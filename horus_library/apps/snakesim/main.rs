@@ -30,7 +30,7 @@ impl Node for SnakeControlNode {
 
     fn tick(&mut self, mut ctx: Option<&mut NodeInfo>) {
         // Process keyboard input
-        if let Some(input) = self.keyboard_subscriber.recv(&mut None) {
+        if let Some(input) = self.keyboard_subscriber.recv(&mut ctx) {
             ctx.log_debug(&format!(
                 "Received key code: {}, pressed: {}",
                 input.code, input.pressed
@@ -53,7 +53,7 @@ impl Node for SnakeControlNode {
         }
 
         // Process joystick input
-        if let Some(input) = self.joystick_subscriber.recv(&mut None) {
+        if let Some(input) = self.joystick_subscriber.recv(&mut ctx) {
             if input.is_button() && input.pressed {
                 // Map D-pad buttons to snake directions
                 let button_name = input.get_element_name();

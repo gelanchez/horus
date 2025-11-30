@@ -1455,7 +1455,7 @@ pub fn tick_end_system(
 pub fn visual_sync_system(
     mut robot_query: Query<(&Robot, &mut Transform, &mut Sprite)>,
     physics_world: Res<PhysicsWorld>,
-    _app_config: Res<AppConfig>,
+    app_config: Res<AppConfig>,
 ) {
     let scale = 50.0; // Same scale used in setup
     for (robot, mut transform, mut sprite) in robot_query.iter_mut() {
@@ -1468,16 +1468,31 @@ pub fn visual_sync_system(
             transform.translation.y = pos.y * scale;
             transform.rotation = Quat::from_rotation_z(rot.angle());
 
-            // Update robot visual size and color from live config
+            // Update robot visual size from component config
             sprite.custom_size = Some(Vec2::new(
                 robot.config.length * scale,
                 robot.config.width * scale,
             ));
-            sprite.color = Color::srgb(
-                robot.config.color[0],
-                robot.config.color[1],
-                robot.config.color[2],
-            );
+
+            // Update robot color from live AppConfig (allows UI changes to take effect immediately)
+            // Find the matching robot config by name
+            if let Some(live_config) = app_config
+                .robots
+                .iter()
+                .find(|r| r.name == robot.name)
+            {
+                sprite.color = Color::srgb(
+                    live_config.color[0],
+                    live_config.color[1],
+                    live_config.color[2],
+                );
+            } else {
+                sprite.color = Color::srgb(
+                    robot.config.color[0],
+                    robot.config.color[1],
+                    robot.config.color[2],
+                );
+            }
         }
     }
 }
@@ -2878,11 +2893,71 @@ pub fn editor_input_system(
 
     // Handle mouse input
     if mouse_button_input.just_pressed(MouseButton::Left) {
-        editor.handle_mouse_press(world_pos_adjusted);
+        match editor.active_tool {
+            crate::editor::EditorTool::Select => {
+                // For select tool: check if clicking on a selected obstacle to start drag
+                let obstacles: Vec<_> = app_config.world_config.obstacles.clone();
+                let entities: Vec<_> = obstacle_query.iter().map(|(e, _, _)| e).collect();
+
+                // Check if clicking on an already selected obstacle
+                if let Some(idx) = editor.find_obstacle_at(world_pos_adjusted, &obstacles) {
+                    if idx < entities.len() {
+                        let clicked_entity = entities[idx];
+                        if editor.is_selected(clicked_entity) {
+                            // Start dragging the selected obstacles
+                            editor.start_drag(world_pos_adjusted, &obstacles, &entities);
+                        } else {
+                            // Select this obstacle instead
+                            editor.clear_selection();
+                            editor.select_obstacle(clicked_entity);
+                            // And start dragging it
+                            let obstacles_after: Vec<_> = app_config.world_config.obstacles.clone();
+                            let entities_after: Vec<_> = obstacle_query.iter().map(|(e, _, _)| e).collect();
+                            editor.start_drag(world_pos_adjusted, &obstacles_after, &entities_after);
+                        }
+                    }
+                } else {
+                    // Clicked on empty space - clear selection
+                    editor.clear_selection();
+                }
+            }
+            _ => {
+                editor.handle_mouse_press(world_pos_adjusted);
+            }
+        }
     }
 
     if mouse_button_input.pressed(MouseButton::Left) {
-        editor.handle_mouse_drag(world_pos_adjusted);
+        match editor.active_tool {
+            crate::editor::EditorTool::Select => {
+                // Handle dragging: update positions in real-time
+                if editor.is_dragging() {
+                    if let Some(offset) = editor.get_drag_offset(world_pos_adjusted) {
+                        // Update visual positions of selected obstacles during drag
+                        for (i, selected_entity) in editor.selected_obstacles.iter().enumerate() {
+                            if i < editor.drag_original_positions.len() {
+                                let orig_pos = editor.drag_original_positions[i];
+                                let new_x = orig_pos[0] + offset.x;
+                                let new_y = orig_pos[1] + offset.y;
+
+                                // Update transform for visual feedback
+                                for (entity, physics_handle, _) in obstacle_query.iter() {
+                                    if entity == *selected_entity {
+                                        // Update physics body position for real-time feedback
+                                        if let Some(rb) = physics_world.rigid_body_set.get_mut(physics_handle.rigid_body_handle) {
+                                            rb.set_translation(rapier2d::na::Vector2::new(new_x, new_y), true);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            _ => {
+                editor.handle_mouse_drag(world_pos_adjusted);
+            }
+        }
     }
 
     if mouse_button_input.just_released(MouseButton::Left) {
@@ -2904,13 +2979,40 @@ pub fn editor_input_system(
                 }
             }
             crate::editor::EditorTool::Select => {
-                editor.handle_mouse_release();
+                // Finish drag operation if dragging
+                if editor.is_dragging() {
+                    if let Some(offset) = editor.end_drag() {
+                        // Only record undo if actually moved
+                        if offset.x.abs() > 0.01 || offset.y.abs() > 0.01 {
+                            // Update world config obstacles with final positions
+                            let entities: Vec<_> = obstacle_query.iter().map(|(e, _, _)| e).collect();
 
-                // Build obstacle list and entity list for hit testing
-                let obstacles: Vec<_> = app_config.world_config.obstacles.clone();
-                let entities: Vec<_> = obstacle_query.iter().map(|(e, _, _)| e).collect();
+                            for selected_entity in &editor.selected_obstacles.clone() {
+                                if let Some(idx) = entities.iter().position(|e| e == selected_entity) {
+                                    if idx < app_config.world_config.obstacles.len() {
+                                        let old_pos = app_config.world_config.obstacles[idx].pos;
+                                        let new_pos = [old_pos[0] + offset.x, old_pos[1] + offset.y];
 
-                editor.try_select_at(world_pos_adjusted, &obstacles, &entities);
+                                        // Record undo action
+                                        editor.push_undo(crate::editor::EditorAction::MoveObstacle {
+                                            entity: *selected_entity,
+                                            old_pos,
+                                            new_pos,
+                                        });
+
+                                        // Update world config
+                                        app_config.world_config.obstacles[idx].pos = new_pos;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // Simple click without drag - just select
+                    let obstacles: Vec<_> = app_config.world_config.obstacles.clone();
+                    let entities: Vec<_> = obstacle_query.iter().map(|(e, _, _)| e).collect();
+                    editor.try_select_at(world_pos_adjusted, &obstacles, &entities);
+                }
             }
             crate::editor::EditorTool::Delete => {
                 editor.handle_mouse_release();

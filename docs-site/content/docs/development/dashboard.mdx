@@ -6,7 +6,7 @@ order: 12
 
 # Dashboard
 
-> ** Under Development**: The HORUS Dashboard is currently under active development. Core monitoring features work, but some functionality (parameter management UI, package browser) is still being finalized. Check back for updates as we complete this feature.
+> **Under Development**: The HORUS Dashboard is currently under active development. Core monitoring features work, but some functionality (parameter management UI, package browser) is still being finalized. Check back for updates as we complete this feature.
 
 Your mission control for robotics applications. Monitor performance, debug issues, and tune parameters - all from your browser, accessible from any device on your network.
 
@@ -25,10 +25,10 @@ The HORUS Dashboard is a **web interface** that lets you see inside your running
 ### You want to know: "Is my robot working?"
 
 The dashboard shows you **at a glance**:
--  All nodes running? (System health badge)
--  Performance good? (CPU, memory, tick rates)
--  Messages flowing? (Topic activity)
--  Any errors? (Error counts)
+- All nodes running? (System health badge)
+- Performance good? (CPU, memory, tick rates)
+- Messages flowing? (Topic activity)
+- Any errors? (Error counts)
 
 **Without the dashboard:** Grep logs, check processes, SSH into robot, hope you find the issue
 
@@ -100,9 +100,9 @@ Browser opens automatically to `http://localhost:3000`
 - After code changes (ensure no performance regression)
 
 **What you'll notice:**
--  Tick rate steady at ~60 Hz  Good
--  CPU jumping to 90%  Check that node
--  Errors climbing  Something's wrong
+- Tick rate steady at ~60 Hz = Good
+- CPU jumping to 90% = Check that node
+- Errors climbing = Something's wrong
 
 ### 2. **Debug Message Flow**
 
@@ -113,7 +113,7 @@ Browser opens automatically to `http://localhost:3000`
 
 **Use it when:**
 - "Why isn't my subscriber getting data?"
-  - Look: Is there an arrow from publisher  topic  subscriber?
+  - Look: Is there an arrow from publisher -> topic -> subscriber?
   - If not: Name mismatch or node not running
 
 - "Which nodes use this topic?"
@@ -240,7 +240,7 @@ Browser opens automatically to `http://localhost:3000`
 
 **The dashboard binds to all network interfaces**, meaning:
 
- **Works great:**
+**Works great:**
 - Monitor from your desk while robot runs across the room
 - Check on phone while robot is charging
 - Team member in another room sees same view
@@ -293,10 +293,10 @@ horus init --setup-certs
 - No browser warnings - works like a real website!
 
 **After setup:**
-- [OK] No security warnings in any browser
-- [OK] Works on localhost and network IPs
-- [OK] One-time setup per device
-- [OK] Perfect for development and team use
+- No security warnings in any browser
+- Works on localhost and network IPs
+- One-time setup per device
+- Perfect for development and team use
 
 ### Certificate Status
 
@@ -309,7 +309,7 @@ When you start the dashboard, you'll see:
 
 **Without mkcert (self-signed):**
 ```
-[WARNING]️  Your browser may show a security warning (self-signed certificate)
+[WARNING] Your browser may show a security warning (self-signed certificate)
    This is normal - the connection is still encrypted.
    To remove warnings, install mkcert: horus init --setup-certs
 ```

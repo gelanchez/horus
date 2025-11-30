@@ -339,13 +339,22 @@ impl Plugin for ControlsPlugin {
             .add_event::<SimulationEvent>()
             .add_systems(
                 Update,
-                (
-                    controls_panel_system,
-                    keyboard_controls_system,
-                    handle_simulation_events,
-                )
-                    .chain(),
+                (keyboard_controls_system, handle_simulation_events).chain(),
             );
+
+        #[cfg(feature = "visual")]
+        {
+            use bevy_egui::EguiSet;
+            app.add_systems(
+                Update,
+                controls_panel_system.after(EguiSet::InitContexts),
+            );
+        }
+
+        #[cfg(not(feature = "visual"))]
+        {
+            app.add_systems(Update, controls_panel_system);
+        }
     }
 }
 

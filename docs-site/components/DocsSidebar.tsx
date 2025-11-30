@@ -206,7 +206,11 @@ const sections: SidebarSection[] = [
   {
     title: "Advanced Topics",
     links: [
-      { title: "RTOS Integration", href: "/advanced/rtos-integration", order: 1 },
+      { title: "Scheduler Configuration", href: "/advanced/scheduler-configuration", order: 1 },
+      { title: "Execution Modes", href: "/advanced/execution-modes", order: 2 },
+      { title: "Deterministic Execution", href: "/advanced/deterministic-execution", order: 3 },
+      { title: "Robot Presets", href: "/advanced/robot-presets", order: 4 },
+      { title: "RTOS Integration", href: "/advanced/rtos-integration", order: 5 },
     ],
   },
   {

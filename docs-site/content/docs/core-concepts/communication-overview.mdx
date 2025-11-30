@@ -106,7 +106,7 @@ let consumer: Link<Data> = Link::consumer("data")?;
 
 ## When to Use Hub
 
-✅ **Broadcasting to multiple nodes**
+**Broadcasting to multiple nodes**
 ```rust
 // One camera feeds multiple processors
 let camera_pub: Hub<Image> = Hub::new("camera")?;
@@ -115,28 +115,28 @@ let camera_pub: Hub<Image> = Hub::new("camera")?;
 // subscriber 3: recording/logging
 ```
 
-✅ **Logging and monitoring**
+**Logging and monitoring**
 ```rust
 // Many nodes publish diagnostics, one logger subscribes
 let diag_pub: Hub<DiagMsg> = Hub::new("diagnostics")?;
 let logger: Hub<DiagMsg> = Hub::new("diagnostics")?;
 ```
 
-✅ **Event-driven systems**
+**Event-driven systems**
 ```rust
 // Events trigger actions in multiple subsystems
 let event_pub: Hub<EmergencyStop> = Hub::new("estop")?;
 // All motor controllers subscribe and react
 ```
 
-✅ **Flexible topologies**
+**Flexible topologies**
 - Number of subscribers unknown at compile time
 - Nodes can join/leave during runtime
 - Pub/sub pattern from ROS/MQTT/DDS
 
 ## When to Use Link
 
-✅ **Control loops** (high-frequency, latency-critical)
+**Control loops** (high-frequency, latency-critical)
 ```rust
 // IMU → State Estimator → Controller → Motors
 // Each stage connected by a Link (248ns latency)
@@ -146,7 +146,7 @@ struct FlightController {
 }
 ```
 
-✅ **Point-to-point pipelines**
+**Point-to-point pipelines**
 ```rust
 // Sensor → Filter → Processor
 let raw_output: Link<RawData> = Link::producer("raw")?;
@@ -155,14 +155,14 @@ let raw_input: Link<RawData> = Link::consumer("raw")?;
 let filtered_output: Link<FilteredData> = Link::producer("filtered")?;
 ```
 
-✅ **Latest-value semantics**
+**Latest-value semantics**
 ```rust
 // Always want the newest sensor reading
 let lidar: Link<LidarScan> = Link::consumer("lidar")?;
 // Old scans are irrelevant - only latest matters
 ```
 
-✅ **Deterministic real-time systems**
+**Deterministic real-time systems**
 - Fixed topology known at compile time
 - Predictable latency critical
 - Hard real-time requirements

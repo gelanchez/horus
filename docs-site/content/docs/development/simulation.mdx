@@ -23,41 +23,41 @@ HORUS provides **two levels of simulation**:
 
 | Simulator | Status | Dimensions | Use Case | Performance |
 |-----------|--------|------------|----------|-------------|
-| **sim2d** |  **Active Development** | 2D Top-Down | Fast prototyping, navigation | 1000+ Hz headless |
-| **sim3d** |  **Available** | Full 3D | Realistic testing, RL training | 60 FPS visual, 100K+ steps/sec RL |
+| **sim2d** | Active Development | 2D Top-Down | Fast prototyping, navigation | 1000+ Hz headless |
+| **sim3d** | Available | Full 3D | Realistic testing, RL training | 60 FPS visual, 100K+ steps/sec RL |
 
 ### Node Simulation Mode
 
 Every hardware node (IMU, GPS, LiDAR, Camera, Serial, etc.) has a built-in `simulation` mode that generates synthetic data. See [Node Simulation Mode](#node-simulation-mode) below.
 
 **Key Benefits:**
--  **Same code works in sim and reality** - Write once, deploy anywhere
--  **HORUS-native** - Direct Hub integration, no middleware
--  **Sub-microsecond IPC** - Realistic latency testing
--  **CI/CD ready** - Headless mode for automated testing
--  **No hardware required** - Develop before hardware arrives
+- **Same code works in sim and reality** - Write once, deploy anywhere
+- **HORUS-native** - Direct Hub integration, no middleware
+- **Sub-microsecond IPC** - Realistic latency testing
+- **CI/CD ready** - Headless mode for automated testing
+- **No hardware required** - Develop before hardware arrives
 
 ---
 
 ## sim2d - 2D Robotics Simulator
 
->  **Status:** Active Development - Core features working, polish ongoing
+> **Status:** Active Development - Core features working, polish ongoing
 
 ### What is sim2d?
 
 A lightweight **2D top-down simulator** built with Bevy and Rapier2D for fast iteration and testing.
 
 **Perfect for:**
--  Navigation algorithm development
--  Multi-robot coordination
--  Path planning testing
--  Sensor simulation (LiDAR, odometry, IMU)
--  CI/CD automated testing
+- Navigation algorithm development
+- Multi-robot coordination
+- Path planning testing
+- Sensor simulation (LiDAR, odometry, IMU)
+- CI/CD automated testing
 
 **Not designed for:**
--  Realistic 3D visualization
--  Camera/vision simulation
--  Complex robot modeling
+- Realistic 3D visualization
+- Camera/vision simulation
+- Complex robot modeling
 
 ### Quick Start
 
@@ -277,10 +277,10 @@ Options:
 
 As sim2d is under active development, be aware of:
 
--  Limited to 2D top-down view
--  No camera/vision sensors yet
--  Basic visualization (no shadows, advanced graphics)
--  Documentation being updated
+- Limited to 2D top-down view
+- No camera/vision sensors yet
+- Basic visualization (no shadows, advanced graphics)
+- Documentation being updated
 
 For production use, we recommend:
 - Testing critical algorithms in sim2d first
@@ -290,7 +290,7 @@ For production use, we recommend:
 
 ## sim3d - 3D Robotics Simulator with RL Support
 
->  **Status:** Available - Core features implemented, advanced features in development
+> **Status:** Available - Core features implemented, advanced features in development
 
 ### Overview
 
@@ -550,35 +550,35 @@ for _ in range(1000):
 ### Development Roadmap
 
 **Phase 1: Core Foundation** (Q1 2026)
--  Technical specification complete
-- 🚧 Bevy + Rapier3D integration
-- 🚧 Basic robot spawning
-- 🚧 Camera controls
+- [DONE] Technical specification complete
+- [WIP] Bevy + Rapier3D integration
+- [WIP] Basic robot spawning
+- [WIP] Camera controls
 
 **Phase 2: Robot Support** (Q2 2026)
-- 🚧 URDF loading
-- 🚧 TF system implementation
-- 🚧 Articulated robots
-- 🚧 Joint controllers
+- [WIP] URDF loading
+- [WIP] TF system implementation
+- [WIP] Articulated robots
+- [WIP] Joint controllers
 
 **Phase 3: Sensors** (Q2 2026)
-- 🚧 LiDAR 3D
-- 🚧 RGB-D camera
-- 🚧 IMU, GPS, encoders
-- 🚧 Sensor noise models
+- [WIP] LiDAR 3D
+- [WIP] RGB-D camera
+- [WIP] IMU, GPS, encoders
+- [WIP] Sensor noise models
 
 **Phase 4: RL Features** (Q3 2026)
-- 🚧 Headless mode optimization
-- 🚧 Vectorized environments
-- 🚧 Python Gymnasium bindings
-- 🚧 Domain randomization
-- 🚧 Built-in tasks
+- [WIP] Headless mode optimization
+- [WIP] Vectorized environments
+- [WIP] Python Gymnasium bindings
+- [WIP] Domain randomization
+- [WIP] Built-in tasks
 
 **Phase 5: Polish** (Q3-Q4 2026)
-- 🚧 Scene editor
-- 🚧 Gazebo SDF import
-- 🚧 Documentation
-- 🚧 Example projects
+- [WIP] Scene editor
+- [WIP] Gazebo SDF import
+- [WIP] Documentation
+- [WIP] Example projects
 
 ### Performance Targets
 
@@ -856,11 +856,11 @@ sensors:
 |---------|-------|-----------------|--------|--------|-----------|
 | **Dimensions** | 2D | 3D | 3D | 3D | 3D |
 | **Physics** | Rapier2D | Rapier3D | ODE/Bullet | ODE | PhysX |
-| **HORUS Native** |  Yes |  Yes |  No |  No |  No |
+| **HORUS Native** | Yes | Yes | No | No | No |
 | **IPC Latency** | 85-167ns | ~300ns | 10ms+ | 10ms+ | N/A |
 | **Headless Speed** | 1000+ Hz | 100K+ steps/sec | 100 Hz | 100 Hz | 1000+ Hz |
-| **RL Ready** |  Basic |  Yes |  Plugins |  Plugins |  Yes |
-| **URDF Support** |  No |  Yes |  Yes |  Yes |  Yes |
+| **RL Ready** | Basic | Yes | Plugins | Plugins | Yes |
+| **URDF Support** | No | Yes | Yes | Yes | Yes |
 | **Language** | Rust | Rust | C++ | C++ | Python |
 | **License** | MIT | MIT | Apache | Apache | Proprietary |
 
@@ -901,15 +901,15 @@ horus_library/apps/
 Help shape HORUS simulation tools:
 
 **sim2d (Active Development):**
--  Report bugs and issues
--  Suggest features and improvements
--  Improve documentation
-- 🧪 Add test scenarios
+- Report bugs and issues
+- Suggest features and improvements
+- Improve documentation
+- Add test scenarios
 
 **sim3d (Upcoming):**
-- 💬 Provide feedback on specification
--  Suggest priority features
-- 🤝 Volunteer for implementation
+- Provide feedback on specification
+- Suggest priority features
+- Volunteer for implementation
 
 See [Contributing Guide](/contributing) for details.
 
@@ -918,21 +918,21 @@ See [Contributing Guide](/contributing) for details.
 ## Roadmap
 
 ### sim2d
--  Basic 2D physics and rendering
--  LiDAR sensor simulation
--  HORUS Hub integration
-- 🚧 Multi-robot support (in progress)
-- 🚧 Additional sensors (camera, IMU)
--  Scene editor
--  Scenario library
+- [DONE] Basic 2D physics and rendering
+- [DONE] LiDAR sensor simulation
+- [DONE] HORUS Hub integration
+- [WIP] Multi-robot support (in progress)
+- [WIP] Additional sensors (camera, IMU)
+- [TODO] Scene editor
+- [TODO] Scenario library
 
 ### sim3d
--  Complete technical specification
--  Core implementation (Q1-Q2 2026)
--  URDF support (Q2 2026)
--  3D sensors (Q2 2026)
--  RL features (Q3 2026)
--  Beta release (Q4 2026)
+- [DONE] Complete technical specification
+- [TODO] Core implementation (Q1-Q2 2026)
+- [TODO] URDF support (Q2 2026)
+- [TODO] 3D sensors (Q2 2026)
+- [TODO] RL features (Q3 2026)
+- [TODO] Beta release (Q4 2026)
 
 ---
 

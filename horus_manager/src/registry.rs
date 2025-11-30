@@ -1826,15 +1826,12 @@ fn extract_package_dependencies(dir: &Path) -> Result<Vec<DependencySpec>> {
     Ok(dependencies)
 }
 
-// Pre-compile package if it's Rust or C
+// Pre-compile Rust packages (Python packages don't need pre-compilation)
 fn precompile_package(package_dir: &Path) -> Result<()> {
     use std::process::Command;
 
-    // Detect package language
+    // Detect package language - HORUS supports Rust and Python packages only
     let has_cargo_toml = package_dir.join("Cargo.toml").exists();
-    let has_makefile =
-        package_dir.join("Makefile").exists() || package_dir.join("makefile").exists();
-    let has_cmake = package_dir.join("CMakeLists.txt").exists();
 
     if has_cargo_toml {
         // Rust package - compile with cargo
@@ -1894,45 +1891,8 @@ fn precompile_package(package_dir: &Path) -> Result<()> {
         }
 
         println!("  {} Rust package pre-compiled", "".green());
-    } else if has_makefile {
-        // C package with Makefile
-        println!("  {} Pre-compiling C package (make)...", "".cyan());
-
-        let status = Command::new("make").current_dir(package_dir).status()?;
-
-        if !status.success() {
-            return Err(anyhow!("Make build failed"));
-        }
-
-        println!("  {} C package pre-compiled", "".green());
-    } else if has_cmake {
-        // C package with CMake
-        println!("  {} Pre-compiling C package (cmake)...", "".cyan());
-
-        let build_dir = package_dir.join("build");
-        fs::create_dir_all(&build_dir)?;
-
-        // Run cmake
-        let status = Command::new("cmake")
-            .arg("..")
-            .arg("-DCMAKE_BUILD_TYPE=Release")
-            .current_dir(&build_dir)
-            .status()?;
-
-        if !status.success() {
-            return Err(anyhow!("CMake configuration failed"));
-        }
-
-        // Run make
-        let status = Command::new("make").current_dir(&build_dir).status()?;
-
-        if !status.success() {
-            return Err(anyhow!("CMake build failed"));
-        }
-
-        println!("  {} C package pre-compiled", "".green());
     } else {
-        // Not a compiled package (probably Python)
+        // Not a compiled package (Python packages don't need pre-compilation)
         return Err(anyhow!("Not a compiled package"));
     }
 

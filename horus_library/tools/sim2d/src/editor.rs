@@ -64,6 +64,15 @@ pub struct WorldEditor {
 
     /// Redo stack
     pub redo_stack: Vec<EditorAction>,
+
+    /// Color for new obstacles (set from UI)
+    pub selected_color: [f32; 3],
+
+    /// Dragging state for move operations
+    pub drag_start_pos: Option<Vec2>,
+
+    /// Original positions of selected obstacles before drag
+    pub drag_original_positions: Vec<[f32; 2]>,
 }
 
 /// Editor action for undo/redo
@@ -104,6 +113,9 @@ impl WorldEditor {
             enabled: false,
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
+            selected_color: [0.6, 0.6, 0.6], // Default gray
+            drag_start_pos: None,
+            drag_original_positions: Vec::new(),
         }
     }
 
@@ -181,7 +193,7 @@ impl WorldEditor {
                 pos: [center.x, center.y],
                 size: [size.x, size.y],
                 shape: in_progress.shape,
-                color: Some([0.6, 0.6, 0.6]), // Default gray
+                color: Some(self.selected_color), // Use UI-selected color
             };
 
             return Some(obstacle);
@@ -218,11 +230,18 @@ impl WorldEditor {
             let center = (in_progress.start_pos + in_progress.current_pos) / 2.0;
             let size = (in_progress.current_pos - in_progress.start_pos).abs();
 
+            // Use selected color with slight transparency effect (lighter version)
+            let preview_color = [
+                (self.selected_color[0] + 0.3).min(1.0),
+                (self.selected_color[1] + 0.3).min(1.0),
+                (self.selected_color[2] + 0.3).min(1.0),
+            ];
+
             Some(Obstacle {
                 pos: [center.x, center.y],
                 size: [size.x.max(0.1), size.y.max(0.1)],
                 shape: in_progress.shape.clone(),
-                color: Some([0.5, 0.8, 0.5]), // Green preview
+                color: Some(preview_color),
             })
         } else {
             None
@@ -307,6 +326,60 @@ impl WorldEditor {
         } else {
             None
         }
+    }
+
+    /// Start dragging selected obstacles
+    pub fn start_drag(&mut self, pos: Vec2, obstacles: &[Obstacle], entities: &[Entity]) {
+        if self.selected_obstacles.is_empty() {
+            return;
+        }
+
+        self.drag_start_pos = Some(pos);
+        self.drag_original_positions.clear();
+
+        // Store original positions of selected obstacles
+        for selected_entity in &self.selected_obstacles {
+            if let Some(idx) = entities.iter().position(|e| e == selected_entity) {
+                if idx < obstacles.len() {
+                    self.drag_original_positions.push(obstacles[idx].pos);
+                }
+            }
+        }
+    }
+
+    /// Calculate drag offset from start position
+    pub fn get_drag_offset(&self, current_pos: Vec2) -> Option<Vec2> {
+        self.drag_start_pos.map(|start| {
+            let offset = current_pos - start;
+            if self.grid_snap {
+                Vec2::new(
+                    (offset.x / self.grid_size).round() * self.grid_size,
+                    (offset.y / self.grid_size).round() * self.grid_size,
+                )
+            } else {
+                offset
+            }
+        })
+    }
+
+    /// End drag operation
+    pub fn end_drag(&mut self) -> Option<Vec2> {
+        let offset = self.drag_start_pos.take().and_then(|start| {
+            Some(self.snap_to_grid(self.mouse_world_pos) - self.snap_to_grid(start))
+        });
+        self.drag_original_positions.clear();
+        offset
+    }
+
+    /// Check if currently dragging
+    pub fn is_dragging(&self) -> bool {
+        self.drag_start_pos.is_some()
+    }
+
+    /// Cancel drag operation
+    pub fn cancel_drag(&mut self) {
+        self.drag_start_pos = None;
+        self.drag_original_positions.clear();
     }
 }
 

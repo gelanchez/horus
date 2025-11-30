@@ -310,7 +310,13 @@ fn run_visual_mode(cli: Cli) {
         // Editor plugins (EditorPlugin already includes undo internally)
         app.add_plugins(editor::EditorPlugin);
 
-        app.add_systems(Update, (ui::debug_panel::debug_panel_system,));
+        {
+            use bevy_egui::EguiSet;
+            app.add_systems(
+                Update,
+                ui::debug_panel::debug_panel_system.after(EguiSet::InitContexts),
+            );
+        }
 
         app.add_systems(
             Update,

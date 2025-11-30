@@ -15,6 +15,7 @@
     </visual>
     <collision>
       <geometry>
+        <!-- Just the body collision - wheels have their own colliders -->
         <box size="0.20 0.15 0.06"/>
       </geometry>
       <origin xyz="0 0 0.03" rpy="0 0 0"/>

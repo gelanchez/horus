@@ -33,6 +33,8 @@ pub struct ColliderBuilder {
     restitution: f32,
     density: Option<f32>,
     is_sensor: bool,
+    position: Option<Vec3>,
+    rotation: Option<Quat>,
 }
 
 impl ColliderBuilder {
@@ -43,6 +45,8 @@ impl ColliderBuilder {
             restitution: 0.0,
             density: None,
             is_sensor: false,
+            position: None,
+            rotation: None,
         }
     }
 
@@ -63,6 +67,16 @@ impl ColliderBuilder {
 
     pub fn sensor(mut self, is_sensor: bool) -> Self {
         self.is_sensor = is_sensor;
+        self
+    }
+
+    pub fn position(mut self, position: Vec3) -> Self {
+        self.position = Some(position);
+        self
+    }
+
+    pub fn rotation(mut self, rotation: Quat) -> Self {
+        self.rotation = Some(rotation);
         self
     }
 
@@ -97,6 +111,31 @@ impl ColliderBuilder {
 
         if let Some(density) = self.density {
             collider = collider.density(density);
+        }
+
+        // Apply position and rotation if set
+        if let (Some(pos), Some(rot)) = (self.position, self.rotation) {
+            let isometry = rapier3d::na::Isometry3::from_parts(
+                rapier3d::na::Translation3::new(pos.x, pos.y, pos.z),
+                rapier3d::na::UnitQuaternion::from_quaternion(rapier3d::na::Quaternion::new(
+                    rot.w, rot.x, rot.y, rot.z,
+                )),
+            );
+            collider = collider.position(isometry);
+        } else if let Some(pos) = self.position {
+            let isometry = rapier3d::na::Isometry3::from_parts(
+                rapier3d::na::Translation3::new(pos.x, pos.y, pos.z),
+                rapier3d::na::UnitQuaternion::identity(),
+            );
+            collider = collider.position(isometry);
+        } else if let Some(rot) = self.rotation {
+            let isometry = rapier3d::na::Isometry3::from_parts(
+                rapier3d::na::Translation3::identity(),
+                rapier3d::na::UnitQuaternion::from_quaternion(rapier3d::na::Quaternion::new(
+                    rot.w, rot.x, rot.y, rot.z,
+                )),
+            );
+            collider = collider.position(isometry);
         }
 
         collider.build()

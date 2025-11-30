@@ -1118,7 +1118,14 @@ impl Plugin for TooltipsPlugin {
             );
 
         #[cfg(feature = "visual")]
-        app.add_systems(Update, (tooltip_render_system, help_overlay_render_system));
+        {
+            use bevy_egui::EguiSet;
+            app.add_systems(
+                Update,
+                (tooltip_render_system, help_overlay_render_system)
+                    .after(EguiSet::InitContexts),
+            );
+        }
     }
 }
 

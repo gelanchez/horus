@@ -14,15 +14,15 @@ HORUS has **native cross-platform support**:
 
 | Platform | Status | Shared Memory Path | Notes |
 |----------|--------|-------------------|-------|
-| **Ubuntu 20.04+** | ✅ Native | `/dev/shm/horus/` | Recommended for production |
-| **Ubuntu 22.04+** | ✅ Native | `/dev/shm/horus/` | Best performance |
-| **Debian 11+** | ✅ Native | `/dev/shm/horus/` | Tested and working |
-| **Fedora 36+** | ✅ Native | `/dev/shm/horus/` | Use dnf for packages |
-| **Arch Linux** | ✅ Native | `/dev/shm/horus/` | Community maintained |
-| **Raspberry Pi** | ✅ Native | `/dev/shm/horus/` | ARM64 tested on Ubuntu |
-| **macOS** | ✅ Native | `/tmp/horus/` | tmpfs-backed, full support |
-| **Windows** | ✅ Native | `%TEMP%\horus\` | Native Windows support |
-| **WSL 2** | ✅ Native | `/dev/shm/horus/` | Linux mode in WSL |
+| **Ubuntu 20.04+** | Supported | `/dev/shm/horus/` | Recommended for production |
+| **Ubuntu 22.04+** | Supported | `/dev/shm/horus/` | Best performance |
+| **Debian 11+** | Supported | `/dev/shm/horus/` | Tested and working |
+| **Fedora 36+** | Supported | `/dev/shm/horus/` | Use dnf for packages |
+| **Arch Linux** | Supported | `/dev/shm/horus/` | Community maintained |
+| **Raspberry Pi** | Supported | `/dev/shm/horus/` | ARM64 tested on Ubuntu |
+| **macOS** | Supported | `/tmp/horus/` | tmpfs-backed, full support |
+| **Windows** | Supported | `%TEMP%\horus\` | Native Windows support |
+| **WSL 2** | Supported | `/dev/shm/horus/` | Linux mode in WSL |
 
 ## Prerequisites
 
@@ -708,10 +708,10 @@ horus init --setup-certs
 ```
 
 **What this does:**
-- [OK] Installs a local Certificate Authority on your device
-- [OK] Generates trusted certificates for localhost and your network IP
-- [OK] Eliminates browser security warnings
-- [OK] Works with all browsers (Chrome, Firefox, Safari, Edge)
+- Installs a local Certificate Authority on your device
+- Generates trusted certificates for localhost and your network IP
+- Eliminates browser security warnings
+- Works with all browsers (Chrome, Firefox, Safari, Edge)
 
 **After this setup:**
 - When you run `horus dashboard`, you'll see: **[OK] Trusted certificate detected - No browser warnings!**

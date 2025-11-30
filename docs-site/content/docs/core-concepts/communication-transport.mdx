@@ -92,14 +92,14 @@ let link: Link<ImuData> = Link::producer("imu@192.168.1.5:9000")?;
 
 ## When to Use Local Transport
 
-✅ **Single-machine systems**
+**Single-machine systems**
 ```rust
 // Raspberry Pi robot with multiple processes
 let camera: Hub<Image> = Hub::new("camera")?;
 let motors: Link<MotorCmd> = Link::producer("motors")?;
 ```
 
-✅ **Development and testing**
+**Development and testing**
 ```rust
 // All nodes on your laptop
 horus run sensors.rs &
@@ -107,14 +107,14 @@ horus run controller.rs &
 horus run motors.rs &
 ```
 
-✅ **Ultra-low latency requirements**
+**Ultra-low latency requirements**
 ```rust
 // 1kHz control loop (1ms period)
 // 248ns Link latency leaves plenty of headroom
 let state: Link<State> = Link::consumer("state")?;
 ```
 
-✅ **High-bandwidth data**
+**High-bandwidth data**
 ```rust
 // Streaming 30 FPS camera at 1920x1080
 // ~60MB/sec throughput
@@ -137,7 +137,7 @@ let camera: Hub<Image> = Hub::new("camera")?;
 
 ## When to Use Network Transport
 
-✅ **Multi-robot systems**
+**Multi-robot systems**
 ```rust
 // Robot fleet coordination
 // Robot 1 (192.168.1.10)
@@ -147,7 +147,7 @@ let position_pub: Hub<Position> = Hub::new("fleet.positions@router")?;
 let positions: Hub<Position> = Hub::new("fleet.positions@router")?;
 ```
 
-✅ **Edge computing clusters**
+**Edge computing clusters**
 ```rust
 // Camera on edge device, processing on server
 // Edge device (192.168.1.50)
@@ -157,7 +157,7 @@ let camera: Link<Image> = Link::producer("camera@192.168.1.100:9000")?;
 let images: Link<Image> = Link::consumer("camera@0.0.0.0:9000")?;
 ```
 
-✅ **Distributed sensing**
+**Distributed sensing**
 ```rust
 // Multiple sensors across warehouse
 // Sensor nodes at different locations
@@ -168,7 +168,7 @@ let sensor2: Hub<Temperature> = Hub::new("sensors@192.168.1.6")?;
 let temps: Hub<Temperature> = Hub::new("sensors@router")?;
 ```
 
-✅ **Remote monitoring**
+**Remote monitoring**
 ```rust
 // Robot in field, monitoring dashboard on laptop
 // Robot publishes status
@@ -268,16 +268,16 @@ Link::consumer("imu@0.0.0.0:9000")?           // → TCP listen on port 9000
 ### Frequency Guidelines
 
 **Local Shared Memory**:
-- ✅ 10kHz (100µs period): Plenty of headroom with 248ns latency
-- ✅ 1kHz (1ms period): Typical control loop rate
-- ✅ 100Hz (10ms period): Sensor fusion, planning
-- ✅ 30Hz (33ms period): Camera, visualization
+- 10kHz (100us period): Plenty of headroom with 248ns latency
+- 1kHz (1ms period): Typical control loop rate
+- 100Hz (10ms period): Sensor fusion, planning
+- 30Hz (33ms period): Camera, visualization
 
 **Network**:
-- ✅ 1kHz (1ms period): Possible with Link (5-15µs latency)
-- ✅ 100Hz (10ms period): Comfortable for most use cases
-- ✅ 30Hz (33ms period): Typical for camera streaming
-- ⚠️ 10kHz: Not recommended due to network overhead
+- 1kHz (1ms period): Possible with Link (5-15us latency)
+- 100Hz (10ms period): Comfortable for most use cases
+- 30Hz (33ms period): Typical for camera streaming
+- 10kHz: Not recommended due to network overhead
 
 ## Reliability Considerations
 

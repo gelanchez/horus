@@ -744,9 +744,24 @@ impl SceneLoader {
                 urdf_path.display()
             );
 
+            // Calculate position and rotation from scene definition BEFORE spawning
+            let position = Vec3::from(robot_def.position);
+            let rotation = if let Some(euler) = robot_def.rotation_euler {
+                Quat::from_euler(
+                    EulerRot::XYZ,
+                    euler[0].to_radians(),
+                    euler[1].to_radians(),
+                    euler[2].to_radians(),
+                )
+            } else {
+                Quat::from_array(robot_def.rotation)
+            };
+
             let mut urdf_loader = URDFLoader::new().with_base_path(world_dir);
-            match urdf_loader.load(
+            match urdf_loader.load_at_position(
                 &urdf_path,
+                position,
+                rotation,
                 commands,
                 physics_world,
                 tf_tree,
@@ -754,26 +769,9 @@ impl SceneLoader {
                 materials,
             ) {
                 Ok(robot_entity) => {
-                    // Apply position and rotation from scene definition
-                    let position = Vec3::from(robot_def.position);
-                    let rotation = if let Some(euler) = robot_def.rotation_euler {
-                        Quat::from_euler(
-                            EulerRot::XYZ,
-                            euler[0].to_radians(),
-                            euler[1].to_radians(),
-                            euler[2].to_radians(),
-                        )
-                    } else {
-                        Quat::from_array(robot_def.rotation)
-                    };
-
-                    commands
-                        .entity(robot_entity)
-                        .insert(Transform::from_translation(position).with_rotation(rotation));
-
                     loaded_scene.entities.push(robot_entity);
                     spawned_objects.add(robot_entity);
-                    info!("Successfully spawned robot '{}'", robot_def.name);
+                    info!("Successfully spawned robot '{}' at position {:?}", robot_def.name, position);
                 }
                 Err(e) => {
                     warn!("Failed to load robot '{}': {}", robot_def.name, e);

@@ -153,12 +153,25 @@ pub fn discover_graph_data() -> (Vec<GraphNode>, Vec<GraphEdge>) {
     }
 
     // Also discover topics from shared memory (for topics that may not be in registry yet)
+    // AND infer edges from accessing_processes when registry info is missing
     if let Ok(topics) = super::commands::monitor::discover_shared_memory() {
+        // Build a map of PID -> process node ID for edge inference
+        let mut pid_to_node_id: std::collections::HashMap<u32, String> = std::collections::HashMap::new();
+        for node in &graph_nodes {
+            if node.node_type == NodeType::Process {
+                if let Some(pid) = node.pid {
+                    pid_to_node_id.insert(pid, node.id.clone());
+                }
+            }
+        }
+
         for topic in topics {
+            let topic_id = format!("topic_{}", topic.topic_name);
+
+            // Add topic node if not already added
             if !added_topics.contains(&topic.topic_name) {
-                let topic_id = format!("topic_{}", topic.topic_name);
                 graph_nodes.push(GraphNode {
-                    id: topic_id,
+                    id: topic_id.clone(),
                     label: topic.topic_name.clone(),
                     node_type: NodeType::Topic,
                     position: get_position(
@@ -171,7 +184,58 @@ pub fn discover_graph_data() -> (Vec<GraphNode>, Vec<GraphEdge>) {
                     active: topic.active,
                 });
                 topic_index += 1;
-                added_topics.insert(topic.topic_name);
+                added_topics.insert(topic.topic_name.clone());
+            }
+
+            // Fallback: infer edges from accessing_processes if no registry edges exist
+            // This gives us visibility even without registry.json
+            for accessing_pid in &topic.accessing_processes {
+                if let Some(process_node_id) = pid_to_node_id.get(accessing_pid) {
+                    // Check if we already have an edge for this process-topic pair
+                    let edge_exists = graph_edges.iter().any(|e| {
+                        (e.from == *process_node_id && e.to == topic_id)
+                            || (e.from == topic_id && e.to == *process_node_id)
+                    });
+
+                    if !edge_exists {
+                        // We can't tell pub vs sub from accessing_processes alone,
+                        // so default to Publish (process -> topic)
+                        graph_edges.push(GraphEdge {
+                            from: process_node_id.clone(),
+                            to: topic_id.clone(),
+                            edge_type: EdgeType::Publish, // Default assumption
+                            active: topic.active,
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    // Final fallback: if we still have no edges, infer relationships based on namespace matching
+    // This connects all nodes to topics when running in the same simulation
+    if graph_edges.is_empty() && !graph_nodes.is_empty() {
+        let process_nodes: Vec<_> = graph_nodes
+            .iter()
+            .filter(|n| n.node_type == NodeType::Process)
+            .collect();
+        let topic_nodes: Vec<_> = graph_nodes
+            .iter()
+            .filter(|n| n.node_type == NodeType::Topic)
+            .collect();
+
+        // Connect all active processes to all active topics (they're all part of same simulation)
+        for process in &process_nodes {
+            for topic in &topic_nodes {
+                // Check if both are active (running simulation)
+                if process.active || topic.active {
+                    graph_edges.push(GraphEdge {
+                        from: process.id.clone(),
+                        to: topic.id.clone(),
+                        edge_type: EdgeType::Publish, // Generic connection
+                        active: process.active && topic.active,
+                    });
+                }
             }
         }
     }

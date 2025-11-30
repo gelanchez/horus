@@ -1005,17 +1005,18 @@ pub struct ThemePlugin;
 #[cfg(feature = "visual")]
 impl Plugin for ThemePlugin {
     fn build(&self, app: &mut App) {
+        use bevy_egui::EguiSet;
+
         app.init_resource::<ThemeConfig>()
             .add_event::<ThemeChangedEvent>()
             .add_systems(Startup, load_saved_theme_system)
             .add_systems(
                 Update,
-                (
-                    apply_theme_system,
-                    handle_theme_change_system,
-                    theme_keyboard_system,
-                )
-                    .chain(),
+                (handle_theme_change_system, theme_keyboard_system).chain(),
+            )
+            .add_systems(
+                Update,
+                apply_theme_system.after(EguiSet::InitContexts),
             );
     }
 }

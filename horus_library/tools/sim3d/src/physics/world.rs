@@ -98,6 +98,22 @@ impl PhysicsWorld {
             rb.user_data = entity.to_bits() as u128;
         }
     }
+
+    /// Set the position and rotation of a rigid body
+    pub fn set_rigid_body_transform(
+        &mut self,
+        handle: RigidBodyHandle,
+        position: nalgebra::Vector3<f32>,
+        rotation: nalgebra::UnitQuaternion<f32>,
+    ) {
+        if let Some(rb) = self.rigid_body_set.get_mut(handle) {
+            let isometry = nalgebra::Isometry3::from_parts(
+                nalgebra::Translation3::from(position),
+                rotation,
+            );
+            rb.set_position(isometry, true);
+        }
+    }
 }
 
 /// System to extract contact forces from Rapier3D and populate ContactForce components

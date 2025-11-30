@@ -806,9 +806,8 @@ pub fn ui_system(
                                         color.g() as f32 / 255.0,
                                         color.b() as f32 / 255.0,
                                     ];
-                                    ui_state.reset_simulation = true;
-                                    ui_state.status_message =
-                                        "Robot color changed - restarting...".to_string();
+                                    // Color updates live - no restart needed
+                                    ui_state.status_message = "Robot color updated".to_string();
                                 }
                             });
                         } else {
@@ -1158,8 +1157,12 @@ pub fn ui_system(
                                         color.g() as f32 / 255.0,
                                         color.b() as f32 / 255.0,
                                     ];
+                                    // Sync color to editor for obstacle creation
+                                    editor.selected_color = ui_state.editor_selected_color;
                                 }
                             });
+                            // Always keep editor color in sync with UI
+                            editor.selected_color = ui_state.editor_selected_color;
 
                             ui.add_space(5.0);
                             ui.separator();
@@ -1437,6 +1440,54 @@ pub fn ui_system(
                     .show(ui, |ui| {
                         ui_state.show_articulated_section = true;
 
+                        // Robot selector (if multiple robots exist)
+                        let robot_names: Vec<String> = articulated_robots.iter().map(|r| r.name.clone()).collect();
+                        if robot_names.len() > 1 {
+                            ui.horizontal(|ui| {
+                                ui.label("Select Robot:");
+                                egui::ComboBox::from_id_salt("robot_selector")
+                                    .selected_text(
+                                        ui_state.selected_articulated_robot
+                                            .as_ref()
+                                            .unwrap_or(&robot_names[0])
+                                    )
+                                    .show_ui(ui, |ui| {
+                                        for name in &robot_names {
+                                            ui.selectable_value(
+                                                &mut ui_state.selected_articulated_robot,
+                                                Some(name.clone()),
+                                                name,
+                                            );
+                                        }
+                                    });
+                            });
+                            ui.add_space(5.0);
+                        }
+
+                        // Joint Control Mode selector
+                        ui.horizontal(|ui| {
+                            ui.label("Control Mode:");
+                            egui::ComboBox::from_id_salt("joint_control_mode")
+                                .selected_text(format!("{:?}", ui_state.joint_control_mode))
+                                .show_ui(ui, |ui| {
+                                    ui.selectable_value(
+                                        &mut ui_state.joint_control_mode,
+                                        crate::joint::JointControlMode::Position,
+                                        "Position",
+                                    );
+                                    ui.selectable_value(
+                                        &mut ui_state.joint_control_mode,
+                                        crate::joint::JointControlMode::Velocity,
+                                        "Velocity",
+                                    );
+                                    ui.selectable_value(
+                                        &mut ui_state.joint_control_mode,
+                                        crate::joint::JointControlMode::Effort,
+                                        "Effort",
+                                    );
+                                });
+                        });
+
                         // Visual options
                         ui.horizontal(|ui| {
                             ui.checkbox(&mut ui_state.show_joint_markers, "Show Joint Markers");
@@ -1445,8 +1496,19 @@ pub fn ui_system(
                         ui.add_space(5.0);
                         ui.separator();
 
+                        // Filter to selected robot or show all
+                        let selected_robot_name = ui_state.selected_articulated_robot.clone();
+
                         // List each articulated robot
                         for robot in articulated_robots.iter() {
+                            // Skip if not the selected robot (when multiple exist)
+                            if robot_names.len() > 1 {
+                                if let Some(ref selected) = selected_robot_name {
+                                    if &robot.name != selected {
+                                        continue;
+                                    }
+                                }
+                            }
                             ui.add_space(5.0);
                             ui.label(
                                 egui::RichText::new(&robot.name)
@@ -1463,7 +1525,14 @@ pub fn ui_system(
                                 .color(egui::Color32::from_rgb(150, 150, 150)),
                             );
 
-                            // Joint sliders
+                            // Joint sliders - behavior depends on control mode
+                            let control_mode = ui_state.joint_control_mode;
+                            let (slider_unit, slider_range_default) = match control_mode {
+                                crate::joint::JointControlMode::Position => ("rad", (-std::f32::consts::PI, std::f32::consts::PI)),
+                                crate::joint::JointControlMode::Velocity => ("rad/s", (-5.0, 5.0)),
+                                crate::joint::JointControlMode::Effort => ("Nm", (-50.0, 50.0)),
+                            };
+
                             for joint_cfg in &robot.config.joints {
                                 let joint_name = &joint_cfg.name;
                                 let current_pos = robot
@@ -1472,14 +1541,20 @@ pub fn ui_system(
                                     .copied()
                                     .unwrap_or(0.0);
 
-                                // Get limits from joint config
-                                let [min, max] = match &joint_cfg.joint_type {
+                                // Get limits from joint config (for position mode)
+                                let [pos_min, pos_max] = match &joint_cfg.joint_type {
                                     crate::joint::Joint2DType::Revolute { limits, .. } => limits
                                         .unwrap_or([-std::f32::consts::PI, std::f32::consts::PI]),
                                     crate::joint::Joint2DType::Prismatic { limits, .. } => {
                                         limits.unwrap_or([-1.0, 1.0])
                                     }
                                     crate::joint::Joint2DType::Fixed => [0.0, 0.0],
+                                };
+
+                                // Use appropriate range based on control mode
+                                let (min, max) = match control_mode {
+                                    crate::joint::JointControlMode::Position => (pos_min, pos_max),
+                                    _ => slider_range_default,
                                 };
 
                                 // Only show slider for non-fixed joints
@@ -1492,19 +1567,24 @@ pub fn ui_system(
                                                 .color(egui::Color32::from_rgb(180, 180, 180)),
                                         );
 
-                                        // Get or initialize slider value
+                                        // Get or initialize slider value based on mode
+                                        let slider_key = format!("{}:{}:{:?}", robot.name, joint_name, control_mode);
+                                        let default_val = match control_mode {
+                                            crate::joint::JointControlMode::Position => current_pos,
+                                            _ => 0.0,
+                                        };
                                         let slider_val = ui_state
                                             .joint_sliders
-                                            .entry(format!("{}:{}", robot.name, joint_name))
-                                            .or_insert(current_pos);
+                                            .entry(slider_key)
+                                            .or_insert(default_val);
 
                                         let response = ui.add(
                                             egui::Slider::new(slider_val, min..=max)
-                                                .text("rad")
+                                                .text(slider_unit)
                                                 .step_by(0.01),
                                         );
 
-                                        // If slider changed, update motor target
+                                        // If slider changed, update motor based on control mode
                                         if response.changed() {
                                             if let Some(joint_handle) =
                                                 robot.joint_handles.get(joint_name)
@@ -1513,13 +1593,39 @@ pub fn ui_system(
                                                     .impulse_joint_set
                                                     .get_mut(*joint_handle)
                                                 {
-                                                    // Update motor target position
-                                                    joint.data.set_motor_position(
-                                                        rapier2d::dynamics::JointAxis::AngX,
-                                                        *slider_val,
-                                                        100.0, // stiffness
-                                                        10.0,  // damping
-                                                    );
+                                                    match control_mode {
+                                                        crate::joint::JointControlMode::Position => {
+                                                            // Position control with PD controller
+                                                            joint.data.set_motor_position(
+                                                                rapier2d::dynamics::JointAxis::AngX,
+                                                                *slider_val,
+                                                                100.0, // stiffness
+                                                                10.0,  // damping
+                                                            );
+                                                        }
+                                                        crate::joint::JointControlMode::Velocity => {
+                                                            // Velocity control
+                                                            joint.data.set_motor_velocity(
+                                                                rapier2d::dynamics::JointAxis::AngX,
+                                                                *slider_val,
+                                                                10.0, // damping factor
+                                                            );
+                                                        }
+                                                        crate::joint::JointControlMode::Effort => {
+                                                            // Direct effort/torque control
+                                                            joint.data.set_motor_max_force(
+                                                                rapier2d::dynamics::JointAxis::AngX,
+                                                                slider_val.abs(),
+                                                            );
+                                                            // Set velocity direction based on sign
+                                                            let dir = if *slider_val >= 0.0 { 1000.0 } else { -1000.0 };
+                                                            joint.data.set_motor_velocity(
+                                                                rapier2d::dynamics::JointAxis::AngX,
+                                                                dir,
+                                                                0.0,
+                                                            );
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }

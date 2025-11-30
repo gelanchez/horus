@@ -677,10 +677,23 @@ impl Plugin for DockPlugin {
                     handle_add_plugin_tab,
                     handle_toggle_dock_mode,
                     dock_keyboard_system,
-                    dock_ui_system,
                 )
                     .chain(),
             );
+
+        #[cfg(feature = "visual")]
+        {
+            use bevy_egui::EguiSet;
+            app.add_systems(
+                Update,
+                dock_ui_system.after(EguiSet::InitContexts),
+            );
+        }
+
+        #[cfg(not(feature = "visual"))]
+        {
+            app.add_systems(Update, dock_ui_system);
+        }
 
         tracing::info!("Dock system initialized (enabled by default) - Press F7 to toggle, F8-F10 for layouts");
     }

@@ -895,10 +895,26 @@ impl Plugin for StatusBarPlugin {
             .init_resource::<MouseWorldPosition>()
             .init_resource::<SimulationStatusInfo>()
             .add_event::<StatusItemClickEvent>()
-            .add_systems(
+            .add_systems(Update, update_status_bar_system);
+
+        #[cfg(feature = "visual")]
+        {
+            use bevy_egui::EguiSet;
+            app.add_systems(
                 Update,
-                (update_status_bar_system, render_status_bar_system).chain(),
+                render_status_bar_system
+                    .after(update_status_bar_system)
+                    .after(EguiSet::InitContexts),
             );
+        }
+
+        #[cfg(not(feature = "visual"))]
+        {
+            app.add_systems(
+                Update,
+                render_status_bar_system.after(update_status_bar_system),
+            );
+        }
     }
 }
 

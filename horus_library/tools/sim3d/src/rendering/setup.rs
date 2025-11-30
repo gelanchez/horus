@@ -37,6 +37,9 @@ pub fn setup_scene(
         Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -0.5, -0.5, 0.0)),
     ));
 
+    // Track whether robots were loaded from the world file
+    let mut world_has_robots = false;
+
     // Load world file if provided, otherwise create default world
     if let Some(world_path) = &cli.world {
         info!("Loading world from: {:?}", world_path);
@@ -54,6 +57,14 @@ pub fn setup_scene(
                     "Successfully loaded scene: {}",
                     loaded_scene.definition.name
                 );
+                // Check if the world file included robots
+                world_has_robots = !loaded_scene.definition.robots.is_empty();
+                if world_has_robots {
+                    info!(
+                        "World file contains {} robot(s), skipping default robot spawn",
+                        loaded_scene.definition.robots.len()
+                    );
+                }
                 commands.insert_resource(loaded_scene);
             }
             Err(e) => {
@@ -79,7 +90,7 @@ pub fn setup_scene(
         );
     }
 
-    // Load robot file if provided, otherwise spawn default robot
+    // Load robot file if provided, otherwise spawn default robot (only if world didn't include robots)
     if let Some(robot_path) = &cli.robot {
         info!("Loading robot from: {:?}", robot_path);
 
@@ -149,7 +160,8 @@ pub fn setup_scene(
                 );
             }
         }
-    } else {
+    } else if !world_has_robots {
+        // Only spawn default robot if no robots were loaded from world file
         info!("No robot file specified, spawning default TurtleBot3-style robot");
         spawn_default_robot(
             &mut commands,
