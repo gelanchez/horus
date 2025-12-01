@@ -13,7 +13,7 @@ use std::time::{Duration, Instant};
 
 /// Message type for background node communication
 #[derive(Debug)]
-pub enum BackgroundMessage {
+enum BackgroundMessage {
     /// Trigger a tick for the node
     Tick,
     /// Shutdown the node
@@ -24,6 +24,7 @@ pub enum BackgroundMessage {
 #[derive(Debug)]
 pub struct BackgroundResult {
     pub node_name: String,
+    #[allow(dead_code)]
     pub duration: Duration,
     pub success: bool,
     pub error: Option<String>,
@@ -223,6 +224,7 @@ impl BackgroundExecutor {
     }
 
     /// Get names of background nodes
+    #[allow(dead_code)]
     pub fn node_names(&self) -> &[String] {
         &self.node_names
     }
@@ -244,6 +246,7 @@ impl Drop for BackgroundExecutor {
 mod tests {
     use super::*;
 
+    #[allow(dead_code)]
     struct TestBackgroundNode {
         tick_count: u32,
     }

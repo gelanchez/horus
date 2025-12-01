@@ -9,6 +9,8 @@
 //! - Parallel physics performance
 //! - Long-running simulation stability
 
+#![allow(dead_code)]
+#![allow(unused_imports)]
 use bevy::prelude::*;
 use rapier3d::prelude::*;
 use std::time::{Duration, Instant};

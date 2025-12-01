@@ -402,9 +402,9 @@ mod tests {
     fn test_redundancy_manager() {
         let mut rm = RedundancyManager::tmr();
 
-        let result = rm.execute_redundant(|replica_id| {
+        let result = rm.execute_redundant(|_replica_id| {
             // All replicas return same value
-            Some(42 + replica_id as i32 * 0) // Same value
+            Some(42)
         });
 
         match result {

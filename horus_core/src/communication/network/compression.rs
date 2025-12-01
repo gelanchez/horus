@@ -508,7 +508,7 @@ mod tests {
 
         // Data with patterns
         let mut data = Vec::new();
-        for i in 0..100 {
+        for _ in 0..100 {
             data.extend_from_slice(&[1, 2, 3, 4, 5, 6, 7, 8]);
         }
 

@@ -1728,7 +1728,11 @@ fn scan_topics_directory(shm_path: &Path) -> HorusResult<Vec<SharedMemoryInfo>> 
                 }
             } else if metadata.is_dir() && name == "horus_links" {
                 // Link topics - files inside horus_links subdirectory
-                topics.extend(scan_links_directory(&path, &registry_topics, &active_nodes)?);
+                topics.extend(scan_links_directory(
+                    &path,
+                    &registry_topics,
+                    &active_nodes,
+                )?);
             }
         }
     }
@@ -1752,7 +1756,9 @@ fn scan_links_directory(
                     if let Some(name) = path.file_name().and_then(|s| s.to_str()) {
                         // Link topic name format: links/<topic>
                         let topic_name = format!("links/{}", name);
-                        if let Some(mut info) = scan_topic_file(&path, name, registry_topics, active_nodes) {
+                        if let Some(mut info) =
+                            scan_topic_file(&path, name, registry_topics, active_nodes)
+                        {
                             info.topic_name = topic_name;
                             topics.push(info);
                         }
@@ -1790,8 +1796,7 @@ fn scan_topic_file(
 
     let is_recent = if let Some(mod_time) = modified {
         // Use 30 second threshold to handle slow publishers (e.g., 0.1 Hz = 10 sec between publishes)
-        mod_time.elapsed().unwrap_or(Duration::from_secs(3600))
-            < Duration::from_secs(30)
+        mod_time.elapsed().unwrap_or(Duration::from_secs(3600)) < Duration::from_secs(30)
     } else {
         false
     };
@@ -1946,7 +1951,11 @@ fn find_accessing_processes_fast(shm_path: &Path, shm_name: &str) -> Vec<u32> {
                         // Quick check if this is a HORUS-related process
                         if let Ok(cmdline) = std::fs::read_to_string(entry.path().join("cmdline")) {
                             let cmdline_str = cmdline.replace('\0', " ");
-                            if cmdline_str.contains("horus") || cmdline_str.contains("ros") || cmdline_str.contains("sim") || cmdline_str.contains("snake") {
+                            if cmdline_str.contains("horus")
+                                || cmdline_str.contains("ros")
+                                || cmdline_str.contains("sim")
+                                || cmdline_str.contains("snake")
+                            {
                                 // Check memory maps for this process (mmap'd files show up here)
                                 let maps_path = entry.path().join("maps");
                                 if let Ok(maps_content) = std::fs::read_to_string(&maps_path) {
@@ -2695,7 +2704,7 @@ mod tests {
         };
 
         match node_healthy.health {
-            HealthStatus::Healthy => assert!(true),
+            HealthStatus::Healthy => {}
             _ => panic!("Expected Healthy"),
         }
     }

@@ -5,6 +5,7 @@ mod tests {
     use horus_macros::node;
 
     // Mock types for testing (since we can't import actual HORUS in macro tests)
+    #[allow(dead_code)]
     mod mock {
         pub mod horus_core {
             pub mod communication {
@@ -107,6 +108,7 @@ mod tests {
         use crate::tests::mock::horus_core;
 
         #[derive(Debug, Clone)]
+        #[allow(dead_code)]
         struct TestData {
             value: i32,
         }
@@ -164,6 +166,7 @@ mod tests {
         use crate::tests::mock::horus_core;
 
         #[derive(Debug, Clone)]
+        #[allow(dead_code)]
         struct Message {
             data: String,
         }
@@ -195,6 +198,7 @@ mod tests {
         use crate::tests::mock::horus_core;
 
         #[derive(Debug, Clone)]
+        #[allow(dead_code)]
         struct SensorData {
             reading: f32,
         }

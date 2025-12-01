@@ -23,11 +23,7 @@ use tracing::info;
 /// Pass through URDF position directly - no coordinate conversion
 /// The entire robot will be rotated at the root level to handle Z-up to Y-up
 fn urdf_to_bevy_position(urdf_pos: urdf_rs::Vec3) -> Vec3 {
-    Vec3::new(
-        urdf_pos[0] as f32,
-        urdf_pos[1] as f32,
-        urdf_pos[2] as f32,
-    )
+    Vec3::new(urdf_pos[0] as f32, urdf_pos[1] as f32, urdf_pos[2] as f32)
 }
 
 /// Pass through URDF RPY directly as Bevy quaternion
@@ -137,7 +133,16 @@ impl URDFLoader {
         let urdf = urdf_rs::read_from_string(&urdf_str)
             .with_context(|| format!("Failed to parse URDF file: {}", urdf_path.display()))?;
 
-        self.spawn_robot_at_position(urdf, position, rotation, commands, physics_world, tf_tree, meshes, materials)
+        self.spawn_robot_at_position(
+            urdf,
+            position,
+            rotation,
+            commands,
+            physics_world,
+            tf_tree,
+            meshes,
+            materials,
+        )
     }
 
     pub fn spawn_robot(
@@ -149,7 +154,16 @@ impl URDFLoader {
         meshes: &mut Assets<Mesh>,
         materials: &mut Assets<StandardMaterial>,
     ) -> Result<Entity> {
-        self.spawn_robot_at_position(urdf, Vec3::ZERO, Quat::IDENTITY, commands, physics_world, tf_tree, meshes, materials)
+        self.spawn_robot_at_position(
+            urdf,
+            Vec3::ZERO,
+            Quat::IDENTITY,
+            commands,
+            physics_world,
+            tf_tree,
+            meshes,
+            materials,
+        )
     }
 
     pub fn spawn_robot_at_position(
@@ -171,7 +185,12 @@ impl URDFLoader {
             .iter()
             .find(|link| !urdf.joints.iter().any(|j| j.child.link == link.name))
             .map(|link| link.name.clone())
-            .unwrap_or_else(|| urdf.links.first().map(|l| l.name.clone()).unwrap_or_default());
+            .unwrap_or_else(|| {
+                urdf.links
+                    .first()
+                    .map(|l| l.name.clone())
+                    .unwrap_or_default()
+            });
 
         info!("URDF base link identified: {}", base_link_name);
 
@@ -197,11 +216,18 @@ impl URDFLoader {
             let is_base_link = link.name == base_link_name;
 
             // For base link, use initial position and rotation
-            // For child links, they will be positioned by joints later
+            // For child links, calculate their position from joint origin to avoid overlap
             let (link_position, link_rotation) = if is_base_link {
                 (initial_position, base_rotation)
+            } else if let Some((joint_offset, joint_rot)) = joint_origins.get(&link.name) {
+                // Transform the joint offset from URDF coords to world coords
+                // The joint origin is in parent frame (base_link), so rotate it by base_rotation
+                let world_offset = base_rotation * *joint_offset;
+                let world_position = initial_position + world_offset;
+                let world_rotation = base_rotation * *joint_rot;
+                (world_position, world_rotation)
             } else {
-                // Child links start at origin, physics joints will constrain them
+                // Fallback: position at base (shouldn't happen for valid URDFs)
                 (initial_position, base_rotation)
             };
 
@@ -272,7 +298,16 @@ impl URDFLoader {
     ) -> Result<Entity> {
         if is_base_link {
             // Base link gets a physics rigid body
-            self.spawn_base_link(link, robot_name, initial_position, initial_rotation, commands, physics_world, meshes, materials)
+            self.spawn_base_link(
+                link,
+                robot_name,
+                initial_position,
+                initial_rotation,
+                commands,
+                physics_world,
+                meshes,
+                materials,
+            )
         } else {
             // Child links are visual-only (no physics body)
             self.spawn_visual_link(link, robot_name, commands, meshes, materials)
@@ -301,14 +336,16 @@ impl URDFLoader {
         };
 
         // Convert Bevy types to nalgebra types for Rapier
-        let na_position = nalgebra::Vector3::new(initial_position.x, initial_position.y, initial_position.z);
-        let na_rotation = nalgebra::UnitQuaternion::from_quaternion(
-            nalgebra::Quaternion::new(initial_rotation.w, initial_rotation.x, initial_rotation.y, initial_rotation.z)
-        );
-        let isometry = nalgebra::Isometry3::from_parts(
-            nalgebra::Translation3::from(na_position),
-            na_rotation,
-        );
+        let na_position =
+            nalgebra::Vector3::new(initial_position.x, initial_position.y, initial_position.z);
+        let na_rotation = nalgebra::UnitQuaternion::from_quaternion(nalgebra::Quaternion::new(
+            initial_rotation.w,
+            initial_rotation.x,
+            initial_rotation.y,
+            initial_rotation.z,
+        ));
+        let isometry =
+            nalgebra::Isometry3::from_parts(nalgebra::Translation3::from(na_position), na_rotation);
 
         // Create dynamic rigid body for all links
         let rigid_body = RigidBodyBuilder::dynamic()
@@ -342,7 +379,9 @@ impl URDFLoader {
 
         // Add RigidBodyComponent so physics sync works
         use crate::physics::rigid_body::RigidBodyComponent;
-        commands.entity(entity).insert(RigidBodyComponent::new(rb_handle));
+        commands
+            .entity(entity)
+            .insert(RigidBodyComponent::new(rb_handle));
 
         // Add visual meshes as children
         for visual in &link.visual {
@@ -396,7 +435,11 @@ impl URDFLoader {
                     let max_angle = limit.upper as f32;
                     (
                         create_revolute_joint_with_limits(
-                            anchor, Vec3::ZERO, axis, min_angle, max_angle,
+                            anchor,
+                            Vec3::ZERO,
+                            axis,
+                            min_angle,
+                            max_angle,
                         ),
                         JointType::Revolute,
                     )
@@ -418,7 +461,11 @@ impl URDFLoader {
                     let max_dist = limit.upper as f32;
                     (
                         create_prismatic_joint_with_limits(
-                            anchor, Vec3::ZERO, axis, min_dist, max_dist,
+                            anchor,
+                            Vec3::ZERO,
+                            axis,
+                            min_dist,
+                            max_dist,
                         ),
                         JointType::Prismatic,
                     )
@@ -442,7 +489,10 @@ impl URDFLoader {
             }
             urdf_rs::JointType::Spherical => {
                 // Spherical joint (ball joint)
-                (create_spherical_joint(anchor, Vec3::ZERO), JointType::Spherical)
+                (
+                    create_spherical_joint(anchor, Vec3::ZERO),
+                    JointType::Spherical,
+                )
             }
         };
 
@@ -491,14 +541,16 @@ impl URDFLoader {
         let final_rotation = initial_rotation * coord_conversion;
 
         // Convert Bevy types to nalgebra types for Rapier
-        let na_position = nalgebra::Vector3::new(initial_position.x, initial_position.y, initial_position.z);
-        let na_rotation = nalgebra::UnitQuaternion::from_quaternion(
-            nalgebra::Quaternion::new(final_rotation.w, final_rotation.x, final_rotation.y, final_rotation.z)
-        );
-        let isometry = nalgebra::Isometry3::from_parts(
-            nalgebra::Translation3::from(na_position),
-            na_rotation,
-        );
+        let na_position =
+            nalgebra::Vector3::new(initial_position.x, initial_position.y, initial_position.z);
+        let na_rotation = nalgebra::UnitQuaternion::from_quaternion(nalgebra::Quaternion::new(
+            final_rotation.w,
+            final_rotation.x,
+            final_rotation.y,
+            final_rotation.z,
+        ));
+        let isometry =
+            nalgebra::Isometry3::from_parts(nalgebra::Translation3::from(na_position), na_rotation);
 
         // Create dynamic rigid body at the specified position
         let rigid_body = RigidBodyBuilder::dynamic()
@@ -533,17 +585,16 @@ impl URDFLoader {
 
         // Add RigidBodyComponent so physics sync works
         use crate::physics::rigid_body::RigidBodyComponent;
-        commands.entity(entity).insert(RigidBodyComponent::new(rb_handle));
+        commands
+            .entity(entity)
+            .insert(RigidBodyComponent::new(rb_handle));
 
         // Add visual meshes as children
         for visual in &link.visual {
             self.spawn_visual_mesh(visual, entity, commands, meshes, materials)?;
         }
 
-        info!(
-            "Spawned base link '{}' with mass={:.2}kg",
-            link.name, mass
-        );
+        info!("Spawned base link '{}' with mass={:.2}kg", link.name, mass);
 
         Ok(entity)
     }
@@ -594,9 +645,7 @@ impl URDFLoader {
 
             // Create rigid body at origin (will be positioned later by joint hierarchy)
             // The center of mass offset from inertial.origin is handled by Rapier internally
-            RigidBodyBuilder::dynamic()
-                .additional_mass(mass)
-                .build()
+            RigidBodyBuilder::dynamic().additional_mass(mass).build()
         } else {
             // Static/fixed body for links without inertia
             RigidBodyBuilder::fixed().build()

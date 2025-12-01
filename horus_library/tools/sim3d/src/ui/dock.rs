@@ -9,8 +9,12 @@ use egui_dock::{DockArea, DockState, NodeIndex, Style, TabViewer};
 
 use crate::hframe::TFTree;
 use crate::physics::PhysicsWorld;
-use crate::ui::controls::SimulationControls;
-use crate::ui::stats_panel::{FrameTimeBreakdown, SimulationStats};
+use crate::systems::horus_sync::HorusSyncStats;
+use crate::systems::tf_update::TFPublisher;
+use crate::ui::controls::{render_controls_ui, SimulationControls, SimulationEvent};
+use crate::ui::stats_panel::{render_stats_ui, FrameTimeBreakdown, SimulationStats};
+use crate::ui::tf_panel::{render_tf_ui, TFPanelConfig};
+use crate::ui::view_modes::{render_view_modes_ui, CurrentViewMode};
 
 /// Tab identifiers for the dock system
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -23,6 +27,8 @@ pub enum DockTab {
     Console,
     /// TF (Transform Frame) tree
     TfTree,
+    /// Camera view modes
+    ViewModes,
     /// Custom plugin tab
     Plugin(String),
 }
@@ -34,6 +40,7 @@ impl DockTab {
             DockTab::Stats => "Statistics",
             DockTab::Console => "Console",
             DockTab::TfTree => "TF Tree",
+            DockTab::ViewModes => "View Modes",
             DockTab::Plugin(name) => name.as_str(),
         }
     }
@@ -66,9 +73,14 @@ pub struct DockRenderContext<'a> {
     pub time: &'a Time,
     pub stats: &'a SimulationStats,
     pub frame_time: &'a FrameTimeBreakdown,
-    pub controls: &'a SimulationControls,
+    pub controls: &'a mut SimulationControls,
     pub tf_tree: &'a TFTree,
     pub physics_world: Option<&'a PhysicsWorld>,
+    pub horus_stats: Option<&'a HorusSyncStats>,
+    pub tf_publishers: Vec<&'a TFPublisher>,
+    pub tf_panel_config: &'a mut TFPanelConfig,
+    pub view_mode: &'a mut CurrentViewMode,
+    pub current_time: f32,
 }
 
 /// Tab viewer implementation for our dock system
@@ -76,6 +88,8 @@ pub struct SimDockViewer<'a> {
     pub ctx: DockRenderContext<'a>,
     /// Console log messages (stored separately for persistence)
     pub console_messages: &'a mut Vec<String>,
+    /// Collected events from controls tab that need to be sent
+    pub pending_events: Vec<SimulationEvent>,
 }
 
 impl TabViewer for SimDockViewer<'_> {
@@ -88,16 +102,36 @@ impl TabViewer for SimDockViewer<'_> {
     fn ui(&mut self, ui: &mut egui::Ui, tab: &mut Self::Tab) {
         match tab {
             DockTab::Controls => {
-                render_controls_content(ui, &self.ctx);
+                // Use the full controls UI from controls.rs
+                let events = render_controls_ui(ui, self.ctx.controls);
+                self.pending_events.extend(events.events);
             }
             DockTab::Stats => {
-                render_stats_content(ui, &self.ctx);
+                // Use the full stats UI from stats_panel.rs
+                render_stats_ui(
+                    ui,
+                    self.ctx.time,
+                    self.ctx.stats,
+                    self.ctx.frame_time,
+                    self.ctx.horus_stats,
+                );
             }
             DockTab::Console => {
                 render_console_content(ui, self.console_messages);
             }
             DockTab::TfTree => {
-                render_tf_tree_content(ui, &self.ctx);
+                // Use the full TF tree UI from tf_panel.rs
+                render_tf_ui(
+                    ui,
+                    self.ctx.tf_tree,
+                    self.ctx.tf_panel_config,
+                    &self.ctx.tf_publishers,
+                    self.ctx.current_time,
+                );
+            }
+            DockTab::ViewModes => {
+                // Use the full view modes UI from view_modes.rs
+                render_view_modes_ui(ui, self.ctx.view_mode);
             }
             DockTab::Plugin(name) => {
                 ui.heading(format!("Plugin: {}", name));
@@ -117,135 +151,8 @@ impl TabViewer for SimDockViewer<'_> {
 }
 
 // ============================================================================
-// Tab Content Renderers
+// Tab Content Renderers (only for Console which has no external UI function)
 // ============================================================================
-
-fn render_controls_content(ui: &mut egui::Ui, ctx: &DockRenderContext) {
-    ui.heading("Simulation Controls");
-    ui.separator();
-
-    // Pause state
-    ui.horizontal(|ui| {
-        ui.label("Status:");
-        if ctx.controls.paused {
-            ui.colored_label(egui::Color32::YELLOW, "PAUSED");
-        } else {
-            ui.colored_label(egui::Color32::GREEN, "RUNNING");
-        }
-    });
-
-    ui.label(format!("Time Scale: {:.2}x", ctx.controls.time_scale));
-
-    ui.add_space(8.0);
-    ui.heading("Visualization");
-    ui.separator();
-
-    ui.label(format!(
-        "Debug Info: {}",
-        if ctx.controls.show_debug_info {
-            "ON"
-        } else {
-            "OFF"
-        }
-    ));
-    ui.label(format!(
-        "Physics Debug: {}",
-        if ctx.controls.show_physics_debug {
-            "ON"
-        } else {
-            "OFF"
-        }
-    ));
-    ui.label(format!(
-        "TF Frames: {}",
-        if ctx.controls.show_tf_frames {
-            "ON"
-        } else {
-            "OFF"
-        }
-    ));
-    ui.label(format!(
-        "Collision Shapes: {}",
-        if ctx.controls.show_collision_shapes {
-            "ON"
-        } else {
-            "OFF"
-        }
-    ));
-
-    ui.add_space(8.0);
-    ui.label("Hotkeys:");
-    ui.label("  Space: Pause/Resume");
-    ui.label("  1-5: Time scale");
-    ui.label("  D: Toggle debug info");
-}
-
-fn render_stats_content(ui: &mut egui::Ui, ctx: &DockRenderContext) {
-    ui.heading("Performance");
-    ui.separator();
-
-    // FPS and frame time
-    let fps = if ctx.time.delta_secs() > 0.0 {
-        1.0 / ctx.time.delta_secs()
-    } else {
-        0.0
-    };
-
-    ui.horizontal(|ui| {
-        ui.label("FPS:");
-        ui.label(format!("{:.1}", fps));
-        if fps >= 60.0 {
-            ui.colored_label(egui::Color32::GREEN, "[OK]");
-        } else if fps >= 30.0 {
-            ui.colored_label(egui::Color32::YELLOW, "[WARN]");
-        } else {
-            ui.colored_label(egui::Color32::RED, "[LOW]");
-        }
-    });
-
-    ui.label(format!(
-        "Frame Time: {:.2}ms",
-        ctx.time.delta_secs() * 1000.0
-    ));
-
-    ui.add_space(5.0);
-    ui.label("Frame Breakdown:");
-    ui.indent("breakdown", |ui| {
-        ui.label(format!(
-            "  Physics: {:.2}ms",
-            ctx.frame_time.physics_time_ms
-        ));
-        ui.label(format!("  Sensors: {:.2}ms", ctx.frame_time.sensor_time_ms));
-        ui.label(format!(
-            "  Rendering: {:.2}ms",
-            ctx.frame_time.rendering_time_ms
-        ));
-    });
-
-    ui.add_space(10.0);
-    ui.heading("Entities");
-    ui.separator();
-
-    ui.label(format!("Total: {}", ctx.stats.total_entities));
-    ui.label(format!("Robots: {}", ctx.stats.robot_count));
-    ui.label(format!("Sensors: {}", ctx.stats.sensor_count));
-
-    ui.add_space(10.0);
-    ui.heading("Physics");
-    ui.separator();
-
-    ui.label(format!("Rigid Bodies: {}", ctx.stats.rigid_body_count));
-    ui.label(format!("Colliders: {}", ctx.stats.collider_count));
-    ui.label(format!("Joints: {}", ctx.stats.joint_count));
-    ui.label(format!("Contacts: {}", ctx.stats.contact_count));
-
-    ui.add_space(10.0);
-    ui.label(format!("Sim Time: {:.2}s", ctx.stats.simulation_time));
-    ui.label(format!(
-        "Est. Memory: {:.2} MB",
-        ctx.stats.estimated_memory_mb()
-    ));
-}
 
 fn render_console_content(ui: &mut egui::Ui, messages: &mut Vec<String>) {
     ui.heading("Console");
@@ -280,46 +187,48 @@ fn render_console_content(ui: &mut egui::Ui, messages: &mut Vec<String>) {
         });
 }
 
-fn render_tf_tree_content(ui: &mut egui::Ui, ctx: &DockRenderContext) {
-    ui.heading("TF Tree");
-    ui.separator();
-
-    // Root frame is always "world" in this implementation
-    ui.label("Root: world");
-
-    ui.add_space(8.0);
-
-    // Display frame hierarchy
-    egui::ScrollArea::vertical().show(ui, |ui| {
-        // Get all frames from the TF tree
-        let frames = ctx.tf_tree.get_all_frames();
-        if frames.is_empty() {
-            ui.label("No transform frames registered");
-        } else {
-            ui.label(format!("{} frames:", frames.len()));
-            for frame in &frames {
-                ui.horizontal(|ui| {
-                    ui.add_space(16.0);
-                    ui.label(format!("- {}", frame));
-
-                    // Try to get transform info
-                    if let Ok(transform) = ctx.tf_tree.lookup_transform("world", frame) {
-                        ui.label(format!(
-                            "({:.2}, {:.2}, {:.2})",
-                            transform.translation.x,
-                            transform.translation.y,
-                            transform.translation.z
-                        ));
-                    }
-                });
-            }
-        }
-    });
-}
-
 // ============================================================================
 // Dock System Resources and Systems
 // ============================================================================
+
+/// Create a dark theme style for egui_dock (Catppuccin Mocha inspired)
+fn create_dark_dock_style() -> Style {
+    let mut style = Style::from_egui(&egui::Style::default());
+
+    // Catppuccin Mocha colors
+    let surface0 = egui::Color32::from_rgb(0x31, 0x32, 0x44); // Slightly lighter
+    let surface1 = egui::Color32::from_rgb(0x45, 0x47, 0x5A); // Even lighter
+    let text = egui::Color32::from_rgb(0xCD, 0xD6, 0xF4); // Light text
+    let blue = egui::Color32::from_rgb(0x89, 0xB4, 0xFA); // Accent blue
+
+    // Tab bar styling
+    style.tab_bar.bg_fill = surface0;
+    style.tab_bar.hline_color = surface1;
+
+    // Active tab (Catppuccin blue accent)
+    style.tab_bar.fill_tab_bar = true;
+    style.tab_bar.height = 28.0;
+    style.tab_bar.rounding = egui::Rounding::same(4.0);
+
+    // Tab styling - use TabBarStyle fields
+    // The tab_bar contains the tab visual settings
+
+    // Dock area background
+    style.dock_area_padding = Some(egui::Margin::same(0.0));
+
+    // Separator styling
+    style.separator.width = 2.0;
+    style.separator.color_idle = surface1;
+    style.separator.color_hovered = blue;
+    style.separator.color_dragged = blue;
+
+    // Tab body (content area) - use buttons field for tab styling
+    style.buttons.close_tab_bg_fill = surface0;
+    style.buttons.close_tab_color = text;
+    style.buttons.close_tab_active_color = egui::Color32::from_rgb(0xF3, 0x8B, 0xA8); // Red on hover
+
+    style
+}
 
 /// Dock state resource for persistence
 #[derive(Resource)]
@@ -337,8 +246,8 @@ impl Default for DockWorkspace {
 impl DockWorkspace {
     /// Create workspace with default layout
     pub fn new_default_layout() -> Self {
-        // Start with Stats + Controls as tabs
-        let mut state = DockState::new(vec![DockTab::Stats, DockTab::Controls]);
+        // Start with Stats + Controls + ViewModes as tabs
+        let mut state = DockState::new(vec![DockTab::Stats, DockTab::Controls, DockTab::ViewModes]);
         let tree = state.main_surface_mut();
 
         // Split: Bottom panel (Console + TfTree as tabs)
@@ -350,24 +259,24 @@ impl DockWorkspace {
 
         Self {
             state,
-            style: Style::default(),
+            style: create_dark_dock_style(),
         }
     }
 
     /// Create a minimal layout (just stats)
     pub fn new_minimal_layout() -> Self {
-        let state = DockState::new(vec![DockTab::Stats]);
+        let state = DockState::new(vec![DockTab::Stats, DockTab::Controls]);
 
         Self {
             state,
-            style: Style::default(),
+            style: create_dark_dock_style(),
         }
     }
 
     /// Create a development layout (all panels)
     pub fn new_dev_layout() -> Self {
-        // Left: Stats + Controls
-        let mut state = DockState::new(vec![DockTab::Stats, DockTab::Controls]);
+        // Left: Stats + Controls + ViewModes
+        let mut state = DockState::new(vec![DockTab::Stats, DockTab::Controls, DockTab::ViewModes]);
         let tree = state.main_surface_mut();
 
         // Right: TF Tree
@@ -378,7 +287,7 @@ impl DockWorkspace {
 
         Self {
             state,
-            style: Style::default(),
+            style: create_dark_dock_style(),
         }
     }
 
@@ -549,10 +458,15 @@ pub fn dock_ui_system(
     time: Res<Time>,
     stats: Res<SimulationStats>,
     frame_time: Res<FrameTimeBreakdown>,
-    controls: Res<SimulationControls>,
+    mut controls: ResMut<SimulationControls>,
     tf_tree: Res<TFTree>,
     physics_world: Option<Res<PhysicsWorld>>,
+    horus_stats: Option<Res<HorusSyncStats>>,
+    tf_publishers: Query<&TFPublisher>,
+    mut tf_panel_config: ResMut<TFPanelConfig>,
+    mut view_mode: ResMut<CurrentViewMode>,
     mut layout_events: EventWriter<ChangeDockLayoutEvent>,
+    mut sim_events: EventWriter<SimulationEvent>,
 ) {
     if !config.enabled {
         return;
@@ -616,6 +530,13 @@ pub fn dock_ui_system(
                             .push_to_focused_leaf(DockTab::TfTree);
                         ui.close_menu();
                     }
+                    if ui.button("Add View Modes").clicked() {
+                        workspace
+                            .state
+                            .main_surface_mut()
+                            .push_to_focused_leaf(DockTab::ViewModes);
+                        ui.close_menu();
+                    }
                 });
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -625,20 +546,29 @@ pub fn dock_ui_system(
         });
     }
 
+    // Collect TF publishers
+    let tf_pubs: Vec<&TFPublisher> = tf_publishers.iter().collect();
+
     // Build render context
     let render_ctx = DockRenderContext {
         time: &time,
         stats: &stats,
         frame_time: &frame_time,
-        controls: &controls,
+        controls: &mut controls,
         tf_tree: &tf_tree,
         physics_world: physics_world.as_deref(),
+        horus_stats: horus_stats.as_deref(),
+        tf_publishers: tf_pubs,
+        tf_panel_config: &mut tf_panel_config,
+        view_mode: &mut view_mode,
+        current_time: time.elapsed_secs(),
     };
 
     // Create tab viewer
     let mut viewer = SimDockViewer {
         ctx: render_ctx,
         console_messages: &mut console.messages,
+        pending_events: Vec::new(),
     };
 
     // Render dock area in a side panel (left side) to preserve viewport
@@ -654,6 +584,11 @@ pub fn dock_ui_system(
                 .style(style)
                 .show_inside(ui, &mut viewer);
         });
+
+    // Send any pending events from the controls UI
+    for event in viewer.pending_events {
+        sim_events.send(event);
+    }
 }
 
 #[cfg(not(feature = "visual"))]
@@ -684,10 +619,7 @@ impl Plugin for DockPlugin {
         #[cfg(feature = "visual")]
         {
             use bevy_egui::EguiSet;
-            app.add_systems(
-                Update,
-                dock_ui_system.after(EguiSet::InitContexts),
-            );
+            app.add_systems(Update, dock_ui_system.after(EguiSet::InitContexts));
         }
 
         #[cfg(not(feature = "visual"))]
@@ -695,7 +627,9 @@ impl Plugin for DockPlugin {
             app.add_systems(Update, dock_ui_system);
         }
 
-        tracing::info!("Dock system initialized (enabled by default) - Press F7 to toggle, F8-F10 for layouts");
+        tracing::info!(
+            "Dock system initialized (enabled by default) - Press F7 to toggle, F8-F10 for layouts"
+        );
     }
 }
 

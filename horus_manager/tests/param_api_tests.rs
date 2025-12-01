@@ -527,7 +527,7 @@ bool_key: true
         "test_value"
     );
     assert_eq!(state.params.get::<i32>("num_key").unwrap(), 123);
-    assert_eq!(state.params.get::<bool>("bool_key").unwrap(), true);
+    assert!(state.params.get::<bool>("bool_key").unwrap());
 }
 
 #[tokio::test]
@@ -660,7 +660,7 @@ async fn test_concurrent_param_updates() {
 
     // Verify the final value is one of the expected values (0-9)
     let final_value: i32 = state.params.get("concurrent_key").unwrap();
-    assert!(final_value >= 0 && final_value < 10);
+    assert!((0..10).contains(&final_value));
 }
 
 #[tokio::test]

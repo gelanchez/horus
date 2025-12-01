@@ -87,6 +87,151 @@ impl CameraView {
 #[cfg(feature = "visual")]
 use crate::ui::dock::DockConfig;
 
+/// Collected events from the controls UI that need to be sent
+#[cfg(feature = "visual")]
+#[derive(Default)]
+pub struct ControlsUiEvents {
+    pub events: Vec<SimulationEvent>,
+}
+
+#[cfg(feature = "visual")]
+/// Render the controls UI content (reusable in both floating window and dock tab)
+/// Returns events that should be sent after the UI is rendered
+pub fn render_controls_ui(
+    ui: &mut egui::Ui,
+    controls: &mut SimulationControls,
+) -> ControlsUiEvents {
+    let mut collected_events = ControlsUiEvents::default();
+
+    ui.heading("Simulation");
+    ui.separator();
+
+    // Pause/Resume button
+    ui.horizontal(|ui| {
+        let button_text = if controls.paused { "Resume" } else { "Pause" };
+        if ui.button(button_text).clicked() {
+            controls.toggle_pause();
+            if controls.paused {
+                collected_events.events.push(SimulationEvent::Pause);
+            } else {
+                collected_events.events.push(SimulationEvent::Resume);
+            }
+        }
+
+        if ui.button("Reset").clicked() {
+            collected_events.events.push(SimulationEvent::Reset);
+        }
+    });
+
+    ui.add_space(5.0);
+
+    // Time scale control
+    ui.label("Time Scale:");
+    let mut time_scale = controls.time_scale;
+    ui.horizontal(|ui| {
+        if ui.button("0.25x").clicked() {
+            time_scale = 0.25;
+        }
+        if ui.button("0.5x").clicked() {
+            time_scale = 0.5;
+        }
+        if ui.button("1x").clicked() {
+            time_scale = 1.0;
+        }
+        if ui.button("2x").clicked() {
+            time_scale = 2.0;
+        }
+        if ui.button("5x").clicked() {
+            time_scale = 5.0;
+        }
+    });
+
+    ui.add(egui::Slider::new(&mut time_scale, 0.0..=10.0).text("Custom"));
+
+    if time_scale != controls.time_scale {
+        controls.set_time_scale(time_scale);
+        collected_events
+            .events
+            .push(SimulationEvent::SetTimeScale(time_scale));
+    }
+
+    ui.add_space(10.0);
+    ui.heading("Camera");
+    ui.separator();
+
+    ui.label("View Presets:");
+    ui.horizontal(|ui| {
+        if ui.button("Front").clicked() {
+            collected_events
+                .events
+                .push(SimulationEvent::SetCameraView(CameraView::Front));
+        }
+        if ui.button("Back").clicked() {
+            collected_events
+                .events
+                .push(SimulationEvent::SetCameraView(CameraView::Back));
+        }
+        if ui.button("Left").clicked() {
+            collected_events
+                .events
+                .push(SimulationEvent::SetCameraView(CameraView::Left));
+        }
+    });
+
+    ui.horizontal(|ui| {
+        if ui.button("Right").clicked() {
+            collected_events
+                .events
+                .push(SimulationEvent::SetCameraView(CameraView::Right));
+        }
+        if ui.button("Top").clicked() {
+            collected_events
+                .events
+                .push(SimulationEvent::SetCameraView(CameraView::Top));
+        }
+        if ui.button("Iso").clicked() {
+            collected_events
+                .events
+                .push(SimulationEvent::SetCameraView(CameraView::Isometric));
+        }
+    });
+
+    ui.add_space(5.0);
+    if ui.button("Reset Camera").clicked() {
+        collected_events.events.push(SimulationEvent::ResetCamera);
+    }
+
+    ui.add_space(10.0);
+    ui.heading("Visualization");
+    ui.separator();
+
+    ui.checkbox(&mut controls.show_debug_info, "Debug Info");
+    ui.checkbox(&mut controls.show_physics_debug, "Physics Debug");
+    ui.checkbox(&mut controls.show_sensor_rays, "Sensor Rays");
+    ui.checkbox(&mut controls.show_tf_frames, "TF Frames");
+    ui.checkbox(&mut controls.show_collision_shapes, "Collision Shapes");
+
+    ui.add_space(10.0);
+    ui.heading("Actions");
+    ui.separator();
+
+    if ui.button("Take Screenshot").clicked() {
+        collected_events
+            .events
+            .push(SimulationEvent::TakeScreenshot);
+    }
+
+    ui.add_space(5.0);
+    ui.separator();
+    ui.label("Hotkeys:");
+    ui.label("  Space: Pause/Resume");
+    ui.label("  R: Reset simulation");
+    ui.label("  1-5: Time scale presets");
+    ui.label("  F12: Screenshot");
+
+    collected_events
+}
+
 #[cfg(feature = "visual")]
 /// Main controls panel system - only shown when dock mode is disabled
 pub fn controls_panel_system(
@@ -116,110 +261,9 @@ pub fn controls_panel_system(
         .default_width(280.0)
         .default_pos([10.0, 400.0])
         .show(ctx, |ui| {
-            ui.heading("Simulation");
-            ui.separator();
-
-            // Pause/Resume button
-            ui.horizontal(|ui| {
-                let button_text = if controls.paused {
-                    "▶ Resume"
-                } else {
-                    "⏸ Pause"
-                };
-                if ui.button(button_text).clicked() {
-                    controls.toggle_pause();
-                    if controls.paused {
-                        events.send(SimulationEvent::Pause);
-                    } else {
-                        events.send(SimulationEvent::Resume);
-                    }
-                }
-
-                if ui.button("↻ Reset").clicked() {
-                    events.send(SimulationEvent::Reset);
-                }
-            });
-
-            ui.add_space(5.0);
-
-            // Time scale control
-            ui.label("Time Scale:");
-            let mut time_scale = controls.time_scale;
-            ui.horizontal(|ui| {
-                if ui.button("0.25x").clicked() {
-                    time_scale = 0.25;
-                }
-                if ui.button("0.5x").clicked() {
-                    time_scale = 0.5;
-                }
-                if ui.button("1x").clicked() {
-                    time_scale = 1.0;
-                }
-                if ui.button("2x").clicked() {
-                    time_scale = 2.0;
-                }
-                if ui.button("5x").clicked() {
-                    time_scale = 5.0;
-                }
-            });
-
-            ui.add(egui::Slider::new(&mut time_scale, 0.0..=10.0).text("Custom"));
-
-            if time_scale != controls.time_scale {
-                controls.set_time_scale(time_scale);
-                events.send(SimulationEvent::SetTimeScale(time_scale));
-            }
-
-            ui.add_space(10.0);
-            ui.heading("Camera");
-            ui.separator();
-
-            ui.label("View Presets:");
-            ui.horizontal(|ui| {
-                if ui.button("Front").clicked() {
-                    events.send(SimulationEvent::SetCameraView(CameraView::Front));
-                }
-                if ui.button("Back").clicked() {
-                    events.send(SimulationEvent::SetCameraView(CameraView::Back));
-                }
-                if ui.button("Left").clicked() {
-                    events.send(SimulationEvent::SetCameraView(CameraView::Left));
-                }
-            });
-
-            ui.horizontal(|ui| {
-                if ui.button("Right").clicked() {
-                    events.send(SimulationEvent::SetCameraView(CameraView::Right));
-                }
-                if ui.button("Top").clicked() {
-                    events.send(SimulationEvent::SetCameraView(CameraView::Top));
-                }
-                if ui.button("Iso").clicked() {
-                    events.send(SimulationEvent::SetCameraView(CameraView::Isometric));
-                }
-            });
-
-            ui.add_space(5.0);
-            if ui.button("↺ Reset Camera").clicked() {
-                events.send(SimulationEvent::ResetCamera);
-            }
-
-            ui.add_space(10.0);
-            ui.heading("Visualization");
-            ui.separator();
-
-            ui.checkbox(&mut controls.show_debug_info, "Debug Info");
-            ui.checkbox(&mut controls.show_physics_debug, "Physics Debug");
-            ui.checkbox(&mut controls.show_sensor_rays, "Sensor Rays");
-            ui.checkbox(&mut controls.show_tf_frames, "TF Frames");
-            ui.checkbox(&mut controls.show_collision_shapes, "Collision Shapes");
-
-            ui.add_space(10.0);
-            ui.heading("Actions");
-            ui.separator();
-
-            if ui.button("Take Screenshot").clicked() {
-                events.send(SimulationEvent::TakeScreenshot);
+            let collected = render_controls_ui(ui, &mut controls);
+            for event in collected.events {
+                events.send(event);
             }
         });
 }
@@ -352,10 +396,7 @@ impl Plugin for ControlsPlugin {
         #[cfg(feature = "visual")]
         {
             use bevy_egui::EguiSet;
-            app.add_systems(
-                Update,
-                controls_panel_system.after(EguiSet::InitContexts),
-            );
+            app.add_systems(Update, controls_panel_system.after(EguiSet::InitContexts));
         }
 
         #[cfg(not(feature = "visual"))]

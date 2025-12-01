@@ -18,13 +18,13 @@
 // ui module is declared at the lib.rs level
 use crate::ui;
 
+use crate::joint::{JointCommand, JointState};
 use anyhow::Result;
 use bevy::prelude::*;
 use clap::Parser;
 use horus_core::core::LogSummary;
 use horus_core::{communication::Hub, core::NodeInfo};
 use horus_library::messages::{CmdVel, Imu, LaserScan, Odometry, Pose2D, Twist};
-use crate::joint::{JointCommand, JointState};
 use rapier2d::prelude::*;
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
@@ -519,7 +519,7 @@ pub struct ArticulatedRobotHubs {
 pub struct HorusComm {
     robot_hubs: std::collections::HashMap<String, RobotHubs>, // Per-robot hubs indexed by robot name
     pub articulated_robot_hubs: std::collections::HashMap<String, ArticulatedRobotHubs>, // Per-articulated robot hubs
-    obstacle_cmd_sub: Hub<ObstacleCommand>,                   // Shared obstacle command topic
+    obstacle_cmd_sub: Hub<ObstacleCommand>, // Shared obstacle command topic
     node_info: NodeInfo,
     /// Current topic prefixes per robot (for detecting changes)
     current_topic_prefixes: std::collections::HashMap<String, String>,
@@ -551,8 +551,12 @@ impl HorusComm {
                     },
                 );
                 // Track the new prefix
-                self.current_topic_prefixes.insert(robot_name.to_string(), new_prefix.to_string());
-                info!("Updated HORUS topics for robot '{}' to prefix '{}'", robot_name, new_prefix);
+                self.current_topic_prefixes
+                    .insert(robot_name.to_string(), new_prefix.to_string());
+                info!(
+                    "Updated HORUS topics for robot '{}' to prefix '{}'",
+                    robot_name, new_prefix
+                );
                 true
             }
             _ => {
@@ -1007,7 +1011,8 @@ pub fn setup(
                     },
                 );
                 // Track the topic prefix for this robot
-                current_topic_prefixes.insert(robot_config.name.clone(), robot_config.topic_prefix.clone());
+                current_topic_prefixes
+                    .insert(robot_config.name.clone(), robot_config.topic_prefix.clone());
                 info!(" Connected HORUS for robot '{}':", robot_config.name);
                 info!("    cmd_vel: {}", cmd_vel_topic);
                 info!("    odom: {}", odom_topic);
@@ -1030,10 +1035,7 @@ pub fn setup(
         let joint_cmd_topic = format!("{}.joint_cmd", artic_config.topic_prefix);
         let joint_state_topic = format!("{}.joint_state", artic_config.topic_prefix);
 
-        match (
-            Hub::new(&joint_cmd_topic),
-            Hub::new(&joint_state_topic),
-        ) {
+        match (Hub::new(&joint_cmd_topic), Hub::new(&joint_state_topic)) {
             (Ok(joint_cmd_sub), Ok(joint_state_pub)) => {
                 articulated_robot_hubs.insert(
                     artic_config.name.clone(),
@@ -1042,12 +1044,18 @@ pub fn setup(
                         joint_state_pub,
                     },
                 );
-                info!(" Connected HORUS for articulated robot '{}':", artic_config.name);
+                info!(
+                    " Connected HORUS for articulated robot '{}':",
+                    artic_config.name
+                );
                 info!("    joint_cmd: {}", joint_cmd_topic);
                 info!("    joint_state: {}", joint_state_topic);
             }
             _ => {
-                warn!(" Failed to connect HORUS for articulated robot '{}'", artic_config.name);
+                warn!(
+                    " Failed to connect HORUS for articulated robot '{}'",
+                    artic_config.name
+                );
             }
         }
     }
@@ -1397,7 +1405,10 @@ pub fn topic_update_system(
         if let Some(ref mut comm) = horus_comm {
             if comm.update_robot_topics(&robot_name, &new_prefix) {
                 ui_state.status_message = format!("Topic updated to {} successfully", new_prefix);
-                info!("Dynamic topic update successful: {} -> {}", robot_name, new_prefix);
+                info!(
+                    "Dynamic topic update successful: {} -> {}",
+                    robot_name, new_prefix
+                );
             } else {
                 ui_state.status_message = format!("Failed to update topic to {}", new_prefix);
                 warn!("Dynamic topic update failed for robot '{}'", robot_name);
@@ -1476,11 +1487,7 @@ pub fn visual_sync_system(
 
             // Update robot color from live AppConfig (allows UI changes to take effect immediately)
             // Find the matching robot config by name
-            if let Some(live_config) = app_config
-                .robots
-                .iter()
-                .find(|r| r.name == robot.name)
-            {
+            if let Some(live_config) = app_config.robots.iter().find(|r| r.name == robot.name) {
                 sprite.color = Color::srgb(
                     live_config.color[0],
                     live_config.color[1],
@@ -2912,8 +2919,13 @@ pub fn editor_input_system(
                             editor.select_obstacle(clicked_entity);
                             // And start dragging it
                             let obstacles_after: Vec<_> = app_config.world_config.obstacles.clone();
-                            let entities_after: Vec<_> = obstacle_query.iter().map(|(e, _, _)| e).collect();
-                            editor.start_drag(world_pos_adjusted, &obstacles_after, &entities_after);
+                            let entities_after: Vec<_> =
+                                obstacle_query.iter().map(|(e, _, _)| e).collect();
+                            editor.start_drag(
+                                world_pos_adjusted,
+                                &obstacles_after,
+                                &entities_after,
+                            );
                         }
                     }
                 } else {
@@ -2944,8 +2956,14 @@ pub fn editor_input_system(
                                 for (entity, physics_handle, _) in obstacle_query.iter() {
                                     if entity == *selected_entity {
                                         // Update physics body position for real-time feedback
-                                        if let Some(rb) = physics_world.rigid_body_set.get_mut(physics_handle.rigid_body_handle) {
-                                            rb.set_translation(rapier2d::na::Vector2::new(new_x, new_y), true);
+                                        if let Some(rb) = physics_world
+                                            .rigid_body_set
+                                            .get_mut(physics_handle.rigid_body_handle)
+                                        {
+                                            rb.set_translation(
+                                                rapier2d::na::Vector2::new(new_x, new_y),
+                                                true,
+                                            );
                                         }
                                     }
                                 }
@@ -2985,20 +3003,26 @@ pub fn editor_input_system(
                         // Only record undo if actually moved
                         if offset.x.abs() > 0.01 || offset.y.abs() > 0.01 {
                             // Update world config obstacles with final positions
-                            let entities: Vec<_> = obstacle_query.iter().map(|(e, _, _)| e).collect();
+                            let entities: Vec<_> =
+                                obstacle_query.iter().map(|(e, _, _)| e).collect();
 
                             for selected_entity in &editor.selected_obstacles.clone() {
-                                if let Some(idx) = entities.iter().position(|e| e == selected_entity) {
+                                if let Some(idx) =
+                                    entities.iter().position(|e| e == selected_entity)
+                                {
                                     if idx < app_config.world_config.obstacles.len() {
                                         let old_pos = app_config.world_config.obstacles[idx].pos;
-                                        let new_pos = [old_pos[0] + offset.x, old_pos[1] + offset.y];
+                                        let new_pos =
+                                            [old_pos[0] + offset.x, old_pos[1] + offset.y];
 
                                         // Record undo action
-                                        editor.push_undo(crate::editor::EditorAction::MoveObstacle {
-                                            entity: *selected_entity,
-                                            old_pos,
-                                            new_pos,
-                                        });
+                                        editor.push_undo(
+                                            crate::editor::EditorAction::MoveObstacle {
+                                                entity: *selected_entity,
+                                                old_pos,
+                                                new_pos,
+                                            },
+                                        );
 
                                         // Update world config
                                         app_config.world_config.obstacles[idx].pos = new_pos;
@@ -3305,7 +3329,10 @@ pub fn run_simulation(args: Args) -> Result<()> {
             ),
         )
         .add_systems(bevy::prelude::Update, ui::ui_system)
-        .add_systems(bevy::prelude::Update, topic_update_system.after(ui::ui_system))
+        .add_systems(
+            bevy::prelude::Update,
+            topic_update_system.after(ui::ui_system),
+        )
         .add_systems(bevy::prelude::Update, ui::file_dialog_system)
         .add_systems(
             bevy::prelude::Update,

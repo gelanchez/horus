@@ -164,10 +164,6 @@ impl LidarNode {
                 self.is_initialized = true;
                 true
             }
-            _ => {
-                eprintln!("Unsupported LiDAR backend: {:?}", self.backend);
-                false
-            }
         }
     }
 
@@ -205,7 +201,6 @@ impl LidarNode {
                 // YDLIDAR backends fall back to simulation in initialize_lidar()
                 None
             }
-            _ => None,
         }
     }
 

@@ -97,11 +97,13 @@ impl Node for FailingInitNode {
 }
 
 // Node that tracks execution order
+#[allow(dead_code)]
 struct OrderedNode {
     name: &'static str,
     execution_log: Arc<Mutex<Vec<String>>>,
 }
 
+#[allow(dead_code)]
 impl OrderedNode {
     fn new(name: &'static str, execution_log: Arc<Mutex<Vec<String>>>) -> Self {
         Self {

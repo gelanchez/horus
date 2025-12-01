@@ -7,6 +7,8 @@
 //! - GPS accuracy with known positions
 //! - Force/Torque sensor validation
 
+#![allow(dead_code)]
+#![allow(unused_imports)]
 use bevy::prelude::*;
 use std::f32::consts::PI;
 

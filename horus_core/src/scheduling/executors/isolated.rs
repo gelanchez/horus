@@ -16,6 +16,7 @@ use std::time::{Duration, Instant};
 
 /// Result from isolated node execution
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct IsolatedResult {
     pub node_name: String,
     pub duration: Duration,
@@ -27,17 +28,18 @@ pub struct IsolatedResult {
 
 /// Configuration for isolated node execution
 #[derive(Debug, Clone)]
-pub struct IsolatedConfig {
+#[allow(dead_code)]
+struct IsolatedConfig {
     /// Maximum memory in bytes (0 = unlimited)
-    pub max_memory_bytes: u64,
+    max_memory_bytes: u64,
     /// Maximum CPU time per tick in milliseconds
-    pub max_cpu_time_ms: u64,
+    max_cpu_time_ms: u64,
     /// Maximum restart attempts before giving up
-    pub max_restarts: u32,
+    max_restarts: u32,
     /// Restart delay in milliseconds
-    pub restart_delay_ms: u64,
+    restart_delay_ms: u64,
     /// Timeout for tick execution
-    pub tick_timeout: Duration,
+    tick_timeout: Duration,
 }
 
 impl Default for IsolatedConfig {
@@ -53,6 +55,7 @@ impl Default for IsolatedConfig {
 }
 
 /// State for a single isolated node process
+#[allow(dead_code)]
 struct IsolatedNode {
     name: String,
     child: Option<Child>,
@@ -121,7 +124,8 @@ impl IsolatedExecutor {
     }
 
     /// Create with custom configuration
-    pub fn with_config(config: IsolatedConfig) -> HorusResult<Self> {
+    #[allow(dead_code)]
+    fn with_config(config: IsolatedConfig) -> HorusResult<Self> {
         Ok(Self {
             nodes: HashMap::new(),
             config,
@@ -205,7 +209,8 @@ impl IsolatedExecutor {
     }
 
     /// Tick a specific isolated node
-    pub fn tick_node(&mut self, node_name: &str) -> Option<IsolatedResult> {
+    #[allow(dead_code)]
+    fn tick_node(&mut self, node_name: &str) -> Option<IsolatedResult> {
         let start = Instant::now();
 
         // Check if process is alive, restart if needed
@@ -351,11 +356,13 @@ impl IsolatedExecutor {
     }
 
     /// Get names of isolated nodes
+    #[allow(dead_code)]
     pub fn node_names(&self) -> Vec<&str> {
         self.nodes.keys().map(|s| s.as_str()).collect()
     }
 
     /// Check health of all isolated nodes
+    #[allow(dead_code)]
     pub fn health_check(&mut self) -> HashMap<String, bool> {
         let mut health = HashMap::new();
         for (name, node) in self.nodes.iter_mut() {

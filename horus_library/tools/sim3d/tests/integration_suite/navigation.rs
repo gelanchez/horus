@@ -1,5 +1,8 @@
 //! Navigation benchmarks in cluttered environments
 
+#![allow(dead_code)]
+#![allow(unused_imports)]
+#[allow(unused_imports)]
 use bevy::prelude::*;
 
 /// Navigation test scenario

@@ -268,7 +268,7 @@ mod tests {
         };
 
         let mut buf = Vec::new();
-        let size = packet.encode(&mut buf);
+        let _size = packet.encode(&mut buf);
 
         let decoded = HorusPacket::decode(&buf).unwrap();
         assert_eq!(decoded.msg_type, MessageType::Data);

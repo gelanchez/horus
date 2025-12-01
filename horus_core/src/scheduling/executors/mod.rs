@@ -11,6 +11,6 @@ pub mod background;
 pub mod isolated;
 
 pub use async_io::{AsyncIOExecutor, AsyncResult};
-pub use background::{BackgroundExecutor, BackgroundMessage, BackgroundResult};
-pub use isolated::{IsolatedConfig, IsolatedExecutor, IsolatedResult};
+pub use background::BackgroundExecutor;
+pub use isolated::IsolatedExecutor;
 pub use parallel::ParallelExecutor;

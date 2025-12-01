@@ -21,7 +21,8 @@ use crate::{
     Sim2DBuilder, WorldConfig,
 };
 use pyo3::prelude::*;
-use std::sync::{Arc, Mutex};
+use std::cell::RefCell;
+use std::rc::Rc;
 
 /// Python wrapper for Sim2D simulator
 ///
@@ -38,7 +39,7 @@ pub struct Sim2D {
     topic_prefix: String,
     headless: bool,
     /// Persistent simulation app - created lazily on first run
-    app: Arc<Mutex<Option<Sim2DApp>>>,
+    app: Rc<RefCell<Option<Sim2DApp>>>,
 }
 
 #[pymethods]
@@ -89,7 +90,7 @@ impl Sim2D {
             robot_name: robot_name.to_string(),
             topic_prefix: topic_prefix.to_string(),
             headless,
-            app: Arc::new(Mutex::new(None)),
+            app: Rc::new(RefCell::new(None)),
         })
     }
 
@@ -106,9 +107,9 @@ impl Sim2D {
     /// Args:
     ///     duration (float): Duration to run in seconds
     fn run(&self, duration: f32) -> PyResult<()> {
-        let mut app_guard = self.app.lock().map_err(|e| {
+        let mut app_guard = self.app.try_borrow_mut().map_err(|e| {
             PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
-                "Failed to lock app: {}",
+                "Failed to borrow app: {}",
                 e
             ))
         })?;
@@ -143,9 +144,9 @@ impl Sim2D {
     ///
     /// Useful for fine-grained control over simulation stepping.
     fn step(&self) -> PyResult<()> {
-        let mut app_guard = self.app.lock().map_err(|e| {
+        let mut app_guard = self.app.try_borrow_mut().map_err(|e| {
             PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
-                "Failed to lock app: {}",
+                "Failed to borrow app: {}",
                 e
             ))
         })?;
@@ -180,9 +181,9 @@ impl Sim2D {
     /// This discards all current simulation state (robot position, physics, etc.)
     /// and starts fresh with the original configuration.
     fn reset(&self) -> PyResult<()> {
-        let mut app_guard = self.app.lock().map_err(|e| {
+        let mut app_guard = self.app.try_borrow_mut().map_err(|e| {
             PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
-                "Failed to lock app: {}",
+                "Failed to borrow app: {}",
                 e
             ))
         })?;
@@ -205,9 +206,9 @@ impl Sim2D {
     /// Returns:
     ///     bool: True if simulation app has been created
     fn is_initialized(&self) -> PyResult<bool> {
-        let app_guard = self.app.lock().map_err(|e| {
+        let app_guard = self.app.try_borrow().map_err(|e| {
             PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
-                "Failed to lock app: {}",
+                "Failed to borrow app: {}",
                 e
             ))
         })?;

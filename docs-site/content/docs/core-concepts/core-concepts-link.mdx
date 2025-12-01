@@ -89,7 +89,7 @@ let input: Link<SensorData> = Link::consumer("sensors@0.0.0.0:9000")?;
 
 **Important**: The Link pattern (SPSC point-to-point) works identically with both transports - only the endpoint syntax changes!
 
-See [Communication Transport](/communication-transport) for detailed comparison and [Network Communication](/network-communication) for multi-machine setup.
+See [Communication Transport](/core-concepts/communication-transport) for detailed comparison and [Network Communication](/core-concepts/network-communication) for multi-machine setup.
 
 ## Link vs Hub
 
@@ -386,4 +386,4 @@ Link provides the **fastest IPC in HORUS** for point-to-point communication:
 
 Use Link when you need the absolute minimum latency for critical data paths. Use Hub when you need flexibility and multiple subscribers.
 
-For the full API reference, see [Link API Reference](/api-link).
+For the full API reference, see [Core API Reference](/api/core#link).

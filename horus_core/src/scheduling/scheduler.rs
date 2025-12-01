@@ -293,7 +293,11 @@ impl Scheduler {
 
         scheduler.classifier = Some(classifier);
 
-        println!("[OK] Loaded profile '{}' ({} nodes)", profile.name, profile.nodes.len());
+        println!(
+            "[OK] Loaded profile '{}' ({} nodes)",
+            profile.name,
+            profile.nodes.len()
+        );
         println!("   - Determinism: ENABLED (from profile)");
         println!("   - Execution: Optimized per-node tiers");
 
@@ -369,10 +373,7 @@ impl Scheduler {
                 .insert(node_name.clone(), tier.to_execution_tier());
         }
 
-        println!(
-            "Added node '{}' with explicit tier: {:?}",
-            node_name, tier
-        );
+        println!("Added node '{}' with explicit tier: {:?}", node_name, tier);
 
         self
     }

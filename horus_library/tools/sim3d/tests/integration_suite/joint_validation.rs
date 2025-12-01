@@ -7,6 +7,8 @@
 //! - Spherical joints (ball-and-socket)
 //! - Joint motors and breaking
 
+#![allow(dead_code)]
+
 use bevy::prelude::*;
 use rapier3d::prelude::*;
 use std::f32::consts::PI;
@@ -688,7 +690,7 @@ pub fn validate_joint_motor_position_control(
         );
 
         // Get joint angle
-        if let Some(joint) = impulse_joint_set.get(joint_handle) {
+        if let Some(_joint) = impulse_joint_set.get(joint_handle) {
             let rb1 = rigid_body_set.get(base_handle).ok_or("Base not found")?;
             let rb2 = rigid_body_set.get(arm_handle).ok_or("Arm not found")?;
 

@@ -455,7 +455,7 @@ simulation:
         // Verify simulation state
         assert_eq!(loaded_scenario.simulation.time, 5.5);
         assert_eq!(loaded_scenario.simulation.timestep, 0.016);
-        assert_eq!(loaded_scenario.simulation.paused, true);
+        assert!(loaded_scenario.simulation.paused);
 
         // Verify trajectory
         let loaded_trajectory = loaded_scenario
@@ -490,6 +490,8 @@ simulation:
                 size: [3.0, 2.0],
                 color: None,
             }],
+            wall_color: [0.3, 0.3, 0.3],
+            default_obstacle_color: [0.6, 0.4, 0.2],
         };
 
         let robot_configs = vec![RobotConfig {

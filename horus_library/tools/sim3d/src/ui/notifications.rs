@@ -684,7 +684,10 @@ pub fn render_notifications_system(
     config: Res<NotificationConfig>,
     mut action_events: EventWriter<NotificationActionEvent>,
 ) {
-    let ctx = contexts.ctx_mut();
+    // Safely get egui context - may not be initialized on first frame
+    let Some(ctx) = contexts.try_ctx_mut() else {
+        return;
+    };
     let screen_rect = ctx.screen_rect();
 
     // Calculate starting position based on config

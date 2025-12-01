@@ -36,7 +36,7 @@ fn test_physics_world_creation() {
     app.update();
 
     // If we got here without panicking, physics initialized successfully
-    assert!(true, "Physics world created successfully");
+    // Test passes if no panic occurred
 }
 
 #[test]
@@ -50,7 +50,7 @@ fn test_physics_step_integration() {
     }
 
     // If we got here without panicking, physics is running correctly
-    assert!(true, "Physics step ran successfully for 10 frames");
+    // Test passes if no panic occurred
 }
 
 #[test]

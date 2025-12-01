@@ -120,7 +120,7 @@ pub struct ForceTorqueSensorNode {
     socket: Option<UdpSocket>,
 
     #[cfg(feature = "netft")]
-    calibration_matrix: [[f32; 6]; 6],
+    netft_calibration_matrix: [[f32; 6]; 6],
 
     // Timing state (moved from static mut for thread safety)
     status_counter: u32,
@@ -249,7 +249,7 @@ impl ForceTorqueSensorNode {
             #[cfg(feature = "netft")]
             socket: None,
             #[cfg(feature = "netft")]
-            calibration_matrix: Self::identity_matrix_f32(),
+            netft_calibration_matrix: Self::identity_matrix_f32(),
             status_counter: 0,
         })
     }
@@ -617,7 +617,8 @@ impl ForceTorqueSensorNode {
                     let mut ft_values = [0.0f32; 6];
                     for i in 0..6 {
                         for j in 0..6 {
-                            ft_values[i] += self.calibration_matrix[i][j] * ft_counts[j] as f32;
+                            ft_values[i] +=
+                                self.netft_calibration_matrix[i][j] * ft_counts[j] as f32;
                         }
                     }
 

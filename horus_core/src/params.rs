@@ -486,7 +486,6 @@ impl Default for RuntimeParams {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
     use tempfile::TempDir;
 
     fn create_test_params() -> RuntimeParams {
@@ -519,10 +518,10 @@ mod tests {
     #[test]
     fn test_set_and_get_float() {
         let params = create_test_params();
-        params.set("float_key", 2.718).unwrap();
+        params.set("float_key", 1.234).unwrap();
 
         let value: Option<f64> = params.get("float_key");
-        assert_eq!(value, Some(2.718));
+        assert_eq!(value, Some(1.234));
     }
 
     #[test]
@@ -583,10 +582,10 @@ mod tests {
     #[test]
     fn test_get_f64() {
         let params = create_test_params();
-        params.set("pi", 2.71828).unwrap();
+        params.set("test_float", 1.23456).unwrap();
 
-        let value = params.get_f64("pi", 0.0);
-        assert_eq!(value, 2.71828);
+        let value = params.get_f64("test_float", 0.0);
+        assert_eq!(value, 1.23456);
     }
 
     #[test]

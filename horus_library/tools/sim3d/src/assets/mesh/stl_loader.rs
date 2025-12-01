@@ -100,7 +100,6 @@ pub fn load_stl(path: &Path, options: &MeshLoadOptions) -> Result<LoadedMesh> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Write;
 
     #[test]
     fn test_stl_loading_ascii() {

@@ -1,5 +1,8 @@
 //! Multi-robot coordination benchmarks
 
+#![allow(dead_code)]
+#![allow(unused_imports)]
+#[allow(unused_imports)]
 use bevy::prelude::*;
 
 /// Multi-robot test scenario

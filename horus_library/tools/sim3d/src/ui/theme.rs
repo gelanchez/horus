@@ -1014,10 +1014,7 @@ impl Plugin for ThemePlugin {
                 Update,
                 (handle_theme_change_system, theme_keyboard_system).chain(),
             )
-            .add_systems(
-                Update,
-                apply_theme_system.after(EguiSet::InitContexts),
-            );
+            .add_systems(Update, apply_theme_system.after(EguiSet::InitContexts));
     }
 }
 

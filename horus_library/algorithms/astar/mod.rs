@@ -430,8 +430,8 @@ mod tests {
         let len2 = AStar::path_length(&path2);
 
         // Both should find paths
-        assert!(path1.len() > 0);
-        assert!(path2.len() > 0);
+        assert!(!path1.is_empty());
+        assert!(!path2.is_empty());
 
         // Weighted might be slightly longer (or equal in open space)
         assert!(len2 >= len1 * 0.9); // Within 10% tolerance

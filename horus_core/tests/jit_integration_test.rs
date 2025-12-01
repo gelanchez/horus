@@ -65,7 +65,7 @@ fn test_jit_execution_performance() {
     for i in 0..iterations {
         unsafe {
             let func: fn(i64) -> i64 = std::mem::transmute(func_ptr);
-            let result = func(i as i64);
+            let result = func(i);
             // Verify correctness: result = i * 5 + 3
             assert_eq!(result, i * 5 + 3, "JIT computation incorrect");
         }
@@ -147,6 +147,7 @@ fn test_non_jit_node_default_behavior() {
 #[test]
 fn test_custom_jit_compute_function() {
     // Test a node that provides a custom compute function
+    #[allow(dead_code)]
     struct CustomJITNode {
         multiplier: i64,
     }

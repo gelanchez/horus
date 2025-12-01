@@ -429,6 +429,12 @@ if [ "$EXAMPLE_COUNT" -gt 0 ]; then
 fi
 
 # Check horus_library examples
+# Note: Some examples require specific features defined in Cargo.toml
+# Map of example name -> required features (from Cargo.toml)
+declare -A EXAMPLE_FEATURES
+EXAMPLE_FEATURES["joystick_advanced_example"]="gilrs"
+EXAMPLE_FEATURES["hardware_sensors_demo"]="all-sensors"
+
 EXAMPLE_COUNT=0
 EXAMPLE_PASS=0
 
@@ -437,10 +443,22 @@ for example in horus_library/examples/*.rs; do
         EXAMPLE_NAME=$(basename "$example" .rs)
         EXAMPLE_COUNT=$((EXAMPLE_COUNT + 1))
 
-        if cargo build --release --example "$EXAMPLE_NAME" -p horus_library >/dev/null 2>&1; then
-            EXAMPLE_PASS=$((EXAMPLE_PASS + 1))
+        # Get required features for this example
+        FEATURES="${EXAMPLE_FEATURES[$EXAMPLE_NAME]:-}"
+
+        # Build with specific features if required, otherwise default features
+        if [ -n "$FEATURES" ]; then
+            if cargo build --release --example "$EXAMPLE_NAME" -p horus_library --features "$FEATURES" >/dev/null 2>&1; then
+                EXAMPLE_PASS=$((EXAMPLE_PASS + 1))
+            else
+                warn "Example failed to build: $EXAMPLE_NAME (features: $FEATURES)"
+            fi
         else
-            warn "Example failed to build: $EXAMPLE_NAME"
+            if cargo build --release --example "$EXAMPLE_NAME" -p horus_library >/dev/null 2>&1; then
+                EXAMPLE_PASS=$((EXAMPLE_PASS + 1))
+            else
+                warn "Example failed to build: $EXAMPLE_NAME"
+            fi
         fi
     fi
 done

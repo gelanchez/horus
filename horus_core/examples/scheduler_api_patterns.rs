@@ -14,7 +14,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Pattern 1: Builder Pattern (Recommended)");
     println!("-----------------------------------------");
 
-    let mut scheduler = Scheduler::new()
+    let scheduler = Scheduler::new()
         .with_config(SchedulerConfig::hard_realtime())
         .with_capacity(128)
         .disable_learning()
@@ -51,7 +51,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Pattern 2: Convenience Constructor (Quick Start)");
     println!("------------------------------------------------");
 
-    let mut scheduler2 = Scheduler::new_realtime()?;
+    let scheduler2 = Scheduler::new_realtime()?;
 
     println!("[OK] Created with new_realtime()");
     println!("  (Internally uses builder pattern)");

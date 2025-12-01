@@ -161,8 +161,9 @@
 
   <gazebo reference="caster_wheel">
     <material>Gazebo/Grey</material>
-    <mu1>0.1</mu1>
-    <mu2>0.1</mu2>
+    <!-- Increased friction to prevent unwanted rolling on startup -->
+    <mu1>0.5</mu1>
+    <mu2>0.5</mu2>
   </gazebo>
 
   <!-- Differential drive plugin configuration -->

@@ -455,6 +455,7 @@ struct SensorFusionNode {
     // Sensor inputs
     imu_sub: Hub<IMUData>,
     gps_position: (f64, f64),
+    #[allow(dead_code)]
     encoder_speeds: Arc<Mutex<(f64, f64)>>,
 
     // Output
@@ -721,7 +722,7 @@ impl NavigationControllerNode {
         let waypoint = if self.current_waypoint_index < path.waypoints.len() {
             path.waypoints[self.current_waypoint_index]
         } else {
-            path.waypoints.last().unwrap().clone()
+            *path.waypoints.last().unwrap()
         };
 
         // Compute distance and angle to waypoint

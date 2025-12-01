@@ -54,11 +54,7 @@ fn run_publisher() -> Result<(), Box<dyn std::error::Error>> {
             }
             Err(e) => {
                 reconnect_ctx.begin_reconnect();
-                eprintln!(
-                    "{} {}",
-                    "[ERROR]".red().bold(),
-                    format!("Connection failed: {}", e)
-                );
+                eprintln!("{} Connection failed: {}", "[ERROR]".red().bold(), e);
 
                 if !reconnect_ctx.should_retry() {
                     eprintln!("{}", "Max retries exceeded. Giving up.".red());
@@ -123,11 +119,7 @@ fn run_subscriber() -> Result<(), Box<dyn std::error::Error>> {
             }
             Err(e) => {
                 reconnect_ctx.begin_reconnect();
-                eprintln!(
-                    "{} {}",
-                    "[ERROR]".red().bold(),
-                    format!("Connection failed: {}", e)
-                );
+                eprintln!("{} Connection failed: {}", "[ERROR]".red().bold(), e);
 
                 if !reconnect_ctx.should_retry() {
                     return Err("Failed to connect after max retries".into());
@@ -155,9 +147,9 @@ fn run_subscriber() -> Result<(), Box<dyn std::error::Error>> {
                 if last_timestamp > 0 && data.timestamp != last_timestamp + 1 {
                     let lost = data.timestamp - last_timestamp - 1;
                     eprintln!(
-                        "{} {}",
+                        "{} Detected {} lost messages",
                         "[WARNING]".yellow().bold(),
-                        format!("Detected {} lost messages", lost)
+                        lost
                     );
                 }
                 last_timestamp = data.timestamp;

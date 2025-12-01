@@ -280,8 +280,8 @@ fn bench_mixed_messages(c: &mut Criterion) {
                 cmd_sender.send(cmd, &mut None).unwrap();
                 let _ = cmd_receiver.recv(&mut None);
 
-                // IMU at 100Hz
-                if i % 1 == 0 {
+                // IMU at 100Hz (every tick)
+                {
                     let mut imu = Imu::new();
                     imu.angular_velocity = [0.01, 0.02, 0.03];
                     imu_sender.send(imu, &mut None).unwrap();

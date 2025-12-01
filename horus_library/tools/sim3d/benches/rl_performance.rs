@@ -348,7 +348,7 @@ fn benchmark_memory_overhead() {
     let num_envs = 100;
     let start_time = Instant::now();
 
-    let envs: Vec<(ReachingTask, World)> = (0..num_envs)
+    let _envs: Vec<(ReachingTask, World)> = (0..num_envs)
         .map(|_| (ReachingTask::new(10, 6), World::new()))
         .collect();
 

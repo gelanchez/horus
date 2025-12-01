@@ -40,7 +40,7 @@ crossterm = { version = "0.27", optional = true }  # Terminal/keyboard
 tokio-modbus = { version = "0.9", optional = true }
 bno055 = { version = "0.4", optional = true }  # BNO055 IMU
 mpu6050 = { version = "0.1", optional = true }  # MPU6050 IMU
-linux-embedded-hal = { version = "0.4", optional = true }  # Linux I2C/SPI HAL
+linux-embedded-hal = { version = "0.3", optional = true }  # Linux I2C/SPI HAL (v0.3 for embedded-hal 0.2 compatibility with mpu6050/bno055)
 # rplidar_drv has a compilation bug in recent Rust versions (unaligned packed struct reference)
 # Keeping feature flag for conditional compilation, but driver crate is disabled until upstream is fixed
 nmea = { version = "0.5", optional = true }  # GPS NMEA parsing
@@ -125,9 +125,10 @@ full-hardware = [
     "crossterm",
 ]
 
+# Note: bno055-imu and mpu6050-imu are excluded due to embedded-hal version conflicts
+# between the driver crates (bno055 needs v1.0, mpu6050 needs v0.2).
+# Enable them individually if needed on compatible setups.
 all-sensors = [
-    "bno055-imu",
-    "mpu6050-imu",
     "nmea-gps",
     "rplidar",
     "netft",

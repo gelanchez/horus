@@ -36,7 +36,7 @@ impl Node for CriticalControlNode {
         Ok(())
     }
 
-    fn tick(&mut self, ctx: Option<&mut NodeInfo>) {
+    fn tick(&mut self, _ctx: Option<&mut NodeInfo>) {
         self.tick_count.fetch_add(1, Ordering::SeqCst);
 
         // Simulate computation

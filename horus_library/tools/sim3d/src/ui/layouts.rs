@@ -879,10 +879,7 @@ impl Plugin for LayoutPlugin {
         #[cfg(feature = "visual")]
         {
             use bevy_egui::EguiSet;
-            app.add_systems(
-                Update,
-                layout_panel_system.after(EguiSet::InitContexts),
-            );
+            app.add_systems(Update, layout_panel_system.after(EguiSet::InitContexts));
         }
     }
 }

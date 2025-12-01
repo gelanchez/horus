@@ -255,7 +255,7 @@ fn bench_link_primitives(c: &mut Criterion) {
         let consumer: Link<f32> = Link::consumer(&topic).unwrap();
 
         b.iter(|| {
-            producer.send(black_box(3.14f32), &mut None).unwrap();
+            producer.send(black_box(1.23f32), &mut None).unwrap();
             let _ = black_box(consumer.recv(&mut None));
         });
     });
@@ -268,7 +268,7 @@ fn bench_link_primitives(c: &mut Criterion) {
 
         b.iter(|| {
             producer
-                .send(black_box(3.14159265359f64), &mut None)
+                .send(black_box(1.23456789012f64), &mut None)
                 .unwrap();
             let _ = black_box(consumer.recv(&mut None));
         });

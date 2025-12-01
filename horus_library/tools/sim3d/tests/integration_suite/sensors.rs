@@ -1,5 +1,8 @@
 //! Sensor data generation throughput benchmarks
 
+#![allow(dead_code)]
+#![allow(unused_imports)]
+#[allow(unused_imports)]
 use bevy::prelude::*;
 
 /// Sensor throughput test

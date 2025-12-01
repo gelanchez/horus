@@ -97,9 +97,12 @@ objects:
 robots:
   - name: "racer"
     urdf_path: "racer.urdf"
-    # With articulated physics, the robot will settle naturally on the ground
-    # Starting slightly above ground to let physics settle
-    position: [0.0, 0.15, 0.0]
+    # Robot geometry after Z-up to Y-up conversion:
+    # - Joint origin for wheels: Y=0.04 from base_link (after coord conversion)
+    # - Wheel radius: 0.04m
+    # - So wheels touch ground when base_link.y + 0.04 - 0.04 = base_link.y = 0
+    # Start at Y=0 so wheels sit exactly on ground (no hopping from collision overlap)
+    position: [0.0, 0.0, 0.0]
     rotation_euler: [0.0, 0.0, 0.0]
 
 lighting:

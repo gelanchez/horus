@@ -3,16 +3,14 @@
 
 use axum::{
     body::{to_bytes, Body},
-    extract::{Path, Query, State},
     http::{Request, StatusCode},
-    response::IntoResponse,
     routing::{delete, get, post},
-    Json, Router,
+    Router,
 };
 use horus_core::params::RuntimeParams;
-use horus_manager::dashboard::{AppState, SearchQuery};
+use horus_manager::dashboard::AppState;
 use horus_manager::security::auth::AuthService;
-use serde_json::{json, Value};
+use serde_json::Value;
 use std::sync::Arc;
 use tower::ServiceExt;
 

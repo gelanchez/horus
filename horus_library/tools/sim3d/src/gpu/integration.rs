@@ -116,6 +116,7 @@ impl GPUIntegrationPipeline {
 
 #[cfg(test)]
 mod tests {
+    #[allow(unused_imports)]
     use super::*;
     use bevy::prelude::Vec3;
 

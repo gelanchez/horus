@@ -6,6 +6,8 @@
 //! - Random seed reproducibility
 //! - Parallel vs sequential determinism
 
+#![allow(dead_code)]
+
 use bevy::prelude::*;
 use rapier3d::prelude::*;
 use std::collections::hash_map::DefaultHasher;

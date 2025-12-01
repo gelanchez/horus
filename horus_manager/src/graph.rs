@@ -156,7 +156,8 @@ pub fn discover_graph_data() -> (Vec<GraphNode>, Vec<GraphEdge>) {
     // AND infer edges from accessing_processes when registry info is missing
     if let Ok(topics) = super::commands::monitor::discover_shared_memory() {
         // Build a map of PID -> process node ID for edge inference
-        let mut pid_to_node_id: std::collections::HashMap<u32, String> = std::collections::HashMap::new();
+        let mut pid_to_node_id: std::collections::HashMap<u32, String> =
+            std::collections::HashMap::new();
         for node in &graph_nodes {
             if node.node_type == NodeType::Process {
                 if let Some(pid) = node.pid {

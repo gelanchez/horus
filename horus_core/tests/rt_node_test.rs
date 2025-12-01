@@ -22,6 +22,7 @@ impl MotorControlNode {
         }
     }
 
+    #[allow(dead_code)]
     fn with_overrun(name: &str) -> Self {
         Self {
             name: name.to_string(),
@@ -41,7 +42,7 @@ impl Node for MotorControlNode {
         Ok(())
     }
 
-    fn tick(&mut self, ctx: Option<&mut NodeInfo>) {
+    fn tick(&mut self, _ctx: Option<&mut NodeInfo>) {
         self.tick_count.fetch_add(1, Ordering::SeqCst);
 
         // Simulate computation
@@ -127,7 +128,7 @@ impl Node for SensorFusionNode {
         Ok(())
     }
 
-    fn tick(&mut self, ctx: Option<&mut NodeInfo>) {
+    fn tick(&mut self, _ctx: Option<&mut NodeInfo>) {
         self.samples_processed.fetch_add(1, Ordering::SeqCst);
 
         // Simulate sensor fusion computation

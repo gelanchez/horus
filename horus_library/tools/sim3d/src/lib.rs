@@ -15,6 +15,20 @@
 // that are not internally consumed but are intended for external users. These are
 // legitimate library exports (config presets, asset loaders, physics types, etc.)
 #![allow(dead_code)]
+// Simulator code often uses test assertions with length comparisons
+#![allow(clippy::len_zero)]
+// Simulator uses manual range checks for clarity in physics code
+#![allow(clippy::manual_range_contains)]
+// Field initialization patterns are common in test fixtures
+#![allow(clippy::field_reassign_with_default)]
+// Private interfaces in Bevy system signatures are acceptable
+#![allow(private_interfaces)]
+// Test code uses approximate PI values intentionally in tests
+#![allow(clippy::approx_constant)]
+// Unused variables in tests are fine
+#![allow(unused_variables)]
+// Reference patterns in Bevy queries
+#![allow(clippy::needless_borrow)]
 
 // Re-export main modules
 pub mod assets;

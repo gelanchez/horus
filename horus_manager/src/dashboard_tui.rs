@@ -70,7 +70,6 @@ pub struct TuiDashboard {
     workspace_cache: Vec<WorkspaceData>,
     workspace_cache_time: Instant,
     current_workspace_path: Option<std::path::PathBuf>,
-
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -236,7 +235,6 @@ impl TuiDashboard {
             workspace_cache: Vec::new(),
             workspace_cache_time: Instant::now() - Duration::from_secs(10), // Force initial load
             current_workspace_path,
-
         }
     }
 
@@ -2302,7 +2300,6 @@ impl TuiDashboard {
             self.param_edit_mode = ParamEditMode::None;
         }
     }
-
 }
 
 // Unified backend functions using monitor module

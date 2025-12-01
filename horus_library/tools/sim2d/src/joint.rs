@@ -386,7 +386,10 @@ impl ArticulatedRobotConfig {
             in_stack: &mut std::collections::HashSet<&'a str>,
         ) -> Option<String> {
             if in_stack.contains(node) {
-                return Some(format!("Cycle detected in kinematic chain involving link '{}'", node));
+                return Some(format!(
+                    "Cycle detected in kinematic chain involving link '{}'",
+                    node
+                ));
             }
             if visited.contains(node) {
                 return None;
@@ -586,11 +589,7 @@ pub struct JointCommand {
 // Implement LogSummary for JointState (required by Hub send/recv)
 impl horus_core::core::LogSummary for JointState {
     fn log_summary(&self) -> String {
-        format!(
-            "JointState({} joints: {:?})",
-            self.name.len(),
-            self.name
-        )
+        format!("JointState({} joints: {:?})", self.name.len(), self.name)
     }
 }
 
@@ -600,7 +599,11 @@ impl horus_core::core::LogSummary for JointCommand {
         format!(
             "JointCommand(mode={:?}, joints={:?})",
             self.mode,
-            if self.name.is_empty() { "all".to_string() } else { format!("{:?}", self.name) }
+            if self.name.is_empty() {
+                "all".to_string()
+            } else {
+                format!("{:?}", self.name)
+            }
         )
     }
 }
@@ -1145,7 +1148,9 @@ fn apply_joint_command(
                         .unwrap_or((100.0, 10.0, 50.0));
 
                     // Apply motor position target using Rapier's motor API
-                    joint.data.set_motor_position(JointAxis::AngX, target_pos, stiffness, damping);
+                    joint
+                        .data
+                        .set_motor_position(JointAxis::AngX, target_pos, stiffness, damping);
                     joint.data.set_motor_max_force(JointAxis::AngX, max_force);
 
                     // Update tracked position
@@ -1167,11 +1172,15 @@ fn apply_joint_command(
                         .unwrap_or((10.0, 50.0));
 
                     // Apply motor velocity target
-                    joint.data.set_motor_velocity(JointAxis::AngX, target_vel, damping);
+                    joint
+                        .data
+                        .set_motor_velocity(JointAxis::AngX, target_vel, damping);
                     joint.data.set_motor_max_force(JointAxis::AngX, max_force);
 
                     // Update tracked velocity
-                    robot.joint_velocities.insert(joint_name.clone(), target_vel);
+                    robot
+                        .joint_velocities
+                        .insert(joint_name.clone(), target_vel);
                 }
             }
             JointControlMode::Effort => {
@@ -1180,8 +1189,12 @@ fn apply_joint_command(
 
                     // For effort mode, we use a very high stiffness with zero damping
                     // to directly apply the torque/force
-                    joint.data.set_motor_velocity(JointAxis::AngX, effort.signum() * 1000.0, 0.0);
-                    joint.data.set_motor_max_force(JointAxis::AngX, effort.abs());
+                    joint
+                        .data
+                        .set_motor_velocity(JointAxis::AngX, effort.signum() * 1000.0, 0.0);
+                    joint
+                        .data
+                        .set_motor_max_force(JointAxis::AngX, effort.abs());
                 }
             }
         }

@@ -328,6 +328,19 @@ impl NumericUtils {
     }
 }
 
+// Extension trait for AngleUtils - may be used in tests or future code
+#[allow(dead_code)]
+trait AngleUtilsExt {
+    fn approx_eq(a: f32, b: f32, epsilon: f32) -> bool;
+}
+
+#[allow(dead_code)]
+impl AngleUtilsExt for AngleUtils {
+    fn approx_eq(a: f32, b: f32, epsilon: f32) -> bool {
+        (a - b).abs() < epsilon
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -432,18 +445,5 @@ mod tests {
     fn test_numeric_wrap() {
         assert_eq!(NumericUtils::wrap(15.0, 0.0, 10.0), 5.0);
         assert_eq!(NumericUtils::wrap(-5.0, 0.0, 10.0), 5.0);
-    }
-}
-
-// Extension trait for AngleUtils - may be used in tests or future code
-#[allow(dead_code)]
-trait AngleUtilsExt {
-    fn approx_eq(a: f32, b: f32, epsilon: f32) -> bool;
-}
-
-#[allow(dead_code)]
-impl AngleUtilsExt for AngleUtils {
-    fn approx_eq(a: f32, b: f32, epsilon: f32) -> bool {
-        (a - b).abs() < epsilon
     }
 }

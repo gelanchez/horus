@@ -1,5 +1,8 @@
 //! Manipulation benchmarks (pick and place)
 
+#![allow(dead_code)]
+#![allow(unused_imports)]
+#[allow(unused_imports)]
 use bevy::prelude::*;
 
 /// Manipulation test scenario

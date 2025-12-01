@@ -8,6 +8,9 @@
 //! - Joint validation
 //! - Sensor accuracy
 
+#![allow(dead_code)]
+#![allow(unused_imports)]
+
 pub mod benchmarks;
 pub mod determinism;
 pub mod joint_validation;

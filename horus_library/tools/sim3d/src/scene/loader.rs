@@ -771,7 +771,10 @@ impl SceneLoader {
                 Ok(robot_entity) => {
                     loaded_scene.entities.push(robot_entity);
                     spawned_objects.add(robot_entity);
-                    info!("Successfully spawned robot '{}' at position {:?}", robot_def.name, position);
+                    info!(
+                        "Successfully spawned robot '{}' at position {:?}",
+                        robot_def.name, position
+                    );
                 }
                 Err(e) => {
                     warn!("Failed to load robot '{}': {}", robot_def.name, e);

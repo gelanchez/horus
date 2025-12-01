@@ -1,9 +1,12 @@
 //! Benchmark suite for performance tracking
 
+#![allow(dead_code)]
+
 use std::time::{Duration, Instant};
 
 /// Benchmark result
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct BenchmarkResult {
     pub name: String,
     pub duration: Duration,

@@ -29,7 +29,7 @@ use super::classifier::ExecutionTier;
 ///     .add_with_tier(Box::new(sensor_node), 1, NodeTier::Fast)
 ///     .add_with_tier(Box::new(logger_node), 5, NodeTier::Background);
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 pub enum NodeTier {
     /// Ultra-fast nodes (<1μs) - JIT compiled for maximum speed
     /// Use for: PID controllers, simple math, data transformations
@@ -37,6 +37,7 @@ pub enum NodeTier {
 
     /// Fast nodes (<10μs) - Inline execution with minimal overhead
     /// Use for: Sensor readers, filter calculations, state machines
+    #[default]
     Fast,
 
     /// Normal nodes (<100μs) - Standard scheduling
@@ -85,12 +86,6 @@ impl NodeTier {
             NodeTier::Isolated => "Process isolation (fault tolerance)",
             NodeTier::Auto => "Auto-detect from profile",
         }
-    }
-}
-
-impl Default for NodeTier {
-    fn default() -> Self {
-        NodeTier::Fast // Safe default - no JIT, no learning
     }
 }
 
@@ -272,8 +267,8 @@ impl ProfileData {
 
     /// Save profile to file (JSON format for human readability)
     pub fn save_json<P: AsRef<Path>>(&self, path: P) -> Result<(), ProfileError> {
-        let json =
-            serde_json::to_string_pretty(self).map_err(|e| ProfileError::Serialize(e.to_string()))?;
+        let json = serde_json::to_string_pretty(self)
+            .map_err(|e| ProfileError::Serialize(e.to_string()))?;
         fs::write(&path, json).map_err(|e| ProfileError::Io(e.to_string()))?;
         Ok(())
     }
@@ -375,17 +370,11 @@ struct WelfordStats {
 }
 
 impl WelfordStats {
-    fn new() -> Self {
-        Self {
-            count: 0,
-            mean: 0.0,
-            m2: 0.0,
-            min: f64::MAX,
-            max: 0.0,
-        }
-    }
-
     fn update(&mut self, value: f64) {
+        // Initialize min on first value
+        if self.count == 0 {
+            self.min = f64::MAX;
+        }
         self.count += 1;
         self.min = self.min.min(value);
         self.max = self.max.max(value);
@@ -422,7 +411,7 @@ impl OfflineProfiler {
 
         self.stats
             .entry(node_name.to_string())
-            .or_insert_with(WelfordStats::new)
+            .or_default()
             .update(duration_us);
     }
 
@@ -456,7 +445,11 @@ impl OfflineProfiler {
                 tier: NodeTier::Auto,
                 avg_us: stats.mean,
                 stddev_us: stats.stddev(),
-                min_us: if stats.min == f64::MAX { 0.0 } else { stats.min },
+                min_us: if stats.min == f64::MAX {
+                    0.0
+                } else {
+                    stats.min
+                },
                 max_us: stats.max,
                 sample_count: stats.count,
                 is_deterministic: false,
@@ -522,7 +515,11 @@ mod tests {
 
         profile.classify_tier();
 
-        assert!(profile.is_deterministic, "Expected deterministic (CV = {})", profile.stddev_us / profile.avg_us);
+        assert!(
+            profile.is_deterministic,
+            "Expected deterministic (CV = {})",
+            profile.stddev_us / profile.avg_us
+        );
         assert_eq!(profile.tier, NodeTier::Jit);
     }
 

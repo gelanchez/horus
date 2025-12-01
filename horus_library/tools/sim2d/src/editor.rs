@@ -364,9 +364,10 @@ impl WorldEditor {
 
     /// End drag operation
     pub fn end_drag(&mut self) -> Option<Vec2> {
-        let offset = self.drag_start_pos.take().and_then(|start| {
-            Some(self.snap_to_grid(self.mouse_world_pos) - self.snap_to_grid(start))
-        });
+        let offset = self
+            .drag_start_pos
+            .take()
+            .map(|start| self.snap_to_grid(self.mouse_world_pos) - self.snap_to_grid(start));
         self.drag_original_positions.clear();
         offset
     }

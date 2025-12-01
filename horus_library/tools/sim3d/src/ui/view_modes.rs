@@ -108,23 +108,29 @@ pub fn view_mode_hotkey_system(
     }
 }
 
+/// Local resource to track previous view mode for actual change detection
+#[derive(Default)]
+struct PreviousViewMode(Option<ViewMode>);
+
 /// System to apply view mode transformations to camera
 pub fn apply_view_mode_system(
     current_mode: Res<CurrentViewMode>,
     mut camera_query: Query<(&mut Transform, &mut OrbitCamera), With<Camera>>,
     follow_query: Query<&GlobalTransform>,
+    mut previous_mode: Local<PreviousViewMode>,
 ) {
-    if !current_mode.is_changed() {
+    // Only apply when mode actually changes, not just when resource is accessed mutably
+    let mode_changed = previous_mode.0 != Some(current_mode.mode);
+    if !mode_changed {
         return;
     }
+    previous_mode.0 = Some(current_mode.mode);
 
     for (mut transform, mut orbit) in camera_query.iter_mut() {
         match current_mode.mode {
             ViewMode::Orbit => {
-                // Default orbit mode - no changes needed
-                orbit.radius = 10.0;
-                orbit.yaw = 0.0;
-                orbit.pitch = 0.3;
+                // In orbit mode, don't reset camera - let user control it freely
+                // Only other view modes should override camera position
             }
             ViewMode::TopDown => {
                 // Top-down view
@@ -188,6 +194,38 @@ pub fn follow_mode_update_system(
     }
 }
 
+/// Render the view modes UI content (reusable in both floating window and dock tab)
+#[cfg(feature = "visual")]
+pub fn render_view_modes_ui(ui: &mut egui::Ui, current_mode: &mut CurrentViewMode) {
+    ui.heading("Camera View Modes");
+    ui.separator();
+
+    for mode in ViewMode::all() {
+        let is_selected = current_mode.mode == *mode;
+        let hotkey_text = format!("{} ({:?})", mode.name(), mode.hotkey());
+
+        if ui.selectable_label(is_selected, hotkey_text).clicked() {
+            current_mode.set_mode(*mode);
+        }
+    }
+
+    ui.separator();
+    ui.label("Hotkeys:");
+    for mode in ViewMode::all() {
+        ui.label(format!("  {:?} - {}", mode.hotkey(), mode.name()));
+    }
+
+    ui.separator();
+    ui.label(format!("Current: {}", current_mode.mode.name()));
+
+    ui.add_space(10.0);
+    ui.heading("Camera Controls");
+    ui.separator();
+    ui.label("  Mouse Drag: Rotate camera");
+    ui.label("  Scroll: Zoom in/out");
+    ui.label("  Home: Reset camera");
+}
+
 /// UI panel for view mode selection - only shown when dock mode is disabled
 #[cfg(feature = "visual")]
 pub fn view_mode_panel_system(
@@ -210,26 +248,7 @@ pub fn view_mode_panel_system(
     egui::Window::new("View Modes")
         .default_pos([10.0, 300.0])
         .show(ctx, |ui| {
-            ui.heading("Camera View Modes");
-            ui.separator();
-
-            for mode in ViewMode::all() {
-                let is_selected = current_mode.mode == *mode;
-                let hotkey_text = format!("{} ({:?})", mode.name(), mode.hotkey());
-
-                if ui.selectable_label(is_selected, hotkey_text).clicked() {
-                    current_mode.set_mode(*mode);
-                }
-            }
-
-            ui.separator();
-            ui.label("Hotkeys:");
-            for mode in ViewMode::all() {
-                ui.label(format!("  {:?} - {}", mode.hotkey(), mode.name()));
-            }
-
-            ui.separator();
-            ui.label(format!("Current: {}", current_mode.mode.name()));
+            render_view_modes_ui(ui, &mut current_mode);
         });
 }
 
@@ -253,10 +272,7 @@ impl Plugin for ViewModePlugin {
         #[cfg(feature = "visual")]
         {
             use bevy_egui::EguiSet;
-            app.add_systems(
-                Update,
-                view_mode_panel_system.after(EguiSet::InitContexts),
-            );
+            app.add_systems(Update, view_mode_panel_system.after(EguiSet::InitContexts));
         }
     }
 }

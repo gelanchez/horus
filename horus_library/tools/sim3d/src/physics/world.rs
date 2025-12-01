@@ -107,10 +107,8 @@ impl PhysicsWorld {
         rotation: nalgebra::UnitQuaternion<f32>,
     ) {
         if let Some(rb) = self.rigid_body_set.get_mut(handle) {
-            let isometry = nalgebra::Isometry3::from_parts(
-                nalgebra::Translation3::from(position),
-                rotation,
-            );
+            let isometry =
+                nalgebra::Isometry3::from_parts(nalgebra::Translation3::from(position), rotation);
             rb.set_position(isometry, true);
         }
     }
