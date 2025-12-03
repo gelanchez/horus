@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "horus-robotics"
-version = "0.1.6"
+version = "0.1.7"
 description = "Simple & intuitive Python API for HORUS robotics framework - ultra-low latency IPC and real-time scheduling"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -30,7 +30,6 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
-    "Topic :: Scientific/Engineering :: Robotics",
     "Topic :: System :: Hardware"
 ]
 keywords = ["robotics", "real-time", "distributed", "ipc", "horus", "shared-memory", "low-latency"]

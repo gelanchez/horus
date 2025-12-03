@@ -1118,7 +1118,7 @@ build_with_recovery() {
     while [ $retry -lt $max_retries ]; do
         echo ""
         echo -e "${CYAN}   Building HORUS packages (attempt $((retry + 1))/$max_retries)...${NC}"
-        echo -e "${CYAN}   Skipping: benchmarks, horus_py (installed from PyPI), tanksim, horus_router${NC}"
+        echo -e "${CYAN}   Skipping: benchmarks, tanksim, horus_router${NC}"
         echo ""
 
         # Clean build on retry
@@ -1624,32 +1624,64 @@ echo -e "${GREEN}${NC} Installed horus_library"
 
 # Step 8: Install horus_py (Python bindings) - Optional
 if [ "$PYTHON_AVAILABLE" = true ]; then
-    echo -e "${CYAN}${NC} Installing horus_py@$HORUS_PY_VERSION (Python bindings - optional)..."
+    echo -e "${CYAN}${NC} Installing horus_py@$HORUS_PY_VERSION (Python bindings)..."
 
-    # Try to install from PyPI (pre-built wheel)
-    echo -e "${CYAN}  ${NC} Attempting to install from PyPI..."
+    HORUS_PY_INSTALLED=false
+    HORUS_PY_SOURCE=""  # "pypi" or "source"
 
-    # Try pip install with --user flag first
-    if pip3 install horus --user --quiet 2>/dev/null; then
-        echo -e "${GREEN}${NC} Installed horus Python package from PyPI"
+    # Try to install from PyPI first (pre-built wheel - fastest)
+    echo -e "${CYAN}  ${NC} Trying PyPI (pre-built wheel)..."
 
-        # Verify installation
+    PIP_OUTPUT=$(pip3 install horus-robotics --user 2>&1)
+    PIP_EXIT_CODE=$?
+
+    if [ $PIP_EXIT_CODE -eq 0 ]; then
+        HORUS_PY_INSTALLED=true
+        HORUS_PY_SOURCE="pypi"
+    else
+        # PyPI failed - show why and try building from source
+        echo -e "${YELLOW}  ${NC} PyPI failed - falling back to source build..."
+        # Show relevant error lines (filter out noise)
+        echo "$PIP_OUTPUT" | grep -E "(ERROR|error:|Could not|No matching|requires|glibc)" | head -3
+        echo ""
+
+        # Check if maturin is installed
+        if ! command -v maturin &> /dev/null; then
+            echo -e "${CYAN}  ${NC} Installing maturin (Rust-Python build tool)..."
+            pip3 install maturin --user --quiet 2>/dev/null || pip3 install maturin --quiet 2>/dev/null
+        fi
+
+        # Build from source
+        if command -v maturin &> /dev/null; then
+            echo -e "${CYAN}  ${NC} Building from source (this may take a minute)..."
+            cd horus_py
+            if maturin develop --release 2>&1 | tee -a "$LOG_FILE" | grep -E "(Compiling|Building|Installed|error)"; then
+                HORUS_PY_INSTALLED=true
+                HORUS_PY_SOURCE="source"
+            else
+                echo -e "${YELLOW}[-]${NC} Source build failed"
+            fi
+            cd ..
+        else
+            echo -e "${YELLOW}[-]${NC} Could not install maturin - skipping horus_py"
+            echo -e "  ${CYAN}Install manually later:${NC}"
+            echo -e "    pip install maturin && cd horus_py && maturin develop --release"
+        fi
+    fi
+
+    # Verify installation and show result
+    if [ "$HORUS_PY_INSTALLED" = true ]; then
         if python3 -c "import horus; print(f'horus {horus.__version__}')" 2>/dev/null; then
             INSTALLED_VERSION=$(python3 -c "import horus; print(horus.__version__)" 2>/dev/null)
-            echo -e "${GREEN}${NC} Python bindings working (version: $INSTALLED_VERSION)"
+            if [ "$HORUS_PY_SOURCE" = "pypi" ]; then
+                echo -e "${GREEN}${STATUS_OK} horus_py installed from PyPI (v$INSTALLED_VERSION)${NC}"
+            else
+                echo -e "${GREEN}${STATUS_OK} horus_py built from source (v$INSTALLED_VERSION)${NC}"
+            fi
         else
             echo -e "${YELLOW}[-]${NC} Python bindings installed but import failed"
+            echo -e "  ${CYAN}Try: python3 -c 'import horus'${NC} to see the error"
         fi
-    else
-        # If pip install fails, it's optional - don't build from source
-        echo -e "${YELLOW}[-]${NC} Python bindings: Not available on PyPI yet (optional)"
-        echo ""
-        echo -e "  ${CYAN}Python bindings will be available after the first release.${NC}"
-        echo -e "  For now, you can:"
-        echo -e "    1. Wait for the next release (recommended)"
-        echo -e "    2. Build from source (developers only):"
-        echo -e "       ${CYAN}cd horus_py && pip install maturin && maturin develop --release${NC}"
-        echo ""
     fi
 else
     echo -e "${YELLOW}[-]${NC} Skipping horus_py (Python not available)"
