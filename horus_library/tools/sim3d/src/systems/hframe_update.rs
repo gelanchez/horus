@@ -1,5 +1,9 @@
 use bevy::prelude::*;
+use horus_core::memory::ShmTopic;
+use horus_library::hframe::{TFMessage, Transform as HFrameTransform, TransformStamped};
 use nalgebra::{Isometry3, Translation3, UnitQuaternion};
+use std::sync::Mutex;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::hframe::HFrameTree;
 use crate::physics::rigid_body::RigidBodyComponent;
@@ -282,6 +286,195 @@ pub fn track_hframe_stats_system(
     );
 }
 
+/// Resource to hold shared memory publishers for HFrame data
+#[derive(Resource)]
+pub struct HFrameShmPublisher {
+    /// Topic for dynamic transforms (updated frequently)
+    tf_topic: Mutex<Option<ShmTopic<TFMessage>>>,
+    /// Topic for static transforms (rarely changes)
+    tf_static_topic: Mutex<Option<ShmTopic<TFMessage>>>,
+    /// Whether publishing is enabled
+    pub enabled: bool,
+    /// Last publish time for rate limiting
+    last_publish: f32,
+    /// Publish rate in Hz
+    pub publish_rate: f32,
+    /// Track which static frames have been published
+    published_static_frames: Mutex<std::collections::HashSet<String>>,
+}
+
+impl Default for HFrameShmPublisher {
+    fn default() -> Self {
+        Self {
+            tf_topic: Mutex::new(None),
+            tf_static_topic: Mutex::new(None),
+            enabled: true,
+            last_publish: 0.0,
+            publish_rate: 50.0, // 50 Hz default
+            published_static_frames: Mutex::new(std::collections::HashSet::new()),
+        }
+    }
+}
+
+impl HFrameShmPublisher {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_rate(mut self, rate: f32) -> Self {
+        self.publish_rate = rate;
+        self
+    }
+
+    /// Initialize or get the tf topic
+    fn get_or_create_tf_topic(&self) -> Option<std::sync::MutexGuard<Option<ShmTopic<TFMessage>>>> {
+        let mut guard = self.tf_topic.lock().ok()?;
+        if guard.is_none() {
+            match ShmTopic::<TFMessage>::new("tf", 16) {
+                Ok(topic) => {
+                    info!("Created HFrame shared memory topic 'tf'");
+                    *guard = Some(topic);
+                }
+                Err(e) => {
+                    warn!("Failed to create tf topic: {}", e);
+                    return None;
+                }
+            }
+        }
+        Some(guard)
+    }
+
+    /// Initialize or get the tf_static topic
+    fn get_or_create_tf_static_topic(
+        &self,
+    ) -> Option<std::sync::MutexGuard<Option<ShmTopic<TFMessage>>>> {
+        let mut guard = self.tf_static_topic.lock().ok()?;
+        if guard.is_none() {
+            match ShmTopic::<TFMessage>::new("tf_static", 16) {
+                Ok(topic) => {
+                    info!("Created HFrame shared memory topic 'tf_static'");
+                    *guard = Some(topic);
+                }
+                Err(e) => {
+                    warn!("Failed to create tf_static topic: {}", e);
+                    return None;
+                }
+            }
+        }
+        Some(guard)
+    }
+
+    /// Publish transforms to shared memory
+    pub fn publish(&self, publishers: &[(&HFramePublisher, &GlobalTransform)]) {
+        if !self.enabled || publishers.is_empty() {
+            return;
+        }
+
+        // Get current timestamp
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_nanos() as u64)
+            .unwrap_or(0);
+
+        // Separate dynamic and static transforms
+        let mut dynamic_msg = TFMessage::new();
+        let mut static_msg = TFMessage::new();
+        let mut published_static = self
+            .published_static_frames
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+
+        for (publisher, transform) in publishers {
+            // Convert Bevy transform to HFrame Transform
+            let translation = transform.translation();
+            let rotation = transform.to_scale_rotation_translation().1;
+
+            let hframe_transform = HFrameTransform::new(
+                [
+                    translation.x as f64,
+                    translation.y as f64,
+                    translation.z as f64,
+                ],
+                [
+                    rotation.x as f64,
+                    rotation.y as f64,
+                    rotation.z as f64,
+                    rotation.w as f64,
+                ],
+            );
+
+            let tf_stamped = TransformStamped::new(
+                &publisher.parent_frame,
+                &publisher.frame_name,
+                timestamp,
+                hframe_transform,
+            );
+
+            // Check if this is a static frame (rate_hz == 0 means static in this context)
+            // Or use a naming convention - frames starting with "static_" or containing "_static"
+            let is_static = publisher.frame_name.contains("_static")
+                || publisher.parent_frame.contains("_static")
+                || publisher.rate_hz < 0.1; // Very low rate = effectively static
+
+            if is_static && !published_static.contains(&publisher.frame_name) {
+                if static_msg.add(tf_stamped) {
+                    published_static.insert(publisher.frame_name.clone());
+                }
+            } else if !is_static {
+                dynamic_msg.add(tf_stamped);
+            }
+        }
+
+        // Publish dynamic transforms
+        if !dynamic_msg.is_empty() {
+            if let Some(mut guard) = self.get_or_create_tf_topic() {
+                if let Some(ref mut topic) = *guard {
+                    if let Err(e) = topic.push(dynamic_msg) {
+                        warn!("Failed to publish tf: {:?}", e);
+                    }
+                }
+            }
+        }
+
+        // Publish static transforms (only new ones)
+        if !static_msg.is_empty() {
+            if let Some(mut guard) = self.get_or_create_tf_static_topic() {
+                if let Some(ref mut topic) = *guard {
+                    if let Err(e) = topic.push(static_msg) {
+                        warn!("Failed to publish tf_static: {:?}", e);
+                    }
+                }
+            }
+        }
+    }
+
+    fn should_publish(&self, current_time: f32) -> bool {
+        if self.publish_rate <= 0.0 {
+            return true;
+        }
+        current_time - self.last_publish >= 1.0 / self.publish_rate
+    }
+}
+
+/// System to publish HFrame data to shared memory
+pub fn hframe_shm_publish_system(
+    time: Res<Time>,
+    mut shm_publisher: ResMut<HFrameShmPublisher>,
+    query: Query<(&HFramePublisher, &GlobalTransform)>,
+) {
+    let current_time = time.elapsed_secs();
+
+    if !shm_publisher.should_publish(current_time) {
+        return;
+    }
+
+    shm_publisher.last_publish = current_time;
+
+    // Collect all publishers with their transforms
+    let publishers: Vec<_> = query.iter().collect();
+    shm_publisher.publish(&publishers);
+}
+
 /// Plugin to register all HFrame update systems
 pub struct HFrameUpdatePlugin;
 
@@ -289,6 +482,7 @@ impl Plugin for HFrameUpdatePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<HFrameUpdateConfig>()
             .init_resource::<HFrameUpdateStats>()
+            .init_resource::<HFrameShmPublisher>()
             .add_event::<HFrameTreeUpdatedEvent>()
             .add_systems(
                 Update,
@@ -298,6 +492,7 @@ impl Plugin for HFrameUpdatePlugin {
                     hframe_update_robot_joints_system,
                     emit_hframe_updated_event,
                     track_hframe_stats_system,
+                    hframe_shm_publish_system,
                 )
                     .chain(),
             );

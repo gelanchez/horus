@@ -774,6 +774,59 @@ impl<T> ShmTopic<T> {
         }
     }
 
+    /// Read the most recent message without advancing consumer position
+    /// Unlike receive(), this always returns the latest message if one exists,
+    /// regardless of when this consumer started reading.
+    /// This is useful for reading static/infrequently-updated data.
+    pub fn read_latest(&self) -> Option<ConsumerSample<'_, T>> {
+        let header = unsafe { self.header.as_ref() };
+        let current_head = header.head.load(Ordering::Acquire);
+
+        // If head is 0, no messages have been written yet
+        if current_head == 0 {
+            return None;
+        }
+
+        // The most recent message is at (head - 1) in a ring buffer
+        // Handle wrap-around for ring buffer
+        let latest_slot = if current_head == 0 {
+            self.capacity - 1
+        } else {
+            current_head - 1
+        };
+
+        // Validate position
+        if latest_slot >= self.capacity {
+            eprintln!(
+                "Critical safety violation: latest_slot {} >= capacity {}",
+                latest_slot, self.capacity
+            );
+            return None;
+        }
+
+        // Return sample pointing to the most recent message
+        // Note: This does NOT advance consumer_tail, so the same message
+        // will be returned on subsequent calls until a new message is written
+        unsafe {
+            let byte_offset = latest_slot * mem::size_of::<T>();
+            let data_ptr = self.data_ptr.as_ptr().add(byte_offset) as *const T;
+
+            // Verify bounds
+            let data_region_size = self.capacity * mem::size_of::<T>();
+            if byte_offset + mem::size_of::<T>() > data_region_size {
+                eprintln!("Critical safety violation: read_latest would exceed data region bounds");
+                return None;
+            }
+
+            Some(ConsumerSample {
+                data_ptr,
+                slot_index: latest_slot,
+                topic: self,
+                _phantom: PhantomData,
+            })
+        }
+    }
+
     /// Loan a slot and immediately write data (convenience method)
     /// This is equivalent to loan() followed by write(), but more convenient
     pub fn loan_and_write(&self, value: T) -> Result<(), T> {

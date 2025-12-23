@@ -25,6 +25,16 @@ pub enum Endpoint {
         host: Option<IpAddr>,
         port: Option<u16>,
     },
+
+    /// Zenoh transport: "topic@zenoh" or "topic@zenoh/ros2"
+    /// Supports multi-robot mesh, cloud connectivity, and ROS2 interop
+    Zenoh {
+        topic: String,
+        /// If true, use ROS2-compatible topic naming and CDR serialization
+        ros2_mode: bool,
+        /// Optional router/peer endpoint to connect to
+        connect: Option<String>,
+    },
 }
 
 /// Default port for HORUS direct connections
@@ -88,6 +98,42 @@ pub fn parse_endpoint(input: &str) -> Result<Endpoint, String> {
             topic,
             host: None, // Use default localhost
             port: Some(port),
+        });
+    }
+
+    // Check for zenoh transport: "zenoh", "zenoh/ros2", "zenoh@tcp/host:port"
+    if location == "zenoh" {
+        return Ok(Endpoint::Zenoh {
+            topic,
+            ros2_mode: false,
+            connect: None,
+        });
+    }
+
+    // Check for zenoh with ROS2 mode: "zenoh/ros2"
+    if location == "zenoh/ros2" {
+        return Ok(Endpoint::Zenoh {
+            topic,
+            ros2_mode: true,
+            connect: None,
+        });
+    }
+
+    // Check for zenoh with connect endpoint: "zenoh:tcp/host:port" or "zenoh/ros2:tcp/host:port"
+    if let Some(rest) = location.strip_prefix("zenoh:") {
+        return Ok(Endpoint::Zenoh {
+            topic,
+            ros2_mode: false,
+            connect: Some(rest.to_string()),
+        });
+    }
+
+    // Check for zenoh ROS2 with connect endpoint: "zenoh/ros2:tcp/host:port"
+    if let Some(rest) = location.strip_prefix("zenoh/ros2:") {
+        return Ok(Endpoint::Zenoh {
+            topic,
+            ros2_mode: true,
+            connect: Some(rest.to_string()),
         });
     }
 
@@ -311,5 +357,91 @@ mod tests {
     fn test_parse_error_multiple_at() {
         let result = parse_endpoint("mytopic@host@other");
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_zenoh_basic() {
+        let ep = parse_endpoint("mytopic@zenoh").unwrap();
+        assert_eq!(
+            ep,
+            Endpoint::Zenoh {
+                topic: "mytopic".to_string(),
+                ros2_mode: false,
+                connect: None
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_zenoh_ros2() {
+        let ep = parse_endpoint("mytopic@zenoh/ros2").unwrap();
+        assert_eq!(
+            ep,
+            Endpoint::Zenoh {
+                topic: "mytopic".to_string(),
+                ros2_mode: true,
+                connect: None
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_zenoh_with_connect() {
+        let ep = parse_endpoint("mytopic@zenoh:tcp/192.168.1.100:7447").unwrap();
+        match ep {
+            Endpoint::Zenoh {
+                topic,
+                ros2_mode,
+                connect,
+            } => {
+                assert_eq!(topic, "mytopic");
+                assert!(!ros2_mode);
+                assert_eq!(connect, Some("tcp/192.168.1.100:7447".to_string()));
+            }
+            _ => panic!("Wrong variant"),
+        }
+    }
+
+    #[test]
+    fn test_parse_zenoh_ros2_with_connect() {
+        let ep = parse_endpoint("mytopic@zenoh/ros2:tcp/cloud.example.com:7447").unwrap();
+        match ep {
+            Endpoint::Zenoh {
+                topic,
+                ros2_mode,
+                connect,
+            } => {
+                assert_eq!(topic, "mytopic");
+                assert!(ros2_mode);
+                assert_eq!(connect, Some("tcp/cloud.example.com:7447".to_string()));
+            }
+            _ => panic!("Wrong variant"),
+        }
+    }
+
+    #[test]
+    fn test_parse_router() {
+        let ep = parse_endpoint("mytopic@router").unwrap();
+        assert_eq!(
+            ep,
+            Endpoint::Router {
+                topic: "mytopic".to_string(),
+                host: None,
+                port: None
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_router_with_port() {
+        let ep = parse_endpoint("mytopic@router:8888").unwrap();
+        assert_eq!(
+            ep,
+            Endpoint::Router {
+                topic: "mytopic".to_string(),
+                host: None,
+                port: Some(8888)
+            }
+        );
     }
 }

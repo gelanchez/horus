@@ -33,6 +33,10 @@ pub enum TransportType {
     Quic,
     /// Unix domain socket (local, cross-process)
     UnixSocket,
+    /// Zenoh transport (multi-robot mesh, cloud, cross-framework)
+    Zenoh,
+    /// Zenoh with ROS2 compatibility layer
+    ZenohRos2,
 }
 
 impl TransportType {
@@ -46,6 +50,8 @@ impl TransportType {
             TransportType::Udp => (5, 20),         // 5-20µs
             TransportType::Tcp => (10, 50),        // 10-50µs
             TransportType::Quic => (20, 100),      // 20-100µs (includes crypto)
+            TransportType::Zenoh => (8, 20),       // ~10µs typical (local), more for remote
+            TransportType::ZenohRos2 => (15, 50),  // +serialization overhead for ROS2 compat
         }
     }
 
@@ -68,6 +74,8 @@ impl TransportType {
             TransportType::Udp => true,
             TransportType::Tcp => true,
             TransportType::Quic => cfg!(feature = "quic"),
+            TransportType::Zenoh => cfg!(feature = "zenoh-transport"),
+            TransportType::ZenohRos2 => cfg!(feature = "zenoh-ros2"),
         }
     }
 
@@ -78,9 +86,11 @@ impl TransportType {
             TransportType::IoUring => 95,       // Best for network (Linux)
             TransportType::UnixSocket => 85,    // Good for localhost
             TransportType::BatchUdp => 70,      // Good for LAN
+            TransportType::Zenoh => 65,         // Good for multi-robot and cloud
+            TransportType::Quic => 60,          // Good for WAN
+            TransportType::ZenohRos2 => 55,     // ROS2 interop (extra overhead)
             TransportType::Udp => 50,           // Universal fallback
             TransportType::Tcp => 40,           // Reliable but slower
-            TransportType::Quic => 60,          // Good for WAN
         }
     }
 }
@@ -222,6 +232,8 @@ pub struct TransportSelectorStats {
     pub tcp_selections: AtomicU64,
     pub quic_selections: AtomicU64,
     pub unix_socket_selections: AtomicU64,
+    pub zenoh_selections: AtomicU64,
+    pub zenoh_ros2_selections: AtomicU64,
     pub fallback_events: AtomicU64,
 }
 
@@ -376,6 +388,14 @@ impl TransportSelector {
                     .unix_socket_selections
                     .fetch_add(1, Ordering::Relaxed);
             }
+            TransportType::Zenoh => {
+                self.stats.zenoh_selections.fetch_add(1, Ordering::Relaxed);
+            }
+            TransportType::ZenohRos2 => {
+                self.stats
+                    .zenoh_ros2_selections
+                    .fetch_add(1, Ordering::Relaxed);
+            }
         }
     }
 
@@ -388,6 +408,7 @@ impl TransportSelector {
         self.stats.fallback_events.fetch_add(1, Ordering::Relaxed);
 
         // Fallback chain: IoUring -> BatchUdp -> Udp -> Tcp
+        // Zenoh fallback: Zenoh -> ZenohRos2 -> Quic -> Tcp
         match current {
             TransportType::SharedMemory => Some(TransportType::UnixSocket),
             TransportType::IoUring => Some(TransportType::BatchUdp),
@@ -402,6 +423,22 @@ impl TransportSelector {
                 }
             }
             TransportType::Quic => Some(TransportType::Tcp),
+            TransportType::Zenoh => {
+                // Zenoh can fallback to QUIC (similar network capabilities)
+                if TransportType::Quic.is_available() {
+                    Some(TransportType::Quic)
+                } else {
+                    Some(TransportType::Tcp)
+                }
+            }
+            TransportType::ZenohRos2 => {
+                // ROS2 mode fallback to basic Zenoh
+                if TransportType::Zenoh.is_available() {
+                    Some(TransportType::Zenoh)
+                } else {
+                    Some(TransportType::Tcp)
+                }
+            }
         }
     }
 

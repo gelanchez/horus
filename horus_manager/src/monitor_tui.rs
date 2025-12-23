@@ -209,6 +209,7 @@ enum Tab {
     Nodes,
     Topics,
     Network,
+    HFrame,
     Packages,
     Parameters,
     Recordings,
@@ -227,6 +228,7 @@ impl Tab {
             Tab::Nodes => "Nodes",
             Tab::Topics => "Topics",
             Tab::Network => "Network",
+            Tab::HFrame => "HFrame",
             Tab::Packages => "Packages",
             Tab::Parameters => "Params",
             Tab::Recordings => "Recordings",
@@ -239,6 +241,7 @@ impl Tab {
             Tab::Nodes,
             Tab::Topics,
             Tab::Network,
+            Tab::HFrame,
             Tab::Packages,
             Tab::Parameters,
             Tab::Recordings,
@@ -721,6 +724,7 @@ impl TuiDashboard {
                     Tab::Nodes => self.draw_nodes_simple(f, horizontal_chunks[0]),
                     Tab::Topics => self.draw_topics_simple(f, horizontal_chunks[0]),
                     Tab::Network => self.draw_network(f, horizontal_chunks[0]),
+                    Tab::HFrame => self.draw_hframe(f, horizontal_chunks[0]),
                     Tab::Packages => self.draw_packages(f, horizontal_chunks[0]),
                     Tab::Parameters => self.draw_parameters(f, horizontal_chunks[0]),
                     Tab::Recordings => self.draw_recordings(f, horizontal_chunks[0]),
@@ -739,6 +743,7 @@ impl TuiDashboard {
                     Tab::Nodes => self.draw_nodes(f, content_area),
                     Tab::Topics => self.draw_topics(f, content_area),
                     Tab::Network => self.draw_network(f, content_area),
+                    Tab::HFrame => self.draw_hframe(f, content_area),
                     Tab::Packages => self.draw_packages(f, content_area),
                     Tab::Parameters => self.draw_parameters(f, content_area),
                     Tab::Recordings => self.draw_recordings(f, content_area),
@@ -1275,6 +1280,253 @@ impl TuiDashboard {
             );
 
         f.render_widget(table, chunks[1]);
+    }
+
+    /// Draw the HFrame (coordinate transform) visualization
+    fn draw_hframe(&self, f: &mut Frame, area: Rect) {
+        use crate::commands::hf::HFrameReader;
+        use std::collections::{HashMap, HashSet};
+
+        // Read live frame data from shared memory
+        let mut reader = HFrameReader::new();
+        let has_data = reader.read_from_shm();
+
+        // Split into summary and frame tree
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Length(10), Constraint::Min(10)])
+            .split(area);
+
+        // Draw HFrame summary panel
+        let summary_text = if !has_data || reader.frame_data.is_empty() {
+            vec![
+                Line::from(vec![
+                    Span::styled("Status: ", Style::default().fg(Color::Cyan)),
+                    Span::styled("No active transforms", Style::default().fg(Color::Yellow)),
+                ]),
+                Line::from(""),
+                Line::from(vec![
+                    Span::styled(
+                        "Tip: ",
+                        Style::default()
+                            .fg(Color::Gray)
+                            .add_modifier(Modifier::ITALIC),
+                    ),
+                    Span::styled(
+                        "Start a HORUS application with HFrame publishing enabled",
+                        Style::default().fg(Color::Gray),
+                    ),
+                ]),
+                Line::from(vec![Span::styled(
+                    "     Use sim3d or add HFramePublisher to your nodes",
+                    Style::default().fg(Color::Gray),
+                )]),
+                Line::from(""),
+                Line::from(vec![Span::styled(
+                    "CLI: horus hf list | horus hf tree | horus hf echo <src> <dst>",
+                    Style::default().fg(Color::DarkGray),
+                )]),
+            ]
+        } else {
+            let all_frames = reader.get_all_frames();
+            let static_count = reader.frame_data.values().filter(|d| d.is_static).count();
+            let dynamic_count = reader.frame_data.len() - static_count;
+
+            let mut lines = vec![
+                Line::from(vec![
+                    Span::styled("Frames: ", Style::default().fg(Color::Cyan)),
+                    Span::styled(
+                        format!("{}", all_frames.len()),
+                        Style::default()
+                            .fg(Color::Green)
+                            .add_modifier(Modifier::BOLD),
+                    ),
+                    Span::styled(" (", Style::default().fg(Color::Gray)),
+                    Span::styled(
+                        format!("{} static", static_count),
+                        Style::default().fg(Color::Blue),
+                    ),
+                    Span::styled(", ", Style::default().fg(Color::Gray)),
+                    Span::styled(
+                        format!("{} dynamic", dynamic_count),
+                        Style::default().fg(Color::Yellow),
+                    ),
+                    Span::styled(")", Style::default().fg(Color::Gray)),
+                ]),
+                Line::from(vec![
+                    Span::styled("Transforms: ", Style::default().fg(Color::Cyan)),
+                    Span::styled(
+                        format!("{}", reader.frame_data.len()),
+                        Style::default()
+                            .fg(Color::Green)
+                            .add_modifier(Modifier::BOLD),
+                    ),
+                ]),
+            ];
+
+            // Show some frame examples
+            lines.push(Line::from(""));
+            lines.push(Line::from(vec![Span::styled(
+                "Recent transforms:",
+                Style::default().fg(Color::Gray),
+            )]));
+
+            for (child, data) in reader.frame_data.iter().take(4) {
+                let type_marker = if data.is_static {
+                    Span::styled("[S]", Style::default().fg(Color::Blue))
+                } else {
+                    Span::styled("[D]", Style::default().fg(Color::Yellow))
+                };
+                lines.push(Line::from(vec![
+                    Span::raw("  "),
+                    type_marker,
+                    Span::raw(" "),
+                    Span::styled(&data.parent, Style::default().fg(Color::Cyan)),
+                    Span::styled(" → ", Style::default().fg(Color::Gray)),
+                    Span::styled(child, Style::default().fg(Color::White)),
+                ]));
+            }
+
+            if reader.frame_data.len() > 4 {
+                lines.push(Line::from(vec![Span::styled(
+                    format!("  ... and {} more transforms", reader.frame_data.len() - 4),
+                    Style::default().fg(Color::DarkGray),
+                )]));
+            }
+
+            lines
+        };
+
+        let summary_paragraph = Paragraph::new(summary_text).block(
+            Block::default()
+                .title("HFrame - Coordinate Transforms")
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(Color::Magenta)),
+        );
+
+        f.render_widget(summary_paragraph, chunks[0]);
+
+        // Draw actual frame tree from live data
+        let mut tree_text = vec![
+            Line::from(vec![Span::styled(
+                "Frame Tree:",
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            )]),
+            Line::from(""),
+        ];
+
+        if reader.frame_data.is_empty() {
+            tree_text.push(Line::from(vec![Span::styled(
+                "  (No frames available)",
+                Style::default()
+                    .fg(Color::DarkGray)
+                    .add_modifier(Modifier::ITALIC),
+            )]));
+        } else {
+            // Build tree structure
+            let mut tree: HashMap<String, Vec<String>> = HashMap::new();
+            let mut all_children: HashSet<String> = HashSet::new();
+
+            for (child, data) in &reader.frame_data {
+                tree.entry(data.parent.clone())
+                    .or_default()
+                    .push(child.clone());
+                all_children.insert(child.clone());
+            }
+
+            // Sort children
+            for children in tree.values_mut() {
+                children.sort();
+            }
+
+            // Find root frames (frames that are parents but not children)
+            let mut roots: Vec<String> = tree
+                .keys()
+                .filter(|p| !all_children.contains(*p))
+                .cloned()
+                .collect();
+            roots.sort();
+
+            // Helper function to recursively build tree lines
+            fn build_tree_lines(
+                frame: &str,
+                tree: &HashMap<String, Vec<String>>,
+                frame_data: &HashMap<String, crate::commands::hf::FrameData>,
+                prefix: &str,
+                is_last: bool,
+                lines: &mut Vec<Line<'static>>,
+            ) {
+                let connector = if is_last { "└── " } else { "├── " };
+                let child_prefix = if is_last { "    " } else { "│   " };
+
+                // Determine color based on frame type
+                let is_static = frame_data.get(frame).map(|d| d.is_static).unwrap_or(false);
+                let frame_color = if is_static { Color::Blue } else { Color::Cyan };
+
+                lines.push(Line::from(vec![
+                    Span::styled(prefix.to_string(), Style::default().fg(Color::DarkGray)),
+                    Span::styled(connector, Style::default().fg(Color::DarkGray)),
+                    Span::styled(frame.to_string(), Style::default().fg(frame_color)),
+                ]));
+
+                if let Some(children) = tree.get(frame) {
+                    for (i, child) in children.iter().enumerate() {
+                        let new_prefix = format!("{}{}", prefix, child_prefix);
+                        let is_last_child = i == children.len() - 1;
+                        build_tree_lines(
+                            child,
+                            tree,
+                            frame_data,
+                            &new_prefix,
+                            is_last_child,
+                            lines,
+                        );
+                    }
+                }
+            }
+
+            // Build tree starting from roots
+            for (i, root) in roots.iter().enumerate() {
+                // Draw root frame
+                tree_text.push(Line::from(vec![Span::styled(
+                    format!("  {}", root),
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::BOLD),
+                )]));
+
+                // Draw children
+                if let Some(children) = tree.get(root) {
+                    for (j, child) in children.iter().enumerate() {
+                        let is_last = j == children.len() - 1;
+                        build_tree_lines(
+                            child,
+                            &tree,
+                            &reader.frame_data,
+                            "  ",
+                            is_last,
+                            &mut tree_text,
+                        );
+                    }
+                }
+
+                // Add spacing between root trees
+                if i < roots.len() - 1 {
+                    tree_text.push(Line::from(""));
+                }
+            }
+        }
+
+        let tree_paragraph = Paragraph::new(tree_text).block(
+            Block::default()
+                .title("Frame Tree (Live)")
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(Color::Blue)),
+        );
+
+        f.render_widget(tree_paragraph, chunks[1]);
     }
 
     fn draw_packages(&mut self, f: &mut Frame, area: Rect) {
@@ -3528,6 +3780,7 @@ mod tests {
         assert_eq!(Tab::Nodes.as_str(), "Nodes");
         assert_eq!(Tab::Topics.as_str(), "Topics");
         assert_eq!(Tab::Network.as_str(), "Network");
+        assert_eq!(Tab::HFrame.as_str(), "HFrame");
         assert_eq!(Tab::Packages.as_str(), "Packages");
         assert_eq!(Tab::Parameters.as_str(), "Params");
     }
@@ -3535,11 +3788,12 @@ mod tests {
     #[test]
     fn test_tab_all_returns_all_tabs() {
         let tabs = Tab::all();
-        assert_eq!(tabs.len(), 7);
+        assert_eq!(tabs.len(), 8);
         assert!(tabs.contains(&Tab::Overview));
         assert!(tabs.contains(&Tab::Nodes));
         assert!(tabs.contains(&Tab::Topics));
         assert!(tabs.contains(&Tab::Network));
+        assert!(tabs.contains(&Tab::HFrame));
         assert!(tabs.contains(&Tab::Packages));
         assert!(tabs.contains(&Tab::Parameters));
         assert!(tabs.contains(&Tab::Recordings));
@@ -3600,6 +3854,9 @@ mod tests {
         assert_eq!(dashboard.active_tab, Tab::Network);
 
         dashboard.next_tab();
+        assert_eq!(dashboard.active_tab, Tab::HFrame);
+
+        dashboard.next_tab();
         assert_eq!(dashboard.active_tab, Tab::Packages);
 
         dashboard.next_tab();
@@ -3627,6 +3884,9 @@ mod tests {
 
         dashboard.prev_tab();
         assert_eq!(dashboard.active_tab, Tab::Packages);
+
+        dashboard.prev_tab();
+        assert_eq!(dashboard.active_tab, Tab::HFrame);
 
         dashboard.prev_tab();
         assert_eq!(dashboard.active_tab, Tab::Network);

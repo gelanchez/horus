@@ -393,7 +393,9 @@ fn run_visual_mode(cli: Cli) {
         #[cfg(feature = "visual")]
         {
             use bevy_egui::EguiPlugin;
-            app.add_plugins(EguiPlugin);
+            if !app.is_plugin_added::<EguiPlugin>() {
+                app.add_plugins(EguiPlugin);
+            }
         }
 
         #[cfg(feature = "editor")]

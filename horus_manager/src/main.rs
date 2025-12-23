@@ -244,6 +244,12 @@ enum Commands {
         command: ParamCommands,
     },
 
+    /// HFrame operations (list, echo, tree) - coordinate transform frames
+    Hf {
+        #[command(subcommand)]
+        command: HfCommands,
+    },
+
     /// System diagnostics and health check
     Doctor {
         /// Show detailed diagnostic information
@@ -452,6 +458,29 @@ enum Commands {
         /// List configured deployment targets
         #[arg(long = "list")]
         list: bool,
+    },
+
+    /// Convert ROS package (ROS1 or ROS2) to HORUS project
+    #[command(name = "from-ros", alias = "from-ros2")]
+    FromRos {
+        /// Path to ROS package directory (containing package.xml)
+        source: PathBuf,
+
+        /// Output directory for HORUS project (default: <source>_horus)
+        #[arg(short = 'o', long = "output")]
+        output: Option<PathBuf>,
+
+        /// Generate node skeletons from source files
+        #[arg(long = "nodes")]
+        generate_nodes: bool,
+
+        /// Show detailed output
+        #[arg(short = 'v', long = "verbose")]
+        verbose: bool,
+
+        /// Preview conversion without creating files
+        #[arg(short = 'n', long = "dry-run")]
+        dry_run: bool,
     },
 
     /// Add a package, driver, or plugin (smart auto-detection)
@@ -668,6 +697,28 @@ enum AuthCommands {
     Logout,
     /// Show current authenticated user
     Whoami,
+    /// Show organization info (HORUS Cloud)
+    Org,
+    /// Show current billing usage (HORUS Cloud)
+    Usage,
+    /// Show current plan details (HORUS Cloud)
+    Plan,
+    /// Manage API keys
+    Keys {
+        #[command(subcommand)]
+        command: AuthKeysCommands,
+    },
+}
+
+#[derive(Subcommand)]
+enum AuthKeysCommands {
+    /// List all API keys
+    List,
+    /// Revoke an API key
+    Revoke {
+        /// Key ID to revoke (e.g., horus_key_abc123...)
+        key_id: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -866,6 +917,66 @@ enum TopicCommands {
         /// Number of messages to publish (default: 1)
         #[arg(short = 'n', long = "count")]
         count: Option<usize>,
+    },
+}
+
+#[derive(Subcommand)]
+enum HfCommands {
+    /// List all coordinate frames
+    List {
+        /// Show detailed information
+        #[arg(short = 'v', long = "verbose")]
+        verbose: bool,
+
+        /// Output as JSON
+        #[arg(long = "json")]
+        json: bool,
+    },
+
+    /// Echo transform between two frames (like tf_echo)
+    Echo {
+        /// Source frame
+        source: String,
+
+        /// Target frame
+        target: String,
+
+        /// Update rate in Hz (default: 1.0)
+        #[arg(short = 'r', long = "rate")]
+        rate: Option<f64>,
+
+        /// Number of transforms to echo (optional)
+        #[arg(short = 'n', long = "count")]
+        count: Option<usize>,
+    },
+
+    /// Show frame tree structure (like view_frames)
+    Tree {
+        /// Output to file (PDF/SVG)
+        #[arg(short = 'o', long = "output")]
+        output: Option<String>,
+    },
+
+    /// Show detailed info about a frame
+    Info {
+        /// Frame name
+        name: String,
+    },
+
+    /// Check if transform is available between frames
+    Can {
+        /// Source frame
+        source: String,
+
+        /// Target frame
+        target: String,
+    },
+
+    /// Monitor frame update rates
+    Hz {
+        /// Window size for averaging (default: 10)
+        #[arg(short = 'w', long = "window")]
+        window: Option<usize>,
     },
 }
 
@@ -2576,6 +2687,20 @@ except ImportError as e:
             ParamCommands::Dump => commands::param::dump_params(),
         },
 
+        Commands::Hf { command } => match command {
+            HfCommands::List { verbose, json } => commands::hf::list_frames(verbose, json),
+            HfCommands::Echo {
+                source,
+                target,
+                rate,
+                count,
+            } => commands::hf::echo_transform(&source, &target, rate, count),
+            HfCommands::Tree { output } => commands::hf::view_frames(output.as_deref()),
+            HfCommands::Info { name } => commands::hf::frame_info(&name),
+            HfCommands::Can { source, target } => commands::hf::can_transform(&source, &target),
+            HfCommands::Hz { window } => commands::hf::monitor_rates(window),
+        },
+
         Commands::Doctor { verbose } => commands::doctor::run_doctor(verbose),
 
         Commands::Clean { shm, all, dry_run } => commands::clean::run_clean(shm, all, dry_run),
@@ -3702,6 +3827,13 @@ except ImportError as e:
             }
             AuthCommands::Logout => commands::github_auth::logout(),
             AuthCommands::Whoami => commands::github_auth::whoami(),
+            AuthCommands::Org => commands::github_auth::org(),
+            AuthCommands::Usage => commands::github_auth::usage(),
+            AuthCommands::Plan => commands::github_auth::plan(),
+            AuthCommands::Keys { command: keys_cmd } => match keys_cmd {
+                AuthKeysCommands::List => commands::github_auth::keys_list(),
+                AuthKeysCommands::Revoke { key_id } => commands::github_auth::keys_revoke(&key_id),
+            },
         },
 
         Commands::Sim2d {
@@ -4002,6 +4134,14 @@ except ImportError as e:
                 ))
             }
         }
+
+        Commands::FromRos {
+            source,
+            output,
+            generate_nodes,
+            verbose,
+            dry_run,
+        } => commands::from_ros::run(&source, output.as_deref(), generate_nodes, verbose, dry_run),
 
         Commands::Drivers { command } => {
             // Driver alias resolver (local implementation)

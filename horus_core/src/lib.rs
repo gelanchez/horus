@@ -46,6 +46,8 @@ pub use core::{
     TopicMetadata,
 };
 pub use error::{HorusError, HorusResult};
+// Clean aliases for user-facing API
+pub use error::{Error, Result};
 pub use params::RuntimeParams;
 pub use scheduling::Scheduler;
 

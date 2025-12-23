@@ -450,6 +450,202 @@ let batcher = MessageBatcher::new(
 );
 ```
 
+## Zenoh Transport (ROS2 Bridge)
+
+Zenoh provides mesh networking, cloud connectivity, and full ROS2 DDS compatibility:
+
+### Features
+
+- **Multi-robot mesh**: Automatic peer discovery and routing
+- **ROS2 DDS bridge**: Full compatibility with ROS2 nodes
+- **Cloud connectivity**: Connect robots to cloud services
+- **QoS policies**: Deadline, lifespan, liveliness, history, durability
+- **Services & Actions**: Complete ROS2 service and action support
+- **Parameter server**: Full ROS2 parameter protocol
+
+### Enabling Zenoh
+
+```toml
+[dependencies]
+horus_core = { version = "0.1", features = ["zenoh-transport"] }
+```
+
+### Basic Configuration
+
+```rust
+use horus_core::communication::network::{ZenohConfig, ZenohMode};
+
+// HORUS mode (default)
+let config = ZenohConfig::new()
+    .with_namespace("robot1");
+
+// ROS2 compatible mode
+let config = ZenohConfig::ros2(0);  // Domain ID 0
+
+// Connect to cloud
+let config = ZenohConfig::cloud("tcp/cloud.example.com:7447");
+
+// Multi-robot mesh
+let config = ZenohConfig::mesh("fleet1")
+    .connect_to("tcp/192.168.1.10:7447")
+    .connect_to("tcp/192.168.1.11:7447");
+```
+
+### QoS Presets
+
+```rust
+use horus_core::communication::network::{ZenohQos, Reliability, HistoryPolicy, Durability};
+
+// Sensor data: best-effort, small history, deadline/lifespan constraints
+let sensor_qos = ZenohQos::sensor_data();
+
+// Parameters: reliable, transient-local durability
+let param_qos = ZenohQos::parameters();
+
+// Services: reliable, keep all messages
+let service_qos = ZenohQos::services();
+
+// Actions: reliable, bounded history
+let action_qos = ZenohQos::actions();
+
+// Custom QoS
+let custom_qos = ZenohQos::default()
+    .with_reliability(Reliability::Reliable)
+    .with_history(HistoryPolicy::KeepLast(10))
+    .with_durability(Durability::TransientLocal)
+    .with_deadline(Duration::from_millis(100))
+    .with_lifespan(Duration::from_secs(5));
+```
+
+### ROS2 Services
+
+Full ROS2 service protocol (request/response):
+
+```rust
+use horus_core::communication::network::{
+    Ros2ServiceConfig, ServiceRegistry, TriggerRequest, TriggerResponse
+};
+
+// Create service client
+let config = Ros2ServiceConfig::new("/robot", "trigger_action");
+let client = Ros2ServiceClient::new(zenoh_session, config)?;
+
+// Call service
+let request = TriggerRequest::default();
+let response = client.call(request, Duration::from_secs(5)).await?;
+
+// Create service server
+let server = Ros2ServiceServer::new(zenoh_session, config, |req| {
+    TriggerResponse { success: true, message: "Done".into() }
+})?;
+```
+
+### ROS2 Actions
+
+Full ROS2 action protocol (5 topics: send_goal, cancel_goal, get_result, status, feedback):
+
+```rust
+use horus_core::communication::network::{
+    Ros2ActionClient, Ros2ActionServer, Ros2ActionConfig,
+    GoalStatus, SendGoalRequest
+};
+
+// Create action client
+let config = Ros2ActionConfig::new("/robot", "navigate_to_pose");
+let client = Ros2ActionClient::new(zenoh_session, config)?;
+
+// Send goal
+let goal = NavigateGoal { x: 1.0, y: 2.0, theta: 0.0 };
+let handle = client.send_goal(goal).await?;
+
+// Monitor feedback
+while let Some(feedback) = handle.get_feedback().await {
+    println!("Progress: {:.1}%", feedback.percent_complete);
+}
+
+// Get result
+let result = handle.get_result().await?;
+println!("Navigation complete: {:?}", result);
+
+// Create action server
+let server = Ros2ActionServer::new(zenoh_session, config,
+    |goal| async { Ok(GoalStatus::Accepted) },  // Goal callback
+    |_| async { Ok(true) },                      // Cancel callback
+    |goal| async {                               // Execute callback
+        // Do navigation...
+        NavigateResult { success: true }
+    }
+)?;
+```
+
+### ROS2 Parameter Server
+
+Full ROS2 parameter protocol (list/get/set/describe/events):
+
+```rust
+use horus_core::communication::network::{
+    LocalParameterStore, Parameter, ParameterValue, ParameterDescriptor, ParameterType
+};
+
+// Create local parameter store
+let store = LocalParameterStore::new("/robot_controller");
+
+// Declare parameters with descriptors
+store.declare_parameter(
+    "max_velocity",
+    ParameterValue::from_double(1.5),
+    Some(ParameterDescriptor::new("max_velocity", ParameterType::Double)
+        .with_description("Maximum velocity in m/s")
+        .with_float_range(0.0, 10.0, 0.1))
+)?;
+
+// Set parameter with validation
+let result = store.set_parameter(Parameter::double("max_velocity", 2.0))?;
+if !result.successful {
+    println!("Failed: {}", result.reason);
+}
+
+// Register change callback
+store.add_change_callback(|param, event_type| {
+    println!("Parameter {} changed: {:?}", param.name, event_type);
+});
+
+// Create parameter client for ROS2 interop
+let client = Ros2ParameterClient::new(zenoh_session, "/remote_node")?;
+let params = client.get_parameters(&["max_velocity", "use_sim_time"]).await?;
+
+// Create parameter server for ROS2 nodes to query
+let server = Ros2ParameterServer::new(zenoh_session, store)?;
+```
+
+### Topic Naming
+
+HORUS automatically maps topics to ROS2 DDS conventions:
+
+| HORUS Topic | Zenoh Key Expression | ROS2 Topic |
+|-------------|---------------------|------------|
+| `/cmd_vel` | `rt/cmd_vel` | `/cmd_vel` |
+| `/robot/odom` | `rt/robot/odom` | `/robot/odom` |
+| Service `/trigger` | `rq/trigger`, `rp/trigger` | `/trigger` |
+| Action `/navigate` | `rq/navigate/_action/*` | `/navigate` |
+
+### ROS2 Interoperability Completeness
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| **Topics** | ✅ Complete | Pub/sub with CDR serialization |
+| **Services** | ✅ Complete | Request/response protocol |
+| **Actions** | ✅ Complete | All 5 topic types |
+| **Parameters** | ✅ Complete | Full protocol + local store |
+| **QoS: Reliability** | ✅ Complete | BestEffort, Reliable |
+| **QoS: History** | ✅ Complete | KeepLast(n), KeepAll |
+| **QoS: Durability** | ✅ Complete | Volatile, TransientLocal |
+| **QoS: Deadline** | ✅ Complete | Expected message period |
+| **QoS: Lifespan** | ✅ Complete | Message validity duration |
+| **QoS: Liveliness** | ✅ Complete | Automatic, ManualByParticipant, ManualByTopic |
+| **Discovery** | ✅ Complete | Automatic peer discovery |
+| **Namespaces** | ✅ Complete | Full namespace support |
+
 ## See Also
 
 - [Network Communication](/concepts/network-communication) - Basic networking

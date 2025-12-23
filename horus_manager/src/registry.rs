@@ -1620,7 +1620,37 @@ impl RegistryClient {
             return Err(anyhow!("Search failed"));
         }
 
-        let packages: Vec<Package> = response.json()?;
+        // The registry returns a wrapped response with results, total, query, etc.
+        #[derive(Deserialize)]
+        struct SearchResponse {
+            results: Vec<SearchResultItem>,
+        }
+
+        #[derive(Deserialize)]
+        struct SearchResultItem {
+            name: String,
+            version: Option<String>,
+            metadata: Option<SearchMetadata>,
+        }
+
+        #[derive(Deserialize)]
+        struct SearchMetadata {
+            description: Option<String>,
+        }
+
+        let search_response: SearchResponse = response.json()?;
+
+        // Convert to Package structs
+        let packages = search_response
+            .results
+            .into_iter()
+            .map(|item| Package {
+                name: item.name,
+                version: item.version.unwrap_or_else(|| "latest".to_string()),
+                description: item.metadata.and_then(|m| m.description),
+            })
+            .collect();
+
         Ok(packages)
     }
 

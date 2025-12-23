@@ -145,6 +145,10 @@ where
     /// Unix domain socket (localhost only, very fast)
     #[cfg(unix)]
     UnixSocket(UnixSocketLinkBackend<T>),
+
+    /// Zenoh transport for multi-robot mesh, cloud connectivity, and ROS2 interop
+    #[cfg(feature = "zenoh-transport")]
+    Zenoh(ZenohLinkBackend<T>),
 }
 
 /// Connected UDP backend - the fastest UDP option for 1P1C
@@ -263,6 +267,8 @@ where
                 .field("role", &u.role)
                 .field("path", &u.socket_path)
                 .finish(),
+            #[cfg(feature = "zenoh-transport")]
+            LinkNetworkBackend::Zenoh(z) => f.debug_struct("Zenoh").field("role", &z.role).finish(),
         }
     }
 }
@@ -483,6 +489,96 @@ where
 {
     fn drop(&mut self) {
         let _ = std::fs::remove_file(&self.socket_path);
+    }
+}
+
+/// Zenoh backend for Link - enables multi-robot mesh, cloud, and ROS2 connectivity
+///
+/// While Link is designed for 1P1C (one producer, one consumer), Zenoh
+/// provides pub/sub semantics. This backend adapts Zenoh for Link's API,
+/// providing network-transparent point-to-point communication with:
+/// - Multi-robot mesh networking
+/// - Cloud connectivity
+/// - ROS2 interoperability (with ros2_mode)
+#[cfg(feature = "zenoh-transport")]
+pub struct ZenohLinkBackend<T>
+where
+    T: serde::Serialize
+        + serde::de::DeserializeOwned
+        + Send
+        + Sync
+        + Clone
+        + std::fmt::Debug
+        + 'static,
+{
+    /// The underlying Zenoh backend from horus_core's network module
+    backend: crate::communication::network::ZenohBackend<T>,
+    role: LinkRole,
+}
+
+#[cfg(feature = "zenoh-transport")]
+impl<T> ZenohLinkBackend<T>
+where
+    T: serde::Serialize
+        + serde::de::DeserializeOwned
+        + Send
+        + Sync
+        + Clone
+        + std::fmt::Debug
+        + 'static,
+{
+    /// Create a Zenoh backend for Link producer
+    pub fn new_producer(
+        topic: &str,
+        config: crate::communication::network::ZenohConfig,
+    ) -> crate::error::HorusResult<Self> {
+        let mut backend = crate::communication::network::ZenohBackend::new_blocking(topic, config)?;
+        // Initialize publisher for producer role
+        // Use tokio runtime to run async init
+        let rt = tokio::runtime::Handle::try_current()
+            .or_else(|_| tokio::runtime::Runtime::new().map(|rt| rt.handle().clone()))
+            .map_err(|e| format!("Failed to get tokio runtime: {}", e))?;
+        rt.block_on(backend.init_publisher())?;
+
+        Ok(Self {
+            backend,
+            role: LinkRole::Producer,
+        })
+    }
+
+    /// Create a Zenoh backend for Link consumer
+    pub fn new_consumer(
+        topic: &str,
+        config: crate::communication::network::ZenohConfig,
+    ) -> crate::error::HorusResult<Self> {
+        let mut backend = crate::communication::network::ZenohBackend::new_blocking(topic, config)?;
+        // Initialize subscriber for consumer role
+        let rt = tokio::runtime::Handle::try_current()
+            .or_else(|_| tokio::runtime::Runtime::new().map(|rt| rt.handle().clone()))
+            .map_err(|e| format!("Failed to get tokio runtime: {}", e))?;
+        rt.block_on(backend.init_subscriber())?;
+
+        Ok(Self {
+            backend,
+            role: LinkRole::Consumer,
+        })
+    }
+
+    /// Send a message (producer only)
+    #[inline(always)]
+    pub fn send(&self, msg: &T) -> crate::error::HorusResult<()> {
+        self.backend.send(msg)
+    }
+
+    /// Receive a message (consumer only)
+    #[inline(always)]
+    pub fn recv(&self) -> Option<T> {
+        self.backend.recv()
+    }
+
+    /// Get the role of this backend
+    pub fn role(&self) -> LinkRole {
+        self.role
     }
 }
 
@@ -874,6 +970,7 @@ where
     /// Select the best transport for the given address
     ///
     /// Link uses a simplified transport selection optimized for 1P1C:
+    /// - zenoh: Zenoh transport for multi-robot mesh, cloud, ROS2
     /// - localhost: Unix sockets (fastest for local IPC)
     /// - LAN/WAN: Connected UDP (optimized for point-to-point)
     fn select_transport(
@@ -881,6 +978,63 @@ where
         addr_str: &str,
         role: LinkRole,
     ) -> HorusResult<(LinkNetworkBackend<T>, &'static str)> {
+        // Check for Zenoh transport
+        #[cfg(feature = "zenoh-transport")]
+        {
+            if addr_str == "zenoh"
+                || addr_str.starts_with("zenoh/")
+                || addr_str.starts_with("zenoh:")
+            {
+                // Parse Zenoh mode and connect endpoint
+                let (ros2_mode, connect) = if addr_str == "zenoh" {
+                    (false, None)
+                } else if addr_str == "zenoh/ros2" {
+                    (true, None)
+                } else if let Some(rest) = addr_str.strip_prefix("zenoh:") {
+                    (false, Some(rest.to_string()))
+                } else if let Some(rest) = addr_str.strip_prefix("zenoh/ros2:") {
+                    (true, Some(rest.to_string()))
+                } else {
+                    return Err(format!("Invalid zenoh endpoint format: {}", addr_str).into());
+                };
+
+                let mut config = if ros2_mode {
+                    crate::communication::network::ZenohConfig::ros2(0)
+                } else {
+                    crate::communication::network::ZenohConfig::default()
+                };
+                if let Some(endpoint) = connect {
+                    config = config.connect_to(&endpoint);
+                }
+
+                let backend = match role {
+                    LinkRole::Producer => ZenohLinkBackend::new_producer(topic, config)?,
+                    LinkRole::Consumer => ZenohLinkBackend::new_consumer(topic, config)?,
+                };
+
+                log::info!(
+                    "Link '{}': Using Zenoh transport ({}) as {:?}",
+                    topic,
+                    if ros2_mode { "ROS2 mode" } else { "HORUS mode" },
+                    role
+                );
+
+                return Ok((LinkNetworkBackend::Zenoh(backend), "zenoh"));
+            }
+        }
+
+        #[cfg(not(feature = "zenoh-transport"))]
+        {
+            if addr_str == "zenoh"
+                || addr_str.starts_with("zenoh/")
+                || addr_str.starts_with("zenoh:")
+            {
+                return Err(
+                    "Zenoh transport not enabled. Compile with --features zenoh-transport".into(),
+                );
+            }
+        }
+
         // Check for localhost - use Unix socket (fastest for local)
         if addr_str == "localhost"
             || addr_str.starts_with("127.0.0.1")
@@ -1061,6 +1215,8 @@ where
                     LinkNetworkBackend::ConnectedUdp(udp) => udp.send(&msg),
                     #[cfg(unix)]
                     LinkNetworkBackend::UnixSocket(unix) => unix.send(&msg),
+                    #[cfg(feature = "zenoh-transport")]
+                    LinkNetworkBackend::Zenoh(zenoh) => zenoh.send(&msg),
                 };
 
                 match send_result {
@@ -1183,6 +1339,8 @@ where
                     LinkNetworkBackend::ConnectedUdp(udp) => udp.recv(),
                     #[cfg(unix)]
                     LinkNetworkBackend::UnixSocket(unix) => unix.recv(),
+                    #[cfg(feature = "zenoh-transport")]
+                    LinkNetworkBackend::Zenoh(zenoh) => zenoh.recv(),
                 };
 
                 if let Some(msg) = recv_result {

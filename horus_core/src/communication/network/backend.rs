@@ -10,6 +10,11 @@ use super::unix_socket::UnixSocketBackend;
 #[cfg(target_os = "linux")]
 use super::batch_udp::{BatchUdpConfig, BatchUdpReceiver, BatchUdpSender};
 
+#[cfg(feature = "zenoh-transport")]
+use super::zenoh_backend::ZenohBackend;
+#[cfg(feature = "zenoh-transport")]
+use super::zenoh_config::ZenohConfig;
+
 use crate::error::HorusResult;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -43,6 +48,10 @@ pub enum NetworkBackend<T> {
 
     /// Router (central message broker)
     Router(RouterBackend<T>),
+
+    /// Zenoh transport (multi-robot mesh, cloud, ROS2 interop)
+    #[cfg(feature = "zenoh-transport")]
+    Zenoh(ZenohBackend<T>),
 }
 
 /// Wrapper for batch UDP sender/receiver pair with smart copy support
@@ -122,6 +131,37 @@ where
                     RouterBackend::new_with_addr(&topic, h, p)?
                 };
                 Ok(NetworkBackend::Router(router_backend))
+            }
+
+            Endpoint::Zenoh {
+                topic,
+                ros2_mode,
+                connect,
+            } => {
+                #[cfg(feature = "zenoh-transport")]
+                {
+                    let mut config = if ros2_mode {
+                        ZenohConfig::ros2(0)
+                    } else {
+                        ZenohConfig::default()
+                    };
+
+                    // Add connect endpoint if specified
+                    if let Some(endpoint) = connect {
+                        config = config.connect_to(&endpoint);
+                    }
+
+                    let backend = ZenohBackend::new_blocking(&topic, config)?;
+                    Ok(NetworkBackend::Zenoh(backend))
+                }
+                #[cfg(not(feature = "zenoh-transport"))]
+                {
+                    let _ = (topic, ros2_mode, connect);
+                    Err(crate::error::HorusError::Communication(
+                        "Zenoh transport not enabled. Compile with --features zenoh-transport"
+                            .to_string(),
+                    ))
+                }
             }
         }
     }
@@ -243,6 +283,39 @@ where
                 let udp_backend = UdpDirectBackend::new(topic, addr.ip(), addr.port())?;
                 Ok(NetworkBackend::UdpDirect(udp_backend))
             }
+
+            TransportType::Zenoh => {
+                #[cfg(feature = "zenoh-transport")]
+                {
+                    let config = ZenohConfig::default();
+                    let backend = ZenohBackend::new_blocking(topic, config)?;
+                    Ok(NetworkBackend::Zenoh(backend))
+                }
+                #[cfg(not(feature = "zenoh-transport"))]
+                {
+                    log::warn!(
+                        "Zenoh transport requested but feature not enabled; falling back to UDP"
+                    );
+                    let udp_backend = UdpDirectBackend::new(topic, addr.ip(), addr.port())?;
+                    Ok(NetworkBackend::UdpDirect(udp_backend))
+                }
+            }
+
+            TransportType::ZenohRos2 => {
+                #[cfg(feature = "zenoh-transport")]
+                {
+                    // Use ROS2-compatible configuration
+                    let config = ZenohConfig::ros2(0); // Domain ID 0 by default
+                    let backend = ZenohBackend::new_blocking(topic, config)?;
+                    Ok(NetworkBackend::Zenoh(backend))
+                }
+                #[cfg(not(feature = "zenoh-transport"))]
+                {
+                    log::warn!("Zenoh ROS2 transport requested but feature not enabled; falling back to UDP");
+                    let udp_backend = UdpDirectBackend::new(topic, addr.ip(), addr.port())?;
+                    Ok(NetworkBackend::UdpDirect(udp_backend))
+                }
+            }
         }
     }
 
@@ -336,6 +409,8 @@ where
             }
             NetworkBackend::Multicast(backend) => backend.send(msg),
             NetworkBackend::Router(backend) => backend.send(msg),
+            #[cfg(feature = "zenoh-transport")]
+            NetworkBackend::Zenoh(backend) => backend.send(msg),
         }
     }
 
@@ -364,6 +439,8 @@ where
             }
             NetworkBackend::Multicast(backend) => backend.recv(),
             NetworkBackend::Router(backend) => backend.recv(),
+            #[cfg(feature = "zenoh-transport")]
+            NetworkBackend::Zenoh(backend) => backend.recv(),
         }
     }
 
@@ -377,6 +454,8 @@ where
             NetworkBackend::BatchUdp(_) => "batch_udp",
             NetworkBackend::Multicast(_) => "multicast",
             NetworkBackend::Router(_) => "router",
+            #[cfg(feature = "zenoh-transport")]
+            NetworkBackend::Zenoh(_) => "zenoh",
         }
     }
 
@@ -424,6 +503,11 @@ impl<T> std::fmt::Debug for NetworkBackend<T> {
                 .finish(),
             NetworkBackend::Router(backend) => f
                 .debug_struct("NetworkBackend::Router")
+                .field("backend", backend)
+                .finish(),
+            #[cfg(feature = "zenoh-transport")]
+            NetworkBackend::Zenoh(backend) => f
+                .debug_struct("NetworkBackend::Zenoh")
                 .field("backend", backend)
                 .finish(),
         }

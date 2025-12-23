@@ -318,35 +318,50 @@ fn duplicate_entity_recursive(
 }
 
 /// System to handle entity deletion with undo support
-pub fn delete_entity_system(
-    mut commands: Commands,
-    mut events: EventReader<DeleteEntityEvent>,
-    mut undo_stack: ResMut<UndoStack>,
-    world: &World,
-    query: Query<&Children>,
-) {
-    for event in events.read() {
-        // Create delete operation with snapshot for undo
-        let operation = DeleteOperation::new(event.entity, world);
+/// This is an exclusive system because it needs both &World access (for snapshots)
+/// and Commands (for entity deletion) which would conflict in a regular system.
+pub fn delete_entity_system(world: &mut World) {
+    // Collect events first (need to drain them)
+    let events: Vec<Entity> = world
+        .resource_mut::<Events<DeleteEntityEvent>>()
+        .drain()
+        .map(|e| e.entity)
+        .collect();
 
-        // Execute the deletion
-        despawn_recursive(&mut commands, event.entity, &query);
+    if events.is_empty() {
+        return;
+    }
+
+    // Process each deletion event
+    for entity in events {
+        // Create delete operation with snapshot for undo (needs &World)
+        let operation = DeleteOperation::new(entity, world);
 
         // Add to undo stack
-        undo_stack.push(Box::new(operation));
+        world.resource_mut::<UndoStack>().push(Box::new(operation));
 
-        info!("Deleted entity {:?}", event.entity);
+        // Execute the deletion recursively
+        despawn_entity_recursive(world, entity);
+
+        info!("Deleted entity {:?}", entity);
     }
 }
 
-/// Recursively despawn an entity and all its children
-fn despawn_recursive(commands: &mut Commands, entity: Entity, children_query: &Query<&Children>) {
-    if let Ok(children) = children_query.get(entity) {
-        for &child in children.iter() {
-            despawn_recursive(commands, child, children_query);
-        }
+/// Recursively despawn an entity and all its children (exclusive system helper)
+fn despawn_entity_recursive(world: &mut World, entity: Entity) {
+    // First collect children
+    let children: Vec<Entity> = world
+        .get::<Children>(entity)
+        .map(|c| c.iter().copied().collect())
+        .unwrap_or_default();
+
+    // Recursively delete children
+    for child in children {
+        despawn_entity_recursive(world, child);
     }
-    commands.entity(entity).despawn();
+
+    // Despawn the entity itself
+    world.despawn(entity);
 }
 
 /// Updated show_entity_tree to send events for duplication and deletion

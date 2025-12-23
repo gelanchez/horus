@@ -159,10 +159,11 @@ pub mod prelude {
     };
 
     // ============================================
-    // Error Types
+    // Error Types (clean aliases - no Horus prefix)
     // ============================================
+    pub use horus_core::error::{Error, Result};
+    // Backward compatibility - users can still use HorusError/HorusResult
     pub use horus_core::error::{HorusError, HorusResult};
-    pub type Result<T> = HorusResult<T>;
 
     // ============================================
     // Common Std Types

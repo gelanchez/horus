@@ -10,6 +10,7 @@ use crate::scene::gazebo_models::{GazeboModelSpawner, LoadedGazeboModel};
 use crate::scene::loader::SceneLoader;
 use crate::scene::sdf_importer::SDFImporter;
 use crate::scene::spawner::{ObjectSpawnConfig, ObjectSpawner, SpawnShape, SpawnedObjects};
+use crate::systems::hframe_update::HFramePublisher;
 use bevy::prelude::*;
 use std::path::Path;
 
@@ -367,9 +368,12 @@ fn spawn_default_robot(
         ObjectSpawner::spawn_object(robot_config, commands, physics_world, meshes, materials);
 
     // Add differential drive and velocity command components
-    commands
-        .entity(robot_entity)
-        .insert((diff_drive, CmdVel::default()));
+    // Also add HFramePublisher for tf publishing
+    commands.entity(robot_entity).insert((
+        diff_drive,
+        CmdVel::default(),
+        HFramePublisher::new("base_link", "world"),
+    ));
 
     spawned_objects.add(robot_entity);
 
@@ -395,6 +399,7 @@ fn spawn_default_robot(
             })),
             Transform::from_xyz(-wheel_separation / 2.0, wheel_y, 0.0)
                 .with_rotation(Quat::from_rotation_z(std::f32::consts::FRAC_PI_2)),
+            HFramePublisher::new("left_wheel", "base_link"),
         ))
         .id();
 
@@ -412,6 +417,7 @@ fn spawn_default_robot(
             })),
             Transform::from_xyz(wheel_separation / 2.0, wheel_y, 0.0)
                 .with_rotation(Quat::from_rotation_z(std::f32::consts::FRAC_PI_2)),
+            HFramePublisher::new("right_wheel", "base_link"),
         ))
         .id();
 

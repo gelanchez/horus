@@ -1,7 +1,9 @@
 pub mod clean;
 pub mod deploy;
 pub mod doctor;
+pub mod from_ros;
 pub mod github_auth;
+pub mod hf;
 pub mod init;
 pub mod launch;
 pub mod log;

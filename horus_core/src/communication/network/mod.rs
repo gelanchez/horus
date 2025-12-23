@@ -55,6 +55,27 @@ pub mod quic;
 #[cfg(target_os = "linux")]
 pub mod io_uring;
 
+// Zenoh transport for multi-robot mesh, cloud connectivity, and ROS2 interop
+// Requires the `zenoh-transport` feature flag
+#[cfg(feature = "zenoh-transport")]
+pub mod zenoh_backend;
+pub mod zenoh_config;
+
+// ROS2 service protocol for Zenoh (request/response over rq/rs topics)
+// Requires the `zenoh-transport` feature flag
+#[cfg(feature = "zenoh-transport")]
+pub mod zenoh_ros2_services;
+
+// ROS2 action protocol for Zenoh (goal/cancel/result/feedback/status topics)
+// Requires the `zenoh-transport` feature flag
+#[cfg(feature = "zenoh-transport")]
+pub mod zenoh_ros2_actions;
+
+// ROS2 parameter server protocol for Zenoh (list/get/set/describe parameters)
+// Requires the `zenoh-transport` feature flag
+#[cfg(feature = "zenoh-transport")]
+pub mod zenoh_ros2_params;
+
 // Re-export commonly used types
 pub use backend::NetworkBackend;
 pub use direct::{DirectBackend, DirectRole};
@@ -110,3 +131,120 @@ pub use io_uring::{
 
 #[cfg(feature = "quic")]
 pub use quic::{generate_self_signed_cert, QuicConfig, QuicStats, QuicTransport};
+
+// Zenoh re-exports
+#[cfg(feature = "zenoh-transport")]
+pub use zenoh_backend::{ZenohBackend, ZenohSessionInfo};
+pub use zenoh_config::{
+    CongestionControl, Durability, HistoryPolicy, Liveliness, Reliability, SerializationFormat,
+    ZenohConfig, ZenohMode, ZenohQos,
+};
+
+// ROS2 services re-exports
+#[cfg(feature = "zenoh-transport")]
+pub use zenoh_ros2_services::{
+    parse_service_topic, service_to_request_topic, service_to_response_topic, EmptyRequest,
+    EmptyResponse, RequestTracker, Ros2RequestHeader, Ros2ServiceConfig, Ros2ServiceError,
+    Ros2ServiceRequest, Ros2ServiceResponse, ServiceRegistry, ServiceStats, SetBoolRequest,
+    SetBoolResponse, TriggerRequest, TriggerResponse,
+};
+
+// ROS2 actions re-exports
+#[cfg(feature = "zenoh-transport")]
+pub use zenoh_ros2_actions::{
+    action_to_cancel_goal_topic,
+    action_to_feedback_topic,
+    action_to_get_result_topic,
+    // Topic naming
+    action_to_send_goal_topic,
+    action_to_status_topic,
+    apply_namespace_to_action,
+    parse_action_topic,
+    ActionClientTopics,
+    ActionServerTopics,
+    ActionStats,
+    ActionTopicType,
+    // Trait
+    ActionType,
+    CancelCallback,
+    CancelGoalErrorCode,
+    CancelGoalRequest,
+    CancelGoalResponse,
+    // Goal handles
+    ClientGoalHandle,
+    EmptyFeedback,
+    // Common action types
+    EmptyGoal,
+    EmptyResult,
+    ExecuteCallback,
+    FeedbackMessage,
+    GetResultRequest,
+    GetResultResponse,
+    GoalCallback,
+    // Core types
+    GoalId,
+    GoalInfo,
+    GoalStatus,
+    GoalStatusArray,
+    GoalStatusInfo,
+    ProgressFeedback,
+    // Client/Server
+    Ros2ActionClient,
+    Ros2ActionConfig,
+    Ros2ActionError,
+    Ros2ActionServer,
+    Ros2Time,
+    // Request/Response types
+    SendGoalRequest,
+    SendGoalResponse,
+    ServerGoalHandle,
+};
+
+// ROS2 parameters re-exports
+#[cfg(feature = "zenoh-transport")]
+pub use zenoh_ros2_params::{
+    param_to_describe_parameters_topic,
+    param_to_events_topic,
+    param_to_get_parameter_types_topic,
+    param_to_get_parameters_topic,
+    // Topic naming
+    param_to_list_parameters_topic,
+    param_to_set_parameters_atomically_topic,
+    param_to_set_parameters_topic,
+    DescribeParametersRequest,
+    DescribeParametersResponse,
+    FloatingPointRange,
+    GetParameterTypesRequest,
+    GetParameterTypesResponse,
+    GetParametersRequest,
+    GetParametersResponse,
+    IntegerRange,
+    // Request/Response types
+    ListParametersRequest,
+    ListParametersResponse,
+    ListParametersResult,
+    // Store and Client/Server
+    LocalParameterStore,
+    Parameter,
+    ParameterClientTopics,
+    ParameterDescriptor,
+    ParameterEvent,
+    ParameterEventType,
+    ParameterQos,
+    ParameterServerTopics,
+    ParameterStats,
+    ParameterTopicType,
+    // Core types
+    ParameterType,
+    ParameterValue,
+    Ros2ParamTime,
+    Ros2ParameterClient,
+    Ros2ParameterConfig,
+    Ros2ParameterError,
+    Ros2ParameterServer,
+    SetParameterResult,
+    SetParametersAtomicallyRequest,
+    SetParametersAtomicallyResponse,
+    SetParametersRequest,
+    SetParametersResponse,
+};

@@ -6,6 +6,125 @@ use crate::error::{HorusError, HorusResult};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
+/// Zenoh-specific configuration for Hub/Link
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ZenohHubConfig {
+    /// Enable ROS2 compatibility mode
+    /// When true, uses ROS2-compatible topic naming (rt/{topic})
+    #[serde(default)]
+    pub ros2_mode: bool,
+
+    /// ROS2 domain ID (0-232), only used when ros2_mode is true
+    #[serde(default)]
+    pub ros2_domain_id: u32,
+
+    /// Endpoints to connect to (routers or peers)
+    /// Format: "tcp/192.168.1.1:7447" or "udp/192.168.1.1:7447"
+    #[serde(default)]
+    pub connect: Vec<String>,
+
+    /// Endpoints to listen on
+    /// Format: "tcp/0.0.0.0:7447"
+    #[serde(default)]
+    pub listen: Vec<String>,
+
+    /// Namespace prefix for topics (default: "horus")
+    #[serde(default)]
+    pub namespace: Option<String>,
+
+    /// Enable shared memory transport for local communication
+    #[serde(default = "default_true")]
+    pub shared_memory: bool,
+
+    /// Serialization format: "bincode" (default), "json", "cdr" (ROS2)
+    #[serde(default)]
+    pub serialization: Option<String>,
+
+    /// QoS reliability: "best_effort" (default) or "reliable"
+    #[serde(default)]
+    pub reliability: Option<String>,
+
+    /// QoS priority (0-7, higher = more important)
+    #[serde(default)]
+    pub priority: Option<u8>,
+
+    /// Express mode (skip batching for low latency)
+    #[serde(default)]
+    pub express: bool,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+impl ZenohHubConfig {
+    /// Convert to ZenohConfig from network module
+    #[cfg(feature = "zenoh-transport")]
+    pub fn to_zenoh_config(&self) -> crate::communication::network::ZenohConfig {
+        use crate::communication::network::{
+            CongestionControl, Reliability, SerializationFormat, ZenohConfig, ZenohMode, ZenohQos,
+        };
+
+        let mut config = if self.ros2_mode {
+            ZenohConfig::ros2(self.ros2_domain_id)
+        } else {
+            ZenohConfig::default()
+        };
+
+        // Apply namespace
+        if let Some(ref ns) = self.namespace {
+            config.namespace = Some(ns.clone());
+        }
+
+        // Apply connect endpoints
+        for endpoint in &self.connect {
+            config.connect.push(endpoint.clone());
+        }
+
+        // Apply listen endpoints
+        for endpoint in &self.listen {
+            config.listen.push(endpoint.clone());
+        }
+
+        // Set mode based on whether we have connect endpoints
+        if !self.connect.is_empty() {
+            config.mode = ZenohMode::Client;
+        }
+
+        config.shared_memory = self.shared_memory;
+
+        // Apply serialization format
+        if let Some(ref fmt) = self.serialization {
+            config.serialization = match fmt.to_lowercase().as_str() {
+                "json" => SerializationFormat::Json,
+                "cdr" => SerializationFormat::Cdr,
+                "messagepack" | "msgpack" => SerializationFormat::MessagePack,
+                _ => SerializationFormat::Bincode,
+            };
+        }
+
+        // Apply QoS settings
+        let mut qos = ZenohQos::default();
+        if let Some(ref rel) = self.reliability {
+            qos.reliability = match rel.to_lowercase().as_str() {
+                "reliable" => Reliability::Reliable,
+                _ => Reliability::BestEffort,
+            };
+            // If reliable, use blocking congestion control
+            if matches!(qos.reliability, Reliability::Reliable) {
+                qos.congestion = CongestionControl::Block;
+            }
+        }
+        if let Some(priority) = self.priority {
+            qos.priority = priority.min(7);
+        }
+        qos.express = self.express;
+        config.qos = qos;
+
+        config
+    }
+}
+
 /// HORUS Hub configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HubConfig {
@@ -17,6 +136,7 @@ pub struct HubConfig {
     pub endpoint: Option<String>,
 
     /// Transport type (overrides endpoint parsing)
+    /// Options: "local", "localhost", "router", "multicast", "direct", "zenoh"
     #[serde(default)]
     pub transport: Option<String>,
 
@@ -39,6 +159,10 @@ pub struct HubConfig {
     /// Path to TLS private key file (PEM format)
     #[serde(default)]
     pub tls_key: Option<String>,
+
+    /// Zenoh-specific configuration (when transport = "zenoh")
+    #[serde(default)]
+    pub zenoh: Option<ZenohHubConfig>,
 
     /// Additional options
     #[serde(flatten)]
@@ -102,6 +226,28 @@ impl HubConfig {
                     }
                 } else {
                     format!("{}@router", self.name) // Fallback
+                }
+            }
+            Some("zenoh") => {
+                // Zenoh transport for multi-robot mesh, cloud, and ROS2 interop
+                // Endpoint format: topic@zenoh, topic@zenoh/ros2, topic@zenoh:tcp/host:port
+                if let Some(ref zenoh_config) = self.zenoh {
+                    // Build zenoh endpoint from config
+                    let mode = if zenoh_config.ros2_mode {
+                        "zenoh/ros2"
+                    } else {
+                        "zenoh"
+                    };
+
+                    // Add connect endpoint if specified
+                    if let Some(connect) = zenoh_config.connect.first() {
+                        format!("{}@{}:{}", self.name, mode, connect)
+                    } else {
+                        format!("{}@{}", self.name, mode)
+                    }
+                } else {
+                    // Basic zenoh without extra config
+                    format!("{}@zenoh", self.name)
                 }
             }
             Some(unknown) => {
@@ -258,6 +404,7 @@ mod tests {
             tls: None,
             tls_cert: None,
             tls_key: None,
+            zenoh: None,
             options: std::collections::HashMap::new(),
         };
 
@@ -275,6 +422,7 @@ mod tests {
             tls: None,
             tls_cert: None,
             tls_key: None,
+            zenoh: None,
             options: std::collections::HashMap::new(),
         };
 
@@ -292,9 +440,149 @@ mod tests {
             tls: None,
             tls_cert: None,
             tls_key: None,
+            zenoh: None,
             options: std::collections::HashMap::new(),
         };
 
         assert_eq!(config.get_endpoint(), "broadcast@*");
+    }
+
+    #[test]
+    fn test_zenoh_transport_basic() {
+        let config = HubConfig {
+            name: "robot_odom".to_string(),
+            endpoint: None,
+            transport: Some("zenoh".to_string()),
+            host: None,
+            port: None,
+            tls: None,
+            tls_cert: None,
+            tls_key: None,
+            zenoh: None,
+            options: std::collections::HashMap::new(),
+        };
+
+        assert_eq!(config.get_endpoint(), "robot_odom@zenoh");
+    }
+
+    #[test]
+    fn test_zenoh_transport_ros2_mode() {
+        let config = HubConfig {
+            name: "cmd_vel".to_string(),
+            endpoint: None,
+            transport: Some("zenoh".to_string()),
+            host: None,
+            port: None,
+            tls: None,
+            tls_cert: None,
+            tls_key: None,
+            zenoh: Some(ZenohHubConfig {
+                ros2_mode: true,
+                ros2_domain_id: 0,
+                connect: vec![],
+                listen: vec![],
+                namespace: None,
+                shared_memory: true,
+                serialization: Some("cdr".to_string()),
+                reliability: None,
+                priority: None,
+                express: false,
+            }),
+            options: std::collections::HashMap::new(),
+        };
+
+        assert_eq!(config.get_endpoint(), "cmd_vel@zenoh/ros2");
+    }
+
+    #[test]
+    fn test_zenoh_transport_with_connect() {
+        let config = HubConfig {
+            name: "cloud_telemetry".to_string(),
+            endpoint: None,
+            transport: Some("zenoh".to_string()),
+            host: None,
+            port: None,
+            tls: None,
+            tls_cert: None,
+            tls_key: None,
+            zenoh: Some(ZenohHubConfig {
+                ros2_mode: false,
+                ros2_domain_id: 0,
+                connect: vec!["tcp/cloud.example.com:7447".to_string()],
+                listen: vec![],
+                namespace: Some("fleet1".to_string()),
+                shared_memory: false,
+                serialization: None,
+                reliability: Some("reliable".to_string()),
+                priority: Some(7),
+                express: false,
+            }),
+            options: std::collections::HashMap::new(),
+        };
+
+        assert_eq!(
+            config.get_endpoint(),
+            "cloud_telemetry@zenoh:tcp/cloud.example.com:7447"
+        );
+    }
+
+    #[test]
+    fn test_zenoh_toml_config() {
+        let toml_str = r#"
+            [hubs.multi_robot]
+            name = "swarm_pose"
+            transport = "zenoh"
+
+            [hubs.multi_robot.zenoh]
+            ros2_mode = false
+            namespace = "swarm1"
+            connect = ["tcp/192.168.1.100:7447"]
+            shared_memory = true
+            reliability = "best_effort"
+            priority = 5
+        "#;
+
+        let config = HorusConfig::from_toml(toml_str).unwrap();
+        let hub = config.get_hub("multi_robot").unwrap();
+
+        assert_eq!(hub.transport, Some("zenoh".to_string()));
+        assert!(hub.zenoh.is_some());
+
+        let zenoh = hub.zenoh.as_ref().unwrap();
+        assert!(!zenoh.ros2_mode);
+        assert_eq!(zenoh.namespace, Some("swarm1".to_string()));
+        assert_eq!(zenoh.connect, vec!["tcp/192.168.1.100:7447"]);
+
+        assert_eq!(
+            hub.get_endpoint(),
+            "swarm_pose@zenoh:tcp/192.168.1.100:7447"
+        );
+    }
+
+    #[test]
+    fn test_zenoh_yaml_config() {
+        let yaml_str = r#"
+            hubs:
+              ros2_bridge:
+                name: cmd_vel
+                transport: zenoh
+                zenoh:
+                  ros2_mode: true
+                  ros2_domain_id: 42
+                  serialization: cdr
+                  express: true
+        "#;
+
+        let config = HorusConfig::from_yaml(yaml_str).unwrap();
+        let hub = config.get_hub("ros2_bridge").unwrap();
+
+        assert!(hub.zenoh.is_some());
+        let zenoh = hub.zenoh.as_ref().unwrap();
+        assert!(zenoh.ros2_mode);
+        assert_eq!(zenoh.ros2_domain_id, 42);
+        assert_eq!(zenoh.serialization, Some("cdr".to_string()));
+        assert!(zenoh.express);
+
+        assert_eq!(hub.get_endpoint(), "cmd_vel@zenoh/ros2");
     }
 }

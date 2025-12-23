@@ -98,7 +98,31 @@ pub enum HorusError {
 }
 
 /// Convenience type alias for Results using HorusError
-pub type HorusResult<T> = Result<T, HorusError>;
+pub type HorusResult<T> = std::result::Result<T, HorusError>;
+
+// ============================================
+// Clean aliases for public API
+// ============================================
+// Users should use `horus::Error` and `horus::Result<T>` in their code.
+// The Horus-prefixed versions are kept for internal use and backward compatibility.
+
+/// Error type alias for clean public API
+///
+/// Use `horus::Error` in your code:
+/// ```rust,ignore
+/// use horus::prelude::*;
+/// fn my_function() -> Result<(), Error> { Ok(()) }
+/// ```
+pub type Error = HorusError;
+
+/// Result type alias for clean public API
+///
+/// Use `horus::Result<T>` in your code:
+/// ```rust,ignore
+/// use horus::prelude::*;
+/// fn my_function() -> Result<String> { Ok("success".into()) }
+/// ```
+pub type Result<T> = std::result::Result<T, HorusError>;
 
 // Implement conversions from common error types
 impl From<serde_json::Error> for HorusError {

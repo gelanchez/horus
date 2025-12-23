@@ -119,7 +119,10 @@ pub struct EditorPlugin;
 #[cfg(feature = "visual")]
 impl Plugin for EditorPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(EguiPlugin)
+        if !app.is_plugin_added::<EguiPlugin>() {
+            app.add_plugins(EguiPlugin);
+        }
+        app
             // Core editor state
             .init_resource::<EditorState>()
             .init_resource::<selection::Selection>()
