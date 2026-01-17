@@ -163,8 +163,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 // Teleoperation node that converts joystick to robot commands
 struct TeleopNode {
-    joystick_sub: Hub<JoystickInput>,
-    cmd_pub: Hub<Twist>,
+    joystick_sub: Topic<JoystickInput>,
+    cmd_pub: Topic<Twist>,
     max_speed: f32,
     max_turn: f32,
 }
@@ -211,8 +211,8 @@ use horus_library::JoystickInput;
 use horus_core::{Hub, Node, Scheduler};
 
 struct DroneController {
-    joystick_sub: Hub<JoystickInput>,
-    cmd_pub: Hub<DroneCommand>,
+    joystick_sub: Topic<JoystickInput>,
+    cmd_pub: Topic<DroneCommand>,
     armed: bool,
 }
 
@@ -306,8 +306,8 @@ use horus_library::JoystickInput;
 use std::collections::HashMap;
 
 struct ButtonMapper {
-    joystick_sub: Hub<JoystickInput>,
-    action_pub: Hub<RobotAction>,
+    joystick_sub: Topic<JoystickInput>,
+    action_pub: Topic<RobotAction>,
     button_actions: HashMap<String, RobotAction>,
     button_states: HashMap<String, bool>,
 }
@@ -386,9 +386,9 @@ use horus_library::nodes::JoystickInputNode;
 use horus_library::JoystickInput;
 
 struct TankController {
-    joystick_sub: Hub<JoystickInput>,
-    left_motor_pub: Hub<MotorCommand>,
-    right_motor_pub: Hub<MotorCommand>,
+    joystick_sub: Topic<JoystickInput>,
+    left_motor_pub: Topic<MotorCommand>,
+    right_motor_pub: Topic<MotorCommand>,
     left_speed: f32,
     right_speed: f32,
 }
@@ -794,8 +794,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ```rust
 struct CoordinatedArmController {
-    joystick_sub: Hub<JoystickInput>,
-    joint_publishers: Vec<Hub<f32>>,
+    joystick_sub: Topic<JoystickInput>,
+    joint_publishers: Vec<Topic<f32>>,
     joint_positions: Vec<f32>,
 }
 

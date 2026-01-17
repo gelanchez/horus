@@ -353,7 +353,7 @@ impl LogSummary for Quaternion {
 // POD (Plain Old Data) Message Support
 // =============================================================================
 // These implementations enable ultra-fast zero-serialization transfer (~50ns)
-// for real-time robotics control loops. Use with PodLink for maximum performance.
+// for real-time robotics control loops. Topic automatically uses POD backend.
 
 // Bytemuck implementations for safe byte casting
 unsafe impl bytemuck::Pod for Twist {}

@@ -89,35 +89,35 @@ class AsyncNode(Node):
         loop.run_until_complete(self.shutdown())
 
 
-class AsyncHub:
+class AsyncTopic:
     """
-    Async wrapper for Hub - use with await.
+    Async wrapper for Topic - use with await.
 
     Example:
         ```python
         # Create
-        hub = horus.AsyncHub("topic", str)
+        topic = horus.AsyncTopic("my_topic", str)
 
         # Send (async)
-        await hub.send("hello")
+        await topic.send("hello")
 
         # Receive (async, waits for message)
-        msg = await hub.recv()
+        msg = await topic.recv()
 
         # Try receive (async, returns None if no message)
-        msg = await hub.try_recv()
+        msg = await topic.try_recv()
         ```
     """
 
-    def __init__(self, topic: str, msg_type: type):
-        from . import Hub
-        self._hub = Hub(topic, msg_type)
+    def __init__(self, topic_name: str, msg_type: type):
+        from . import Topic
+        self._topic = Topic(topic_name, msg_type)
 
     async def send(self, msg: Any):
         """Send message asynchronously"""
         # Run in executor to avoid blocking
         loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, self._hub.send, msg)
+        await loop.run_in_executor(None, self._topic.send, msg)
 
     async def recv(self) -> Any:
         """
@@ -126,7 +126,7 @@ class AsyncHub:
         """
         loop = asyncio.get_event_loop()
         while True:
-            msg = await loop.run_in_executor(None, self._hub.try_recv)
+            msg = await loop.run_in_executor(None, self._topic.try_recv)
             if msg is not None:
                 return msg
             await asyncio.sleep(0.001)  # Small delay to avoid busy wait
@@ -137,11 +137,11 @@ class AsyncHub:
         Returns None immediately if no message.
         """
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, self._hub.try_recv)
+        return await loop.run_in_executor(None, self._topic.try_recv)
 
     def subscribe(self, callback: Callable):
         """Subscribe with callback (synchronous)"""
-        self._hub.subscribe(callback)
+        self._topic.subscribe(callback)
 
     async def async_subscribe(self, async_callback: Callable):
         """
@@ -157,7 +157,7 @@ class AsyncHub:
         """
         def wrapper(msg):
             asyncio.create_task(async_callback(msg))
-        self._hub.subscribe(wrapper)
+        self._topic.subscribe(wrapper)
 
 
 # Simple async utilities
@@ -178,7 +178,7 @@ async def wait_for(coro, timeout: float):
 
 __all__ = [
     'AsyncNode',
-    'AsyncHub',
+    'AsyncTopic',
     'sleep',
     'gather',
     'wait_for',

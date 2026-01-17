@@ -77,10 +77,10 @@ jobs:
         cd benchmarks
         cargo build --release --benches
 
-    - name: Run Link performance benchmarks
+    - name: Run Topic performance benchmarks
       run: |
         cd benchmarks
-        cargo bench --bench link_performance -- --noplot
+        cargo bench --bench topic_performance -- --noplot
 
     - name: Run production message benchmarks
       run: |

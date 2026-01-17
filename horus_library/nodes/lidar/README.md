@@ -152,7 +152,7 @@ use horus_core::{Node, Scheduler, Hub, NodeInfo};
 
 /// Custom node that detects obstacles from LiDAR scans
 struct ObstacleDetector {
-    scan_sub: Hub<LaserScan>,
+    scan_sub: Topic<LaserScan>,
     warning_distance: f32,
 }
 
@@ -256,8 +256,8 @@ use horus_core::{Node, Scheduler, Hub, NodeInfo};
 
 /// Monitors multiple LiDAR sensors
 struct MultiLidarMonitor {
-    front_sub: Hub<LaserScan>,
-    rear_sub: Hub<LaserScan>,
+    front_sub: Topic<LaserScan>,
+    rear_sub: Topic<LaserScan>,
 }
 
 impl MultiLidarMonitor {
@@ -327,7 +327,7 @@ use horus_core::{Node, Scheduler, Hub, NodeInfo};
 
 /// Node that monitors collision zones around robot
 struct CollisionZoneMonitor {
-    scan_sub: Hub<LaserScan>,
+    scan_sub: Topic<LaserScan>,
     num_zones: usize,
     danger_distance: f32,
 }
@@ -624,7 +624,7 @@ use horus_core::{Node, Scheduler, Hub, NodeInfo};
 
 /// Node that processes LiDAR scans for SLAM
 struct SlamProcessor {
-    scan_sub: Hub<LaserScan>,
+    scan_sub: Topic<LaserScan>,
     min_valid_ratio: f32,
 }
 

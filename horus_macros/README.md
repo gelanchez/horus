@@ -251,16 +251,16 @@ cargo test
 **Manual approach:**
 ```rust
 pub struct MyNode {
-    pub_topic: Hub<String>,
-    sub_topic: Hub<i32>,
+    pub_topic: Topic<String>,
+    sub_topic: Topic<i32>,
     counter: u32,
 }
 
 impl MyNode {
     pub fn new() -> Result<Self> {
         Ok(Self {
-            pub_topic: Hub::new("output")?,
-            sub_topic: Hub::new("input")?,
+            pub_topic: Topic::new("output")?,
+            sub_topic: Topic::new("input")?,
             counter: 0,
         })
     }

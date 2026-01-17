@@ -101,31 +101,33 @@ impl NodeInfo {
 - `errors_count` - Error count
 - `uptime_seconds` - Node uptime
 
-### 3. Hub Communication
+### 3. Topic Communication
 
-From `horus_core/src/communication/hub.rs`:
+From `horus_core/src/communication/topic.rs`:
 
 ```rust
-impl<T> Hub<T> {
+impl<T> Topic<T> {
     pub fn new(topic_name: &str) -> HorusResult<Self>;
-    pub fn new_with_capacity(topic_name: &str, capacity: usize) -> HorusResult<Self>;
+    pub fn producer(topic_name: &str) -> HorusResult<Self>;  // SPSC producer
+    pub fn consumer(topic_name: &str) -> HorusResult<Self>;  // SPSC consumer
     pub fn send(&self, msg: T, ctx: Option<&mut NodeInfo>) -> Result<(), T>;
     pub fn recv(&self, ctx: Option<&mut NodeInfo>) -> Option<T>;
     pub fn get_topic_name(&self) -> &str;
-    pub fn get_metrics(&self) -> HubMetrics;
+    pub fn get_metrics(&self) -> TopicMetrics;
 }
 ```
 
-**Hub Features:**
+**Topic Features:**
 - Lock-free atomic operations
 - Cache-line aligned (64 bytes)
 - Cross-platform shared memory (Linux: `/dev/shm/horus/`, macOS: `/tmp/horus/`, Windows: `%TEMP%\horus\`)
 - Default capacity: 1024 slots per topic
+- Multiple backends: SPSC, MPMC, DirectChannel, IntraProcess
 
 **Performance (on modern x86_64 systems):**
-- **Link (SPSC)**: 248ns median latency, 6M+ msg/s throughput
-- **Hub (MPMC)**: 481ns median latency, flexible pub/sub
-- Link is 48% faster than Hub in 1P1C scenarios
+- **Topic SPSC**: 248ns median latency, 6M+ msg/s throughput
+- **Topic MPMC**: 481ns median latency, flexible pub/sub
+- SPSC is 48% faster than MPMC in 1P1C scenarios
 - Production-validated with 6.2M+ test messages
 
 *Performance varies by hardware. See `benchmarks/` directory for detailed results.*
@@ -179,14 +181,14 @@ scheduler.set_node_rate("sensor_node", 30.0);
 use horus::prelude::*;
 
 pub struct SensorNode {
-    publisher: Hub<f64>,
+    publisher: Topic<f64>,
     counter: u32,
 }
 
 impl SensorNode {
     pub fn new() -> Result<Self> {
         Ok(Self {
-            publisher: Hub::new("sensor_data")?,
+            publisher: Topic::new("sensor_data")?,
             counter: 0,
         })
     }
@@ -220,13 +222,13 @@ impl Node for SensorNode {
 
 ```rust
 pub struct ControlNode {
-    subscriber: Hub<f64>,
+    subscriber: Topic<f64>,
 }
 
 impl ControlNode {
     pub fn new() -> Result<Self> {
         Ok(Self {
-            subscriber: Hub::new("sensor_data")?,
+            subscriber: Topic::new("sensor_data")?,
         })
     }
 }

@@ -9,9 +9,6 @@ members = [
     "horus_library/python",  # Python bindings for horus_library
     # Example apps (multi-node applications)
     "horus_library/apps/tanksim",
-    # Tools
-    "horus_library/tools/sim2d",
-    "horus_library/tools/sim3d",
     "horus_router",  # Router service
     "benchmarks",
     "horus_py",

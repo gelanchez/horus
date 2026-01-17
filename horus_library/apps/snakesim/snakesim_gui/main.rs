@@ -32,7 +32,7 @@ struct SnakesimNode {
     snake: Vec<(usize, usize)>,
     last_update: Instant,
     turn: (isize, isize),
-    sub: Hub<u32>,
+    sub: Topic<u32>,
 }
 impl SnakesimNode {
     pub fn new() -> Result<Self> {

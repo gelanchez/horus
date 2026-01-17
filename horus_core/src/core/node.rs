@@ -47,23 +47,6 @@ impl fmt::Display for NodeState {
     }
 }
 
-/// Priority levels for node execution (DEPRECATED - use u32 directly)
-///
-/// This enum is deprecated in favor of using u32 directly for more flexibility.
-/// Use numeric priorities instead: 0 = highest priority, higher numbers = lower priority.
-#[deprecated(
-    since = "0.2.0",
-    note = "Use u32 directly for priority. Lower numbers = higher priority."
-)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum NodePriority {
-    Critical = 0,
-    High = 1,
-    Normal = 2,
-    Low = 3,
-    Background = 4,
-}
-
 /// Node health status for monitoring
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HealthStatus {
@@ -673,16 +656,16 @@ impl NodeInfo {
     }
 
     // Runtime Pub/Sub Registration (for monitor discovery)
-    // Called by Hub::send()/recv() when ctx is provided
+    // Called by Topic::send()/recv() when ctx is provided
 
-    /// Register this node as a publisher to a topic (called automatically by Hub::send)
+    /// Register this node as a publisher to a topic (called automatically by Topic::send)
     pub fn register_publisher(&mut self, topic_name: &str, type_name: &str) {
         self.registered_publishers
             .entry(topic_name.to_string())
             .or_insert_with(|| type_name.to_string());
     }
 
-    /// Register this node as a subscriber to a topic (called automatically by Hub::recv)
+    /// Register this node as a subscriber to a topic (called automatically by Topic::recv)
     pub fn register_subscriber(&mut self, topic_name: &str, type_name: &str) {
         self.registered_subscribers
             .entry(topic_name.to_string())
@@ -724,7 +707,7 @@ impl NodeInfo {
     }
 
     /// Internal logging method that accepts a pre-computed summary string
-    /// Used by Hub::send() to avoid needing message reference after move
+    /// Used by Topic::send() to avoid needing message reference after move
     pub fn log_pub_summary(&mut self, topic: &str, summary: &str, ipc_ns: u64) {
         let now = chrono::Local::now();
         let current_tick_us = if let Some(start_time) = self.tick_start_time {
@@ -767,7 +750,7 @@ impl NodeInfo {
     }
 
     /// Internal logging method that accepts a pre-computed summary string
-    /// Used by Hub::recv() to avoid needing message reference after move
+    /// Used by Topic::recv() to avoid needing message reference after move
     pub fn log_sub_summary(&mut self, topic: &str, summary: &str, ipc_ns: u64) {
         let now = chrono::Local::now();
         let current_tick_us = if let Some(start_time) = self.tick_start_time {

@@ -214,8 +214,8 @@ use horus_library::KeyboardInput;
 use horus_core::{Node, Scheduler, Hub, NodeInfo};
 
 struct TeleopNode {
-    keyboard_sub: Hub<KeyboardInput>,
-    velocity_pub: Hub<(f32, f32)>,
+    keyboard_sub: Topic<KeyboardInput>,
+    velocity_pub: Topic<(f32, f32)>,
     linear_vel: f32,
     angular_vel: f32,
 }
@@ -319,8 +319,8 @@ use horus_library::KeyboardInput;
 use horus_core::{Node, Scheduler, Hub, NodeInfo};
 
 struct DroneControlNode {
-    keyboard_sub: Hub<KeyboardInput>,
-    control_pub: Hub<(f32, f32, f32, f32)>,  // (pitch, roll, yaw, throttle)
+    keyboard_sub: Topic<KeyboardInput>,
+    control_pub: Topic<(f32, f32, f32, f32)>,  // (pitch, roll, yaw, throttle)
     pitch: f32,
     roll: f32,
     yaw: f32,
@@ -708,8 +708,8 @@ use horus_library::KeyboardInput;
 use horus_core::{Node, Scheduler, Hub, NodeInfo};
 
 struct KeyboardMotorBridge {
-    keyboard_sub: Hub<KeyboardInput>,
-    motor_pub: Hub<(u8, f32)>,  // (motor_id, speed)
+    keyboard_sub: Topic<KeyboardInput>,
+    motor_pub: Topic<(u8, f32)>,  // (motor_id, speed)
 }
 
 impl Node for KeyboardMotorBridge {
@@ -758,7 +758,7 @@ enum RobotState {
 }
 
 struct StateMachineNode {
-    keyboard_sub: Hub<KeyboardInput>,
+    keyboard_sub: Topic<KeyboardInput>,
     state: RobotState,
 }
 
@@ -805,9 +805,9 @@ use horus_library::KeyboardInput;
 use horus_core::{Node, Hub, NodeInfo};
 
 struct DiffDriveKeyboardNode {
-    keyboard_sub: Hub<KeyboardInput>,
-    left_motor_pub: Hub<f32>,
-    right_motor_pub: Hub<f32>,
+    keyboard_sub: Topic<KeyboardInput>,
+    left_motor_pub: Topic<f32>,
+    right_motor_pub: Topic<f32>,
     max_speed: f32,
     turn_ratio: f32,
 }
@@ -874,7 +874,7 @@ use horus_library::KeyboardInput;
 use horus_core::{Node, Hub, NodeInfo};
 
 struct DebugNode {
-    keyboard_sub: Hub<KeyboardInput>,
+    keyboard_sub: Topic<KeyboardInput>,
     verbose: bool,
     log_level: u8,
 }

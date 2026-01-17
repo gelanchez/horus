@@ -10,7 +10,7 @@
 /// Verifies that the message! macro correctly generates message types with:
 /// - All necessary derives (Debug, Clone, Serialize, Deserialize)
 /// - LogSummary implementation
-/// - Hub/Link compatibility
+/// - Topic compatibility
 use horus::prelude::*;
 
 // Test tuple-style messages
@@ -66,23 +66,24 @@ fn main() {
     assert_eq!(status.x, 1.5);
     assert_eq!(status.battery, 85);
 
-    // Test 6: Hub compatibility (most important!)
-    println!("\nTesting Hub compatibility...");
+    // Test 6: Topic compatibility (most important!)
+    println!("\nTesting Topic compatibility...");
 
-    let hub_pos = Topic::<Position>::new("test/position").expect("Failed to create Hub<Position>");
-    println!(" Created Hub<Position>");
+    let topic_pos =
+        Topic::<Position>::new("test/position").expect("Failed to create Topic<Position>");
+    println!(" Created Topic<Position>");
 
-    let hub_status =
-        Topic::<RobotStatus>::new("test/status").expect("Failed to create Hub<RobotStatus>");
-    println!(" Created Hub<RobotStatus>");
+    let topic_status =
+        Topic::<RobotStatus>::new("test/status").expect("Failed to create Topic<RobotStatus>");
+    println!(" Created Topic<RobotStatus>");
 
     // Test 7: Send without logging (ctx = None)
-    hub_pos
+    topic_pos
         .send(Position(3.0, 4.0), &mut None)
         .expect("Failed to send Position");
     println!(" Sent Position message (no logging)");
 
-    hub_status
+    topic_status
         .send(
             RobotStatus {
                 x: 5.0,
@@ -98,13 +99,13 @@ fn main() {
     // Test 8: Send with logging (ctx = Some)
     let mut ctx_info = NodeInfo::new("test_node".to_string(), true);
     let mut ctx = Some(&mut ctx_info);
-    hub_pos
+    topic_pos
         .send(Position(7.0, 8.0), &mut ctx)
         .expect("Failed to send with logging");
     println!(" Sent Position message WITH logging");
 
     // Test 9: Receive messages
-    if let Some(received) = hub_pos.recv(&mut None) {
+    if let Some(received) = topic_pos.recv(&mut None) {
         println!(" Received Position: ({}, {})", received.0, received.1);
     }
 
@@ -113,7 +114,7 @@ fn main() {
     println!("  - Tuple-style messages work: ");
     println!("  - Struct-style messages work: ");
     println!("  - LogSummary auto-implemented: ");
-    println!("  - Hub<T> compatibility: ");
+    println!("  - Topic<T> compatibility: ");
     println!("  - Send/recv operations: ");
     println!("\nThe message! macro is ready for use!");
 }

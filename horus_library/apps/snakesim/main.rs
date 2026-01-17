@@ -10,7 +10,7 @@ use horus::prelude::*;  // Includes KeyboardInputNode, JoystickInputNode, and al
 struct SnakeControlNode {
     keyboard_subscriber: Topic<KeyboardInput>,
     joystick_subscriber: Topic<JoystickInput>,
-    snake_publisher: Hub<u32>,
+    snake_publisher: Topic<u32>,
 }
 
 impl SnakeControlNode {

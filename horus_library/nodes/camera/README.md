@@ -604,7 +604,7 @@ use horus_core::{Node, Scheduler, Hub, NodeInfo};
 
 // Example image subscriber node
 struct ImageProcessor {
-    subscriber: Hub<Image>,
+    subscriber: Topic<Image>,
 }
 
 impl ImageProcessor {

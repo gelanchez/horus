@@ -21,8 +21,7 @@ try:
     from horus._horus import (
         PyNode as _PyNode,
         PyNodeInfo as _NodeInfo,
-        Hub,  # Type-based Hub with network support (exported as "Hub" from Rust)
-        Link,  # Point-to-point SPSC communication with network support
+        PyTopic as Topic,  # Unified communication API
         RouterClient,  # Explicit router connection management
         RouterServer,  # Router server management
         default_router_endpoint,  # Helper: "topic@router"
@@ -53,8 +52,7 @@ except ImportError:
     print("Warning: Rust bindings not available. Running in mock mode.")
     _PyNode = None
     _NodeInfo = None
-    Hub = None  # Type-based Hub with network support
-    Link = None  # Point-to-point SPSC communication
+    Topic = None  # Unified communication API
     RouterClient = None  # Router client management
     RouterServer = None  # Router server management
     default_router_endpoint = lambda t: f"{t}@router"
@@ -294,7 +292,7 @@ class Node:
                 original_topic = getattr(msg_type, '__topic_name__', None)
                 msg_type.__topic_name__ = topic
                 try:
-                    self._hubs[topic] = Hub(msg_type, capacity)
+                    self._hubs[topic] = Topic(msg_type, capacity)
                 finally:
                     # Restore original or delete
                     if original_topic is not None:
@@ -302,7 +300,7 @@ class Node:
                     elif hasattr(msg_type, '__topic_name__'):
                         delattr(msg_type, '__topic_name__')
             else:
-                self._hubs[topic] = Hub(topic, capacity)
+                self._hubs[topic] = Topic(topic, capacity)
 
         # Create subscriber hubs
         for topic in self.sub_topics:
@@ -316,7 +314,7 @@ class Node:
                 original_topic = getattr(msg_type, '__topic_name__', None)
                 msg_type.__topic_name__ = topic
                 try:
-                    self._hubs[topic] = Hub(msg_type, capacity)
+                    self._hubs[topic] = Topic(msg_type, capacity)
                 finally:
                     # Restore original or delete
                     if original_topic is not None:
@@ -324,7 +322,7 @@ class Node:
                     elif hasattr(msg_type, '__topic_name__'):
                         delattr(msg_type, '__topic_name__')
             else:
-                self._hubs[topic] = Hub(topic, capacity)
+                self._hubs[topic] = Topic(topic, capacity)
 
     def has_msg(self, topic: str) -> bool:
         """
@@ -468,7 +466,7 @@ class Node:
                     original_topic = getattr(msg_type, '__topic_name__', None)
                     msg_type.__topic_name__ = topic
                     try:
-                        self._hubs[topic] = Hub(msg_type, capacity)
+                        self._hubs[topic] = Topic(msg_type, capacity)
                     finally:
                         # Restore original or delete
                         if original_topic is not None:
@@ -476,7 +474,7 @@ class Node:
                         elif hasattr(msg_type, '__topic_name__'):
                             delattr(msg_type, '__topic_name__')
                 else:
-                    self._hubs[topic] = Hub(topic, capacity)
+                    self._hubs[topic] = Topic(topic, capacity)
 
         if self._node and topic in self._hubs:
             hub = self._hubs[topic]
@@ -539,7 +537,7 @@ class Node:
                     original_topic = getattr(msg_type, '__topic_name__', None)
                     msg_type.__topic_name__ = topic
                     try:
-                        self._hubs[topic] = Hub(msg_type, capacity)
+                        self._hubs[topic] = Topic(msg_type, capacity)
                     finally:
                         # Restore original or delete
                         if original_topic is not None:
@@ -547,7 +545,7 @@ class Node:
                         elif hasattr(msg_type, '__topic_name__'):
                             delattr(msg_type, '__topic_name__')
                 else:
-                    self._hubs[topic] = Hub(topic, capacity)
+                    self._hubs[topic] = Topic(topic, capacity)
 
         if self._node and topic in self._hubs:
             hub = self._hubs[topic]
@@ -1168,8 +1166,7 @@ __all__ = [
     "Node",
     "Scheduler",
     "NodeState",
-    "Hub",
-    "Link",  # Point-to-point SPSC communication with network support
+    "Topic",  # Unified communication API
     "RouterClient",  # Explicit router connection management
     "RouterServer",  # Router server management
     "default_router_endpoint",  # Helper: "topic@router"
@@ -1188,7 +1185,7 @@ __all__ = [
     "TensorHandle",
     # Simple async API
     "AsyncNode",
-    "AsyncHub",
+    "AsyncTopic",
     "sleep",
     "gather",
     "wait_for",
@@ -1231,7 +1228,7 @@ Odometry = _RustOdometry
 # LaserScan handled below (after nodes import to avoid override)
 
 # Import simple async API
-from .async_node import AsyncNode, AsyncHub, sleep, gather, wait_for
+from .async_node import AsyncNode, AsyncTopic, sleep, gather, wait_for
 
 # Import ML utilities
 from .ml_utils import (
@@ -1274,8 +1271,7 @@ except NameError:
     # LaserScan not defined yet, import from nodes
     from .nodes import LaserScan
 
-# NOTE: Hub is now imported directly from Rust (no alias needed)
-# Old: Hub = _PyHub (removed - Hub is imported directly on line 24)
+# NOTE: Topic is the unified communication API (replaces deprecated Hub/Link)
 
 # Import custom message generator module
 from . import msggen

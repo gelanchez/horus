@@ -372,7 +372,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```rust
 fn calibrate_servo(
     servo_id: u8,
-    servo_pub: &Hub<ServoCommand>,
+    servo_pub: &Topic<ServoCommand>,
     servo_ctrl: &ServoControllerNode,
 ) -> Result<(f64, f64), Box<dyn std::error::Error>> {
     eprintln!("Calibrating servo {}...", servo_id);
@@ -477,7 +477,7 @@ fn execute_trajectory(
     servo_id: u8,
     waypoints: &[f32],
     duration_per_segment: f32,
-    servo_pub: &Hub<ServoCommand>,
+    servo_pub: &Topic<ServoCommand>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     for waypoint in waypoints {
         // Calculate speed based on distance and time

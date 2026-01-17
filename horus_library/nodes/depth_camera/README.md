@@ -196,7 +196,7 @@ use horus_library::nodes::{DepthCameraNode, CameraModel};
 use horus_library::DepthImage;
 
 struct ObstacleDetector {
-    depth_sub: Hub<DepthImage>,
+    depth_sub: Topic<DepthImage>,
     min_distance: f32,
 }
 

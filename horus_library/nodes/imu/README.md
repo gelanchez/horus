@@ -256,7 +256,7 @@ use std::f64::consts::PI;
 
 /// Custom node that subscribes to IMU data and displays Euler angles
 struct OrientationMonitor {
-    imu_sub: Hub<Imu>,
+    imu_sub: Topic<Imu>,
 }
 
 impl OrientationMonitor {
@@ -324,7 +324,7 @@ use horus_core::{Node, Scheduler, Hub, NodeInfo};
 
 /// Custom node that detects significant motion from IMU data
 struct MotionDetector {
-    imu_sub: Hub<Imu>,
+    imu_sub: Topic<Imu>,
     angular_threshold: f64,
     accel_threshold: f64,
 }
@@ -400,9 +400,9 @@ use horus_core::{Node, Scheduler, Hub, NodeInfo};
 
 /// Custom node that fuses IMU orientation with wheel odometry
 struct SensorFusion {
-    imu_sub: Hub<Imu>,
-    odom_sub: Hub<Odometry>,
-    fused_pub: Hub<Odometry>,
+    imu_sub: Topic<Imu>,
+    odom_sub: Topic<Odometry>,
+    fused_pub: Topic<Odometry>,
 }
 
 impl SensorFusion {
@@ -1105,9 +1105,9 @@ use horus_library::{Imu, Odometry, Pose2D};
 use horus_core::Hub;
 
 struct SensorFusionNode {
-    imu_sub: Hub<Imu>,
-    odom_sub: Hub<Odometry>,
-    pose_pub: Hub<Pose2D>,
+    imu_sub: Topic<Imu>,
+    odom_sub: Topic<Odometry>,
+    pose_pub: Topic<Pose2D>,
 
     complementary_filter: ComplementaryFilter,
     last_imu_time: u64,

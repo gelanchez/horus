@@ -41,7 +41,7 @@ impl LinkUsageTracker {
                     producers.to_string().red().bold()
                 ));
                 warnings.push(
-                    "    Hint: Link is Single-Producer-Single-Consumer. Use Hub<T> for multiple producers.".to_string()
+                    "    Hint: Topic SPSC is Single-Producer-Single-Consumer. Use Topic<T>::new() for multiple producers.".to_string()
                 );
             }
 
@@ -52,7 +52,7 @@ impl LinkUsageTracker {
                     consumers.to_string().red().bold()
                 ));
                 warnings.push(
-                    "    Hint: Link is Single-Producer-Single-Consumer. Use Hub<T> for multiple consumers.".to_string()
+                    "    Hint: Topic SPSC is Single-Producer-Single-Consumer. Use Topic<T>::new() for multiple consumers.".to_string()
                 );
             }
         }

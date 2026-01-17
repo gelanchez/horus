@@ -16,6 +16,9 @@ use super::record_replay::{
     SchedulerRecording,
 };
 
+// Import types from types module
+use super::types::{RegisteredNode, SchedulerNodeMetrics};
+
 // Global flag for SIGTERM handling
 static SIGTERM_RECEIVED: AtomicBool = AtomicBool::new(false);
 
@@ -39,75 +42,6 @@ use super::intelligence::{DependencyGraph, ExecutionTier, RuntimeProfiler, TierC
 use super::jit::CompiledDataflow;
 use super::safety_monitor::SafetyMonitor;
 use tokio::sync::mpsc;
-
-/// Node control command for IPC-based lifecycle management
-#[derive(Debug, Clone, PartialEq)]
-pub enum NodeControlCommand {
-    Stop,    // Stop the node (won't tick anymore)
-    Restart, // Restart the node (re-initialize and resume)
-    Pause,   // Pause execution (can resume later)
-    Resume,  // Resume paused node
-}
-
-/// Enhanced node registration info with lifecycle tracking and per-node rate control
-struct RegisteredNode {
-    node: Box<dyn Node>,
-    priority: u32,
-    logging_enabled: bool,
-    initialized: bool,
-    context: Option<NodeInfo>,
-    rate_hz: Option<f64>, // Per-node rate control (None = use global scheduler rate)
-    last_tick: Option<Instant>, // Last tick time for rate limiting
-    circuit_breaker: CircuitBreaker, // Fault tolerance
-    is_rt_node: bool,     // Track if this is a real-time node
-    wcet_budget: Option<Duration>, // WCET budget for RT nodes
-    deadline: Option<Duration>, // Deadline for RT nodes
-    is_jit_compiled: bool, // Track if node uses JIT compilation
-    jit_stats: Option<CompiledDataflow>, // JIT compilation statistics
-    // Record/Replay support
-    recorder: Option<NodeRecorder>, // Active recording (None if not recording)
-    #[allow(dead_code)] // Stored for future replay-aware scheduling
-    is_replay_node: bool, // True if this node is replaying recorded data
-    // Per-node lifecycle control (for horus node kill/restart)
-    is_stopped: bool, // Node has been stopped via control command
-    is_paused: bool,  // Node is temporarily paused
-}
-
-/// Performance metrics for a scheduler node
-///
-/// Returned by `Scheduler::get_metrics()` to provide performance data
-/// for monitoring and debugging.
-#[derive(Debug, Clone, Default)]
-pub struct SchedulerNodeMetrics {
-    /// Node name
-    pub name: String,
-    /// Node priority (lower = higher priority)
-    pub priority: u32,
-    /// Total number of ticks executed
-    pub total_ticks: u64,
-    /// Number of successful ticks
-    pub successful_ticks: u64,
-    /// Number of failed ticks
-    pub failed_ticks: u64,
-    /// Average tick duration in milliseconds
-    pub avg_tick_duration_ms: f64,
-    /// Maximum tick duration observed
-    pub max_tick_duration_ms: f64,
-    /// Minimum tick duration observed
-    pub min_tick_duration_ms: f64,
-    /// Duration of the last tick
-    pub last_tick_duration_ms: f64,
-    /// Total messages sent by this node
-    pub messages_sent: u64,
-    /// Total messages received by this node
-    pub messages_received: u64,
-    /// Total error count
-    pub errors_count: u64,
-    /// Total warning count
-    pub warnings_count: u64,
-    /// Node uptime in seconds
-    pub uptime_seconds: f64,
-}
 
 /// Central orchestrator: holds nodes, drives the tick loop.
 pub struct Scheduler {
@@ -268,10 +202,296 @@ impl Scheduler {
     ///     .with_config(SchedulerConfig::hard_realtime())
     ///     .disable_learning();
     /// ```
-    #[allow(deprecated)] // set_config is intentionally used here for builder pattern
     pub fn with_config(mut self, config: super::config::SchedulerConfig) -> Self {
-        self.set_config(config);
+        self.apply_config(config);
         self
+    }
+
+    /// Internal method to apply configuration (used by with_config builder)
+    fn apply_config(&mut self, config: super::config::SchedulerConfig) {
+        use super::config::*;
+
+        // Apply execution mode
+        match config.execution {
+            ExecutionMode::JITOptimized => {
+                // Force JIT compilation for all nodes
+                self.profiler.force_ultra_fast_classification = true;
+                println!("JIT optimization mode selected");
+            }
+            ExecutionMode::Parallel => {
+                // Enable full parallelization
+                self.parallel_executor.set_max_threads(num_cpus::get());
+                println!("Parallel execution mode selected");
+            }
+            ExecutionMode::AsyncIO => {
+                // Force async I/O tier for all I/O operations
+                self.profiler.force_async_io_classification = true;
+                println!("Async I/O mode selected");
+            }
+            ExecutionMode::Sequential => {
+                // Disable all optimizations for deterministic execution
+                self.learning_complete = true; // Skip learning phase
+                self.classifier = None;
+                self.parallel_executor.set_max_threads(1);
+                println!("Sequential execution mode selected");
+            }
+            ExecutionMode::AutoAdaptive => {
+                // Default adaptive behavior
+                println!("Auto-adaptive mode selected");
+            }
+        }
+
+        // Apply real-time configuration
+        if config.realtime.safety_monitor
+            || config.realtime.wcet_enforcement
+            || config.realtime.deadline_monitoring
+        {
+            // Create safety monitor with configured deadline miss limit
+            let mut monitor = SafetyMonitor::new(config.realtime.max_deadline_misses);
+
+            // Configure critical nodes and WCET budgets for RT nodes
+            for registered in self.nodes.iter() {
+                if registered.is_rt_node {
+                    let node_name = registered.node.name().to_string();
+
+                    // Add as critical node with watchdog if configured
+                    if config.realtime.watchdog_enabled {
+                        let watchdog_timeout =
+                            Duration::from_millis(config.realtime.watchdog_timeout_ms);
+                        monitor.add_critical_node(node_name.clone(), watchdog_timeout);
+                    }
+
+                    // Set WCET budget if available
+                    if let Some(wcet) = registered.wcet_budget {
+                        monitor.set_wcet_budget(node_name, wcet);
+                    }
+                }
+            }
+
+            self.safety_monitor = Some(monitor);
+            println!("Safety monitor configured for RT nodes");
+        }
+
+        // Apply timing configuration
+        if config.timing.per_node_rates {
+            // Per-node rate control already supported via set_node_rate()
+        }
+
+        // Global rate control
+        let _tick_period_ms = (1000.0 / config.timing.global_rate_hz) as u64;
+        // This will be used in the run loop (store for later)
+
+        // Apply fault tolerance
+        for registered in self.nodes.iter_mut() {
+            if config.fault.circuit_breaker_enabled {
+                registered.circuit_breaker = CircuitBreaker::new(
+                    config.fault.max_failures,
+                    config.fault.recovery_threshold,
+                    config.fault.circuit_timeout_ms,
+                );
+            } else {
+                // Disable circuit breaker by setting impossibly high threshold
+                registered.circuit_breaker = CircuitBreaker::new(u32::MAX, 0, 0);
+            }
+        }
+
+        // Apply resource configuration
+        if let Some(ref cores) = config.resources.cpu_cores {
+            // Set CPU affinity
+            self.parallel_executor.set_cpu_cores(cores.clone());
+            println!("CPU cores configuration: {:?}", cores);
+        }
+
+        // Apply monitoring configuration
+        if config.monitoring.profiling_enabled {
+            self.profiler.enable();
+            println!("Profiling enabled");
+        } else {
+            self.profiler.disable();
+            println!("Profiling disabled");
+        }
+
+        // Handle robot presets
+        match config.preset {
+            RobotPreset::SafetyCritical => {
+                println!("Configured for safety-critical operation");
+            }
+            RobotPreset::HardRealTime => {
+                println!("Configured for hard real-time operation");
+            }
+            RobotPreset::HighPerformance => {
+                println!("Configured for high-performance operation");
+            }
+            RobotPreset::Space => {
+                println!("Configured for space robotics");
+            }
+            RobotPreset::Swarm => {
+                println!("Configured for swarm robotics");
+                // Apply swarm-specific settings
+                if let Some(swarm_id) = config.get_custom::<i64>("swarm_id") {
+                    self.scheduler_name = format!("Swarm_{}", swarm_id);
+                }
+            }
+            RobotPreset::SoftRobotics => {
+                println!("Configured for soft robotics");
+            }
+            RobotPreset::Custom => {
+                println!("Using custom configuration");
+            }
+            _ => {
+                // Standard preset
+            }
+        }
+
+        // === Apply new runtime features ===
+
+        // 1. Global tick rate enforcement
+        self.tick_period =
+            std::time::Duration::from_micros((1_000_000.0 / config.timing.global_rate_hz) as u64);
+
+        // 2. Checkpoint system
+        if config.fault.checkpoint_interval_ms > 0 {
+            let checkpoint_dir = std::path::PathBuf::from("/tmp/horus_checkpoints");
+            let cm = super::checkpoint::CheckpointManager::new(
+                checkpoint_dir,
+                config.fault.checkpoint_interval_ms,
+            );
+            self.checkpoint_manager = Some(cm);
+            println!(
+                "[SCHEDULER] Checkpoint system enabled (interval: {}ms)",
+                config.fault.checkpoint_interval_ms
+            );
+        }
+
+        // 3. Black box flight recorder
+        if config.monitoring.black_box_enabled && config.monitoring.black_box_size_mb > 0 {
+            let mut bb = super::blackbox::BlackBox::new(config.monitoring.black_box_size_mb);
+            bb.record(super::blackbox::BlackBoxEvent::SchedulerStart {
+                name: self.scheduler_name.clone(),
+                node_count: self.nodes.len(),
+                config: format!("{:?}", config.preset),
+            });
+            self.blackbox = Some(bb);
+            println!(
+                "[SCHEDULER] Black box enabled ({}MB buffer)",
+                config.monitoring.black_box_size_mb
+            );
+        }
+
+        // 4. Telemetry endpoint
+        if let Some(ref endpoint_str) = config.monitoring.telemetry_endpoint {
+            let endpoint = super::telemetry::TelemetryEndpoint::from_string(endpoint_str);
+            let interval_ms = config.monitoring.metrics_interval_ms;
+            let mut tm = super::telemetry::TelemetryManager::new(endpoint, interval_ms);
+            tm.set_scheduler_name(&self.scheduler_name);
+            self.telemetry = Some(tm);
+            println!("[SCHEDULER] Telemetry enabled (endpoint: {})", endpoint_str);
+        }
+
+        // 5. Redundancy (TMR)
+        if config.fault.redundancy_factor > 1 {
+            // Default to majority voting strategy
+            let strategy = super::redundancy::VotingStrategy::Majority;
+            self.redundancy = Some(super::redundancy::RedundancyManager::new(
+                config.fault.redundancy_factor as usize,
+                strategy,
+            ));
+            println!(
+                "[SCHEDULER] Redundancy enabled (factor: {}, strategy: {:?})",
+                config.fault.redundancy_factor, strategy
+            );
+        }
+
+        // 6. Real-time optimizations (Linux-specific)
+        #[cfg(target_os = "linux")]
+        {
+            // Memory locking
+            if config.realtime.memory_locking && super::runtime::lock_all_memory().is_ok() {
+                println!("[SCHEDULER] Memory locked (mlockall)");
+            }
+
+            // RT scheduling class
+            if config.realtime.rt_scheduling_class {
+                let priority = 50; // Default RT priority
+                if super::runtime::set_realtime_priority(priority).is_ok() {
+                    println!(
+                        "[SCHEDULER] RT scheduling enabled (SCHED_FIFO, priority {})",
+                        priority
+                    );
+                }
+            }
+
+            // CPU core affinity
+            if let Some(ref cores) = config.resources.cpu_cores {
+                if super::runtime::set_thread_affinity(cores).is_ok() {
+                    println!("[SCHEDULER] CPU affinity set to cores {:?}", cores);
+                }
+            }
+
+            // NUMA awareness
+            if config.resources.numa_aware {
+                let numa_nodes = super::runtime::get_numa_node_count();
+                if numa_nodes > 1 {
+                    println!(
+                        "[SCHEDULER] NUMA-aware scheduling ({} nodes detected)",
+                        numa_nodes
+                    );
+                }
+            }
+        }
+
+        // 7. Recording configuration for record/replay system
+        if let Some(ref recording_yaml) = config.recording {
+            if recording_yaml.enabled {
+                // Generate session name if not provided
+                let session_name = recording_yaml.session_name.clone().unwrap_or_else(|| {
+                    use std::time::{SystemTime, UNIX_EPOCH};
+                    let timestamp = SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .map(|d| d.as_secs())
+                        .unwrap_or(0);
+                    format!("session_{}", timestamp)
+                });
+
+                // Convert YAML config to internal RecordingConfig
+                let mut recording_config = RecordingConfig::new(session_name.clone());
+                recording_config.compress = recording_yaml.compress;
+                recording_config.interval = recording_yaml.interval as u64;
+
+                if let Some(ref output_dir) = recording_yaml.output_dir {
+                    recording_config.base_dir = PathBuf::from(output_dir);
+                }
+
+                // Store include/exclude filters in the config
+                recording_config.include_nodes = recording_yaml.include_nodes.clone();
+                recording_config.exclude_nodes = recording_yaml.exclude_nodes.clone();
+
+                // Enable recording
+                self.recording_config = Some(recording_config.clone());
+
+                // Generate unique scheduler ID
+                let scheduler_id = format!(
+                    "{:x}{:x}",
+                    std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_nanos() as u64)
+                        .unwrap_or(0),
+                    std::process::id() as u64
+                );
+
+                // Create scheduler-level recording
+                self.scheduler_recording =
+                    Some(SchedulerRecording::new(&scheduler_id, &session_name));
+
+                println!(
+                    "[SCHEDULER] Recording enabled (session: {}, compress: {})",
+                    session_name, recording_yaml.compress
+                );
+            }
+        }
+
+        // Store config for runtime use
+        self.config = Some(config);
     }
 
     /// Pre-allocate node capacity (prevents reallocations during runtime)
@@ -3388,322 +3608,6 @@ impl Scheduler {
         }
 
         self.isolated_executor = Some(iso_executor);
-    }
-
-    /// Configure the scheduler for specific robot types (runtime configuration)
-    ///
-    /// **Note**: For builder pattern during construction, use `with_config()` instead.
-    /// This method is for runtime reconfiguration of an existing scheduler.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use horus_core::Scheduler;
-    /// use horus_core::scheduling::SchedulerConfig;
-    /// // Runtime reconfiguration
-    /// let mut scheduler = Scheduler::new();
-    /// #[allow(deprecated)]
-    /// scheduler.set_config(SchedulerConfig::hard_realtime());
-    /// ```
-    ///
-    /// # Prefer Builder Pattern
-    /// ```no_run
-    /// use horus_core::Scheduler;
-    /// use horus_core::scheduling::SchedulerConfig;
-    /// // Better: Use with_config() during construction
-    /// let scheduler = Scheduler::new()
-    ///     .with_config(SchedulerConfig::hard_realtime());
-    /// ```
-    #[deprecated(
-        since = "0.2.0",
-        note = "Use with_config() for builder pattern. set_config() is only for runtime reconfiguration."
-    )]
-    pub fn set_config(&mut self, config: super::config::SchedulerConfig) -> &mut Self {
-        use super::config::*;
-
-        // Apply execution mode
-        match config.execution {
-            ExecutionMode::JITOptimized => {
-                // Force JIT compilation for all nodes
-                self.profiler.force_ultra_fast_classification = true;
-                println!("JIT optimization mode selected");
-            }
-            ExecutionMode::Parallel => {
-                // Enable full parallelization
-                self.parallel_executor.set_max_threads(num_cpus::get());
-                println!("Parallel execution mode selected");
-            }
-            ExecutionMode::AsyncIO => {
-                // Force async I/O tier for all I/O operations
-                self.profiler.force_async_io_classification = true;
-                println!("Async I/O mode selected");
-            }
-            ExecutionMode::Sequential => {
-                // Disable all optimizations for deterministic execution
-                self.learning_complete = true; // Skip learning phase
-                self.classifier = None;
-                self.parallel_executor.set_max_threads(1);
-                println!("Sequential execution mode selected");
-            }
-            ExecutionMode::AutoAdaptive => {
-                // Default adaptive behavior
-                println!("Auto-adaptive mode selected");
-            }
-        }
-
-        // Apply real-time configuration
-        if config.realtime.safety_monitor
-            || config.realtime.wcet_enforcement
-            || config.realtime.deadline_monitoring
-        {
-            // Create safety monitor with configured deadline miss limit
-            let mut monitor = SafetyMonitor::new(config.realtime.max_deadline_misses);
-
-            // Configure critical nodes and WCET budgets for RT nodes
-            for registered in self.nodes.iter() {
-                if registered.is_rt_node {
-                    let node_name = registered.node.name().to_string();
-
-                    // Add as critical node with watchdog if configured
-                    if config.realtime.watchdog_enabled {
-                        let watchdog_timeout =
-                            Duration::from_millis(config.realtime.watchdog_timeout_ms);
-                        monitor.add_critical_node(node_name.clone(), watchdog_timeout);
-                    }
-
-                    // Set WCET budget if available
-                    if let Some(wcet) = registered.wcet_budget {
-                        monitor.set_wcet_budget(node_name, wcet);
-                    }
-                }
-            }
-
-            self.safety_monitor = Some(monitor);
-            println!("Safety monitor configured for RT nodes");
-        }
-
-        // Apply timing configuration
-        if config.timing.per_node_rates {
-            // Per-node rate control already supported via set_node_rate()
-        }
-
-        // Global rate control
-        let _tick_period_ms = (1000.0 / config.timing.global_rate_hz) as u64;
-        // This will be used in the run loop (store for later)
-
-        // Apply fault tolerance
-        for registered in self.nodes.iter_mut() {
-            if config.fault.circuit_breaker_enabled {
-                registered.circuit_breaker = CircuitBreaker::new(
-                    config.fault.max_failures,
-                    config.fault.recovery_threshold,
-                    config.fault.circuit_timeout_ms,
-                );
-            } else {
-                // Disable circuit breaker by setting impossibly high threshold
-                registered.circuit_breaker = CircuitBreaker::new(u32::MAX, 0, 0);
-            }
-        }
-
-        // Apply resource configuration
-        if let Some(ref cores) = config.resources.cpu_cores {
-            // Set CPU affinity
-            self.parallel_executor.set_cpu_cores(cores.clone());
-            println!("CPU cores configuration: {:?}", cores);
-        }
-
-        // Apply monitoring configuration
-        if config.monitoring.profiling_enabled {
-            self.profiler.enable();
-            println!("Profiling enabled");
-        } else {
-            self.profiler.disable();
-            println!("Profiling disabled");
-        }
-
-        // Handle robot presets
-        match config.preset {
-            RobotPreset::SafetyCritical => {
-                println!("Configured for safety-critical operation");
-            }
-            RobotPreset::HardRealTime => {
-                println!("Configured for hard real-time operation");
-            }
-            RobotPreset::HighPerformance => {
-                println!("Configured for high-performance operation");
-            }
-            RobotPreset::Space => {
-                println!("Configured for space robotics");
-            }
-            RobotPreset::Swarm => {
-                println!("Configured for swarm robotics");
-                // Apply swarm-specific settings
-                if let Some(swarm_id) = config.get_custom::<i64>("swarm_id") {
-                    self.scheduler_name = format!("Swarm_{}", swarm_id);
-                }
-            }
-            RobotPreset::SoftRobotics => {
-                println!("Configured for soft robotics");
-            }
-            RobotPreset::Custom => {
-                println!("Using custom configuration");
-            }
-            _ => {
-                // Standard preset
-            }
-        }
-
-        // === Apply new runtime features ===
-
-        // 1. Global tick rate enforcement
-        self.tick_period =
-            std::time::Duration::from_micros((1_000_000.0 / config.timing.global_rate_hz) as u64);
-
-        // 2. Checkpoint system
-        if config.fault.checkpoint_interval_ms > 0 {
-            let checkpoint_dir = std::path::PathBuf::from("/tmp/horus_checkpoints");
-            let cm = super::checkpoint::CheckpointManager::new(
-                checkpoint_dir,
-                config.fault.checkpoint_interval_ms,
-            );
-            self.checkpoint_manager = Some(cm);
-            println!(
-                "[SCHEDULER] Checkpoint system enabled (interval: {}ms)",
-                config.fault.checkpoint_interval_ms
-            );
-        }
-
-        // 3. Black box flight recorder
-        if config.monitoring.black_box_enabled && config.monitoring.black_box_size_mb > 0 {
-            let mut bb = super::blackbox::BlackBox::new(config.monitoring.black_box_size_mb);
-            bb.record(super::blackbox::BlackBoxEvent::SchedulerStart {
-                name: self.scheduler_name.clone(),
-                node_count: self.nodes.len(),
-                config: format!("{:?}", config.preset),
-            });
-            self.blackbox = Some(bb);
-            println!(
-                "[SCHEDULER] Black box enabled ({}MB buffer)",
-                config.monitoring.black_box_size_mb
-            );
-        }
-
-        // 4. Telemetry endpoint
-        if let Some(ref endpoint_str) = config.monitoring.telemetry_endpoint {
-            let endpoint = super::telemetry::TelemetryEndpoint::from_string(endpoint_str);
-            let interval_ms = config.monitoring.metrics_interval_ms;
-            let mut tm = super::telemetry::TelemetryManager::new(endpoint, interval_ms);
-            tm.set_scheduler_name(&self.scheduler_name);
-            self.telemetry = Some(tm);
-            println!("[SCHEDULER] Telemetry enabled (endpoint: {})", endpoint_str);
-        }
-
-        // 5. Redundancy (TMR)
-        if config.fault.redundancy_factor > 1 {
-            // Default to majority voting strategy
-            let strategy = super::redundancy::VotingStrategy::Majority;
-            self.redundancy = Some(super::redundancy::RedundancyManager::new(
-                config.fault.redundancy_factor as usize,
-                strategy,
-            ));
-            println!(
-                "[SCHEDULER] Redundancy enabled (factor: {}, strategy: {:?})",
-                config.fault.redundancy_factor, strategy
-            );
-        }
-
-        // 6. Real-time optimizations (Linux-specific)
-        #[cfg(target_os = "linux")]
-        {
-            // Memory locking
-            if config.realtime.memory_locking && super::runtime::lock_all_memory().is_ok() {
-                println!("[SCHEDULER] Memory locked (mlockall)");
-            }
-
-            // RT scheduling class
-            if config.realtime.rt_scheduling_class {
-                let priority = 50; // Default RT priority
-                if super::runtime::set_realtime_priority(priority).is_ok() {
-                    println!(
-                        "[SCHEDULER] RT scheduling enabled (SCHED_FIFO, priority {})",
-                        priority
-                    );
-                }
-            }
-
-            // CPU core affinity
-            if let Some(ref cores) = config.resources.cpu_cores {
-                if super::runtime::set_thread_affinity(cores).is_ok() {
-                    println!("[SCHEDULER] CPU affinity set to cores {:?}", cores);
-                }
-            }
-
-            // NUMA awareness
-            if config.resources.numa_aware {
-                let numa_nodes = super::runtime::get_numa_node_count();
-                if numa_nodes > 1 {
-                    println!(
-                        "[SCHEDULER] NUMA-aware scheduling ({} nodes detected)",
-                        numa_nodes
-                    );
-                }
-            }
-        }
-
-        // 7. Recording configuration for record/replay system
-        if let Some(ref recording_yaml) = config.recording {
-            if recording_yaml.enabled {
-                // Generate session name if not provided
-                let session_name = recording_yaml.session_name.clone().unwrap_or_else(|| {
-                    use std::time::{SystemTime, UNIX_EPOCH};
-                    let timestamp = SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .map(|d| d.as_secs())
-                        .unwrap_or(0);
-                    format!("session_{}", timestamp)
-                });
-
-                // Convert YAML config to internal RecordingConfig
-                let mut recording_config = RecordingConfig::new(session_name.clone());
-                recording_config.compress = recording_yaml.compress;
-                recording_config.interval = recording_yaml.interval as u64;
-
-                if let Some(ref output_dir) = recording_yaml.output_dir {
-                    recording_config.base_dir = PathBuf::from(output_dir);
-                }
-
-                // Store include/exclude filters in the config
-                recording_config.include_nodes = recording_yaml.include_nodes.clone();
-                recording_config.exclude_nodes = recording_yaml.exclude_nodes.clone();
-
-                // Enable recording
-                self.recording_config = Some(recording_config.clone());
-
-                // Generate unique scheduler ID
-                let scheduler_id = format!(
-                    "{:x}{:x}",
-                    std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .map(|d| d.as_nanos() as u64)
-                        .unwrap_or(0),
-                    std::process::id() as u64
-                );
-
-                // Create scheduler-level recording
-                self.scheduler_recording =
-                    Some(SchedulerRecording::new(&scheduler_id, &session_name));
-
-                println!(
-                    "[SCHEDULER] Recording enabled (session: {}, compress: {})",
-                    session_name, recording_yaml.compress
-                );
-            }
-        }
-
-        // Store config for runtime use
-        self.config = Some(config);
-
-        self
     }
 }
 

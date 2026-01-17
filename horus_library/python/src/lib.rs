@@ -1340,32 +1340,6 @@ impl PyRange {
     }
 }
 
-/// Register sim2d submodule
-fn register_sim2d(py: Python, parent: &Bound<'_, PyModule>) -> PyResult<()> {
-    use sim2d::python_api::{RobotConfigPy, Sim2D, WorldConfigPy};
-
-    let sim2d_module = PyModule::new(py, "sim2d")?;
-    sim2d_module.add_class::<Sim2D>()?;
-    sim2d_module.add_class::<RobotConfigPy>()?;
-    sim2d_module.add_class::<WorldConfigPy>()?;
-    parent.add_submodule(&sim2d_module)?;
-    Ok(())
-}
-
-/// Register sim3d submodule (feature-gated)
-#[cfg(feature = "sim3d")]
-fn register_sim3d(py: Python, parent: &Bound<'_, PyModule>) -> PyResult<()> {
-    use sim3d::rl::python::{make_env, make_vec_env, PySim3DEnv, PyVecSim3DEnv};
-
-    let sim3d_module = PyModule::new(py, "sim3d")?;
-    sim3d_module.add_class::<PySim3DEnv>()?;
-    sim3d_module.add_class::<PyVecSim3DEnv>()?;
-    sim3d_module.add_function(wrap_pyfunction!(make_env, &sim3d_module)?)?;
-    sim3d_module.add_function(wrap_pyfunction!(make_vec_env, &sim3d_module)?)?;
-    parent.add_submodule(&sim3d_module)?;
-    Ok(())
-}
-
 /// HORUS Library Python Module
 #[pymodule]
 fn _library(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -1461,12 +1435,6 @@ fn _library(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyTaskAssignment>()?;
     m.add_class::<PyFormationControl>()?;
     m.add_class::<PyAuctionBid>()?;
-
-    // Register simulation submodules
-    register_sim2d(py, m)?;
-
-    #[cfg(feature = "sim3d")]
-    register_sim3d(py, m)?;
 
     Ok(())
 }

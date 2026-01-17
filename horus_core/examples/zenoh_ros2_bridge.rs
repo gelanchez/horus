@@ -70,8 +70,6 @@ impl LogSummary for StringMsg {
 
 #[cfg(feature = "zenoh-transport")]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    use horus_core::communication::Hub;
-
     println!("=== HORUS Zenoh ROS2 Bridge Example ===\n");
     println!("This demonstrates HORUS <-> ROS2 communication via Zenoh.\n");
 

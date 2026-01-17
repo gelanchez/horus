@@ -47,8 +47,6 @@
 //! ```
 
 pub mod config;
-pub mod hub;
-pub mod link;
 pub mod network;
 pub mod pod;
 pub mod storage;
@@ -65,15 +63,3 @@ pub use topic::{
     TopicMetrics, TopicMode,
 };
 pub use traits::{Channel, Publisher, Subscriber};
-
-// Deprecated: Use Topic<T> instead - these re-exports are for backwards compatibility
-#[doc(hidden)]
-#[deprecated(since = "0.2.0", note = "Use Topic<T> instead")]
-pub use hub::Hub;
-
-#[doc(hidden)]
-#[deprecated(since = "0.2.0", note = "Use Topic<T>::spsc() instead")]
-pub use link::Link;
-
-// LinkMetrics is still useful for diagnostics, keep it accessible
-pub use link::LinkMetrics;

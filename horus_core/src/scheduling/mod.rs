@@ -27,6 +27,7 @@
 pub mod config;
 pub mod safety_monitor;
 pub mod scheduler;
+pub mod types;
 
 // Advanced execution modules
 pub mod executors;
@@ -72,7 +73,8 @@ pub use config::{
     TimingConfig,
 };
 pub use safety_monitor::{SafetyMonitor, SafetyState, SafetyStats, WCETEnforcer, Watchdog};
-pub use scheduler::{Scheduler, SchedulerNodeMetrics};
+pub use scheduler::Scheduler;
+pub use types::{NodeControlCommand, SchedulerNodeMetrics};
 
 // Re-export runtime features
 pub use runtime::{

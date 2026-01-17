@@ -24,11 +24,11 @@
 //! use horus::prelude::*;
 //! use horus_library::messages::tensor::{HorusTensor, TensorDtype, TensorDevice};
 //!
-//! // Tensor descriptors flow through Hub like any message
-//! let hub = Hub::<HorusTensor>::new("camera/frames")?;
+//! // Tensor descriptors flow through Topic like any message
+//! let topic = Topic::<HorusTensor>::new("camera/frames")?;
 //!
 //! // Receive tensor descriptor (actual data is in shared memory pool)
-//! if let Some(tensor) = hub.recv(ctx) {
+//! if let Some(tensor) = topic.recv(ctx) {
 //!     println!("Received {}x{} tensor", tensor.shape[0], tensor.shape[1]);
 //! }
 //! ```

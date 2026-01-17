@@ -10,21 +10,16 @@ use pyo3::prelude::*;
 
 mod config;
 mod hframe;
-mod hub;
-mod link;
 mod messages;
 mod node;
 mod router;
 mod scheduler;
 mod tensor;
 mod topic;
-// mod typed_hub;  // Old separate typed hubs - replaced by polymorphic Hub
 mod types;
 
 use config::{PyRobotPreset, PySchedulerConfig};
 use hframe::{PyHFrame, PyHFrameConfig, PyTransform};
-use hub::PyHub;
-use link::PyLink;
 use node::{PyNode, PyNodeInfo, PyNodeState};
 use router::{PyRouterClient, PyRouterServer};
 use scheduler::PyScheduler;
@@ -40,9 +35,7 @@ fn _horus(m: &Bound<'_, PyModule>) -> PyResult<()> {
     //  USER-FACING: Core classes that users interact with
     m.add_class::<PyNode>()?;
     m.add_class::<PyNodeInfo>()?;
-    m.add_class::<PyTopic>()?; // Unified communication API (preferred)
-    m.add_class::<PyHub>()?; // Deprecated: use Topic instead
-    m.add_class::<PyLink>()?; // Deprecated: use Topic instead
+    m.add_class::<PyTopic>()?; // Unified communication API
     m.add_class::<PyRouterClient>()?; // Explicit router connection management
     m.add_class::<PyRouterServer>()?; // Router server management
     m.add_class::<PyScheduler>()?;
@@ -65,19 +58,11 @@ fn _horus(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyHFrameConfig>()?;
     m.add_function(wrap_pyfunction!(hframe::get_timestamp_ns, m)?)?;
 
-    // Sim2D classes
-    m.add_class::<sim2d::python_api::Sim2D>()?;
-    m.add_class::<sim2d::python_api::RobotConfigPy>()?;
-    m.add_class::<sim2d::python_api::WorldConfigPy>()?;
-
     // Tensor system - zero-copy shared memory tensors
     tensor::register_tensor_classes(m)?;
 
-    // Message types for typed Hub communication
+    // Message types for typed Topic communication
     messages::register_message_classes(m)?;
-
-    // Typed hubs now handled by polymorphic Hub class
-    // typed_hub::register_typed_hubs(m)?;  // Old implementation - replaced
 
     //  CHANGED: Priority system now uses u32 instead of enum
     // - Priority class provides constants: CRITICAL=0, HIGH=10, NORMAL=50, LOW=80, BACKGROUND=100

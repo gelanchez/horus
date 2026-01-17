@@ -9,11 +9,11 @@ mod tests {
     mod mock {
         pub mod horus_core {
             pub mod communication {
-                pub struct Hub<T> {
+                pub struct Topic<T> {
                     _phantom: std::marker::PhantomData<T>,
                 }
 
-                impl<T> Hub<T> {
+                impl<T> Topic<T> {
                     pub fn new(_topic: &str) -> Result<Self, Box<dyn std::error::Error>> {
                         Ok(Self {
                             _phantom: std::marker::PhantomData,

@@ -67,8 +67,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 #[cfg(feature = "zenoh-transport")]
 fn run_robot(robot_id: &str, start_x: f64, start_y: f64) -> Result<(), Box<dyn std::error::Error>> {
-    use horus_core::communication::Hub;
-
     println!(
         "Starting {} at position ({}, {})",
         robot_id, start_x, start_y
@@ -135,8 +133,6 @@ fn run_robot(robot_id: &str, start_x: f64, start_y: f64) -> Result<(), Box<dyn s
 
 #[cfg(feature = "zenoh-transport")]
 fn run_monitor() -> Result<(), Box<dyn std::error::Error>> {
-    use horus_core::communication::Hub;
-
     println!("Starting fleet monitor");
     println!("Subscribing to all robot poses via Zenoh mesh\n");
 

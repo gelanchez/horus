@@ -70,7 +70,7 @@ pub use force::{ForceCommand, ImpedanceParameters, TactileArray, WrenchStamped};
 // Industrial I/O
 pub use io::{
     AnalogIO, CanFrame, DigitalIO, EtherNetIPMessage, I2cMessage, ModbusMessage, NetworkStatus,
-    SerialData, SpiMessage,
+    SafetyRelayStatus, SerialData, SpiMessage,
 };
 
 // Perception
@@ -121,7 +121,7 @@ use serde_json;
 /// use horus::prelude::*;
 /// extern crate rmp_serde;
 ///
-/// let hub = Hub::<GenericMessage>::new("my_topic")?;
+/// let topic = Topic::<GenericMessage>::new("my_topic")?;
 ///
 /// // Send a dict-like structure (requires rmp_serde dependency)
 /// let data = rmp_serde::to_vec(&serde_json::json!({
@@ -130,7 +130,7 @@ use serde_json;
 /// }))?;
 ///
 /// let msg = GenericMessage::new(data);
-/// hub.send(msg, &mut None)?;
+/// topic.send(msg, &mut None)?;
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 ///

@@ -24,8 +24,8 @@
 //!
 //! # Design Philosophy
 //!
-//! Users should NOT need to understand IPC internals. Topic replaces Hub, Link,
-//! and PodLink with a single unified API. The framework handles optimization:
+//! Users should NOT need to understand IPC internals. Topic provides a
+//! unified API for all IPC patterns. The framework handles optimization:
 //!
 //! - If your type is `PodMessage` → PodShm backend (~50ns)
 //! - If only 1 producer + 1 consumer → SpscShm backend (~85ns)

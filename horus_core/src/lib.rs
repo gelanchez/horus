@@ -70,8 +70,6 @@ pub mod terminal;
 // Re-export commonly used types for easy access
 // Unified Topic API - the single way to create IPC channels
 pub use communication::{PodMessage, Topic};
-// LinkMetrics is still useful for diagnostics
-pub use communication::LinkMetrics;
 pub use core::{
     detect_isolated_cpus, detect_nohz_full_cpus, get_rt_recommended_cpus, pin_thread_to_core,
     HealthStatus, LogSummary, Node, NodeConfig, NodeHeartbeat, NodeInfo, NodeInfoExt, NodeMetrics,

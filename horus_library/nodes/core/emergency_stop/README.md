@@ -280,7 +280,7 @@ use horus_core::{Node, Scheduler, Hub};
 
 // Motor controller node that respects emergency stops
 struct SafeMotorController {
-    estop_sub: Hub<EmergencyStop>,
+    estop_sub: Topic<EmergencyStop>,
     is_stopped: bool,
 }
 
@@ -349,7 +349,7 @@ use std::time::{Duration, Instant};
 // Watchdog node that triggers emergency stop on timeout
 struct WatchdogNode {
     estop_trigger: Arc<Mutex<EmergencyStopNode>>,
-    heartbeat_sub: Hub<Heartbeat>,
+    heartbeat_sub: Topic<Heartbeat>,
     last_heartbeat: Instant,
     timeout: Duration,
 }

@@ -300,7 +300,7 @@ impl QuicBackend {
 ### 4.1 Automatic Selection
 
 ```rust
-impl<T> Hub<T> {
+impl<T> Topic<T> {
     pub fn new(endpoint: &str) -> Result<Self> {
         let parsed = parse_endpoint(endpoint)?;
 

@@ -198,32 +198,32 @@ HORUS supports **distributed multi-machine systems** with the same simple API. J
 
 ```rust
 // Local (shared memory) - 87-313ns latency
-let local_hub: Hub<SensorData> = Hub::new("sensors")?;
+let local_topic: Topic<SensorData> = Topic::new("sensors")?;
 
 // Network (TCP/UDP) - 5-50µs latency
-let network_hub: Hub<SensorData> = Hub::new("sensors@192.168.1.100:8000")?;
+let network_topic: Topic<SensorData> = Topic::new("sensors@192.168.1.100:8000")?;
 
-// Link also supports network endpoints
-let producer: Link<Command> = Link::producer("commands@robot.local:9000")?;
-let consumer: Link<Command> = Link::consumer("commands@0.0.0.0:9000")?;
+// SPSC mode also supports network endpoints
+let producer: Topic<Command> = Topic::producer("commands@robot.local:9000")?;
+let consumer: Topic<Command> = Topic::consumer("commands@0.0.0.0:9000")?;
 ```
 
 ### Network Features
 
 | Backend | Latency | Use Case |
 |---------|---------|----------|
-| **Link (TCP)** | 5-15µs | Point-to-point, reliable delivery |
-| **Hub (UDP)** | <50µs | Pub/sub, broadcasting |
+| **Topic SPSC (TCP)** | 5-15µs | Point-to-point, reliable delivery |
+| **Topic MPMC (UDP)** | <50µs | Pub/sub, broadcasting |
 | **QUIC** | ~1ms | WAN, NAT traversal, encryption |
 | **io_uring** | 3-5µs | Linux ultra-low latency |
 
 **Multi-Machine Example:**
 ```rust
 // Robot (192.168.1.50) - publishes telemetry
-let telemetry: Hub<Status> = Hub::new("telemetry@192.168.1.100:8000")?;
+let telemetry: Topic<Status> = Topic::new("telemetry@192.168.1.100:8000")?;
 
 // Ground Station (192.168.1.100) - receives telemetry
-let telemetry: Hub<Status> = Hub::new("telemetry@0.0.0.0:8000")?;
+let telemetry: Topic<Status> = Topic::new("telemetry@0.0.0.0:8000")?;
 ```
 
 Enable optional backends in `Cargo.toml`:
@@ -354,7 +354,7 @@ use horus::prelude::*;  // Imports Result<T> as alias for HorusResult<T>
 message!(SensorReading = (f64, u32));  // (value, counter)
 
 pub struct SensorNode {
-    publisher: Hub<SensorReading>,
+    publisher: Topic<SensorReading>,
     counter: u32,
 }
 
@@ -389,7 +389,7 @@ fn main() -> Result<()> {
 
     scheduler.add(
         Box::new(SensorNode {
-            publisher: Hub::new("sensor_data")?,
+            publisher: Topic::new("sensor_data")?,
             counter: 0,
         }),
         0,           // Priority (0 = highest)
@@ -521,27 +521,27 @@ scheduler.tick(&["node1", "node2"])?;              // Run specific nodes
 scheduler.tick_for(&["node1"], Duration::from_secs(5))?;  // Run specific nodes for duration
 ```
 
-### Hub (Pub/Sub)
+### Topic (Pub/Sub)
 
 ```rust
 use horus::prelude::*;
 
-// Create Hub for any type implementing LogSummary
-let hub: Hub<f64> = Hub::new("topic_name")?;
+// Create Topic for any type implementing LogSummary
+let topic: Topic<f64> = Topic::new("topic_name")?;
 
 // Send returns Result<(), T> - returns message back on failure
-hub.send(42.0, None)?;  // None = no logging (best performance)
-hub.send(42.0, Some(&mut ctx))?;  // Some(ctx) = enable logging
+topic.send(42.0, None)?;  // None = no logging (best performance)
+topic.send(42.0, Some(&mut ctx))?;  // Some(ctx) = enable logging
 
 // Receive returns Option<T>
-if let Some(msg) = hub.recv(None) {
+if let Some(msg) = topic.recv(None) {
     eprintln!("Received: {}", msg);
 }
 ```
 
 **Performance (on modern x86_64 systems):**
-- **Link (SPSC)**: Median 87ns send, 12M+ msg/s throughput (wait-free)
-- **Hub (MPMC)**: Median 313ns, flexible pub/sub (lock-free)
+- **Topic SPSC**: Median 87ns send, 12M+ msg/s throughput (wait-free)
+- **Topic MPMC**: Median 313ns, flexible pub/sub (lock-free)
 - Production-validated with 6.2M+ test messages
 - Up to 369 MB/s bandwidth for burst messages
 
