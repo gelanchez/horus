@@ -7,10 +7,9 @@
 //!
 //! ## How It Works
 //!
-//! 1. **At compile time**: POD types are registered via `register_pod_type!` macro
-//! 2. **At runtime**: `Topic::new()` checks if `T` is a registered POD type
-//! 3. **On first connection**: PID is recorded in shared memory header
-//! 4. **On subsequent connections**: PID comparison determines same-process optimization
+//! 1. **At runtime**: POD types are auto-detected via `is_pod::<T>()` (uses `!needs_drop`)
+//! 2. **On first connection**: PID is recorded in shared memory header
+//! 3. **On subsequent connections**: PID comparison determines same-process optimization
 //!
 //! ## Performance Impact
 //!
@@ -22,7 +21,7 @@
 
 use std::sync::atomic::{AtomicU32, AtomicU8, Ordering};
 
-use crate::communication::pod::is_registered_pod;
+use crate::communication::pod::is_pod;
 use crate::error::{HorusError, HorusResult};
 
 // ============================================================================
@@ -190,7 +189,7 @@ pub struct DetectionResult {
 /// This is called by `Topic::new()` to automatically select the best backend.
 ///
 /// # Arguments
-/// * `is_pod` - Whether the type is registered as POD (from `is_registered_pod::<T>()`)
+/// * `is_pod` - Whether the type is POD (auto-detected via `is_pod::<T>()`)
 /// * `type_size` - Size of the type in bytes
 /// * `same_process` - Whether the topic creator is in the same process
 /// * `pattern` - Detected access pattern from shared memory header
@@ -232,7 +231,7 @@ pub fn detect_optimal_backend(
 /// # Arguments
 /// * `header` - Reference to the smart topic header (if available)
 pub fn smart_detect<T: 'static>(header: Option<&SmartTopicHeader>) -> DetectionResult {
-    let is_pod = is_registered_pod::<T>();
+    let type_is_pod = is_pod::<T>();
     let type_size = std::mem::size_of::<T>();
 
     let (same_process, pattern) = if let Some(h) = header {
@@ -242,10 +241,10 @@ pub fn smart_detect<T: 'static>(header: Option<&SmartTopicHeader>) -> DetectionR
         (false, DetectedPattern::Unknown)
     };
 
-    let recommended = detect_optimal_backend(is_pod, type_size, same_process, pattern);
+    let recommended = detect_optimal_backend(type_is_pod, type_size, same_process, pattern);
 
     DetectionResult {
-        is_pod,
+        is_pod: type_is_pod,
         type_size,
         same_process,
         pattern,

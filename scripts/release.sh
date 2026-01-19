@@ -3,16 +3,16 @@
 # HORUS Comprehensive Release Script
 #
 # Updates ALL version references across the entire HORUS ecosystem:
-#   - Cargo.toml package versions (13 files)
-#   - pyproject.toml Python packages (3 files)
-#   - Python __version__ in __init__.py (3 files)
+#   - Cargo.toml package versions (10 crates)
+#   - pyproject.toml Python packages (1 file)
+#   - Python __version__ in __init__.py (2 files)
 #   - Rust source hardcoded versions (8 files)
-#   - YAML config files (14+ files)
-#   - Documentation (.md, .mdx files)
-#   - package.json (docs-site)
+#   - YAML config files (12 files)
+#   - Documentation (.md files)
 #   - Test files
 #   - GitHub issue templates
-#   - Install scripts
+#
+# NOTE: docs-site, sim2d, sim3d are now standalone packages with separate versioning
 #
 # Usage: ./scripts/release.sh <version>
 # Example: ./scripts/release.sh 0.1.6
@@ -95,7 +95,7 @@ fi
 echo ""
 echo -e "${CYAN}[1/10] Updating Cargo.toml package versions...${NC}"
 
-# All Cargo.toml files with version (13 files)
+# All Cargo.toml files with version (11 files)
 # Note: Root Cargo.toml is workspace-only, no version field
 CARGO_FILES=(
     # Core crates
@@ -106,9 +106,9 @@ CARGO_FILES=(
     "horus_router/Cargo.toml"
     # Library crates
     "horus_library/Cargo.toml"
-    "horus_library/python/Cargo.toml"
-    "horus_library/tools/Cargo.toml"
-    "horus_library/apps/tanksim/Cargo.toml"
+    # AI and Perception crates
+    "horus_ai/Cargo.toml"
+    "horus_perception/Cargo.toml"
     # Python bindings
     "horus_py/Cargo.toml"
     # Benchmarks
@@ -131,8 +131,7 @@ echo -e "${CYAN}[2/10] Updating pyproject.toml files...${NC}"
 
 PYPROJECT_FILES=(
     "horus_py/pyproject.toml"
-    "horus_library/python/pyproject.toml"
-    # NOTE: sim3d is now a standalone package at ../horus-sim3d
+    # NOTE: horus_library/python and sim3d are now standalone packages
 )
 
 for file in "${PYPROJECT_FILES[@]}"; do
@@ -147,8 +146,8 @@ echo -e "${CYAN}[3/10] Updating Python __version__...${NC}"
 
 PYTHON_INIT_FILES=(
     "horus_py/horus/__init__.py"
-    "horus_library/python/horus/library/__init__.py"
-    # NOTE: sim3d Python bindings are now at ../horus-sim3d
+    "horus_py/benchmarks/__init__.py"
+    # NOTE: horus_library/python and sim3d Python bindings are now standalone packages
 )
 
 for file in "${PYTHON_INIT_FILES[@]}"; do
@@ -224,11 +223,10 @@ YAML_FILES=(
     "tests/monitor/1pub/horus.yaml"
     "tests/multi_language_example/horus.yaml"
     "horus_core/tests/horus.yaml"
-    "horus_library/apps/snakesim/horus.yaml"
-    "horus_library/apps/snakesim/snakesim_gui/horus.yaml"
-    "horus_library/apps/wallesim/horus.yaml"
     "tests/sim2d/sim2d_driver/horus.yaml"
+    "tests/sim2d/f1tenth_race/horus.yaml"
     "tests/sim3d/figure8_racer/horus.yaml"
+    # NOTE: horus_library/apps/* (snakesim, wallesim) are now standalone packages
 )
 
 for file in "${YAML_FILES[@]}"; do
@@ -241,10 +239,8 @@ done
 echo ""
 echo -e "${CYAN}[6/10] Updating package.json files...${NC}"
 
-if [ -f "docs-site/package.json" ]; then
-    sed -i "s/\"version\": \"$CURRENT_VERSION\"/\"version\": \"$NEW_VERSION\"/" docs-site/package.json
-    echo -e "  ${GREEN}+${NC} docs-site/package.json"
-fi
+# NOTE: docs-site is now at ../horus-docs with its own versioning
+echo -e "  ${YELLOW}-${NC} docs-site is now a standalone package (../horus-docs)"
 
 echo ""
 echo -e "${CYAN}[7/10] Updating documentation files...${NC}"
@@ -256,22 +252,15 @@ if [ -f "README.md" ]; then
 fi
 
 # Component READMEs
-for readme in horus_py/README.md horus_manager/README.md horus_library/tools/sim3d/docs/README.md horus_library/nodes/README.md; do
+for readme in horus_py/README.md horus_manager/README.md horus_library/README.md; do
     if [ -f "$readme" ]; then
         sed -i "s/$CURRENT_VERSION/$NEW_VERSION/g" "$readme"
         echo -e "  ${GREEN}+${NC} $readme"
     fi
 done
 
-# Docs site content (.mdx files)
-if [ -d "docs-site/content" ]; then
-    find docs-site/content -type f \( -name "*.mdx" -o -name "*.md" \) | while read -r file; do
-        if grep -q "$CURRENT_VERSION" "$file" 2>/dev/null; then
-            sed -i "s/$CURRENT_VERSION/$NEW_VERSION/g" "$file"
-            echo -e "  ${GREEN}+${NC} $file"
-        fi
-    done
-fi
+# NOTE: docs-site content is now at ../horus-docs
+# Skip docs-site/content processing
 
 # NOTE: SIM3D_SPEC.md is now at ../horus-sim3d/docs/SIM3D_SPEC.md (separate versioning)
 
@@ -316,11 +305,11 @@ echo ""
 git commit -m "Release v$NEW_VERSION
 
 - Bump version from $CURRENT_VERSION to $NEW_VERSION
-- Update all Cargo.toml files (13 files)
-- Update pyproject.toml files (3 files)
-- Update Python __version__ (3 files)
+- Update all Cargo.toml files (10 crates)
+- Update pyproject.toml files (1 file)
+- Update Python __version__ (2 files)
 - Update Rust source hardcoded versions (8 files)
-- Update YAML config files (14+ files)
+- Update YAML config files (12 files)
 - Update documentation and README files
 - Update GitHub templates
 

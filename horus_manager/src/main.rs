@@ -47,7 +47,7 @@ fn format_size(bytes: u64) -> String {
 #[derive(Parser)]
 #[command(name = "horus")]
 #[command(about = "HORUS - Hybrid Optimized Robotics Unified System")]
-#[command(version = "0.1.6")]
+#[command(version = "0.1.7")]
 #[command(propagate_version = true)]
 struct Cli {
     #[command(subcommand)]

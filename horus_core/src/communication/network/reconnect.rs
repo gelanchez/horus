@@ -996,6 +996,7 @@ impl RetryExecutor {
     {
         let start = Instant::now();
         let mut attempt = 0usize;
+        #[allow(unused_assignments)]
         let mut last_error = String::new();
 
         loop {

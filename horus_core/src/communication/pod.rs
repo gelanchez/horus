@@ -2,56 +2,41 @@
 //!
 //! Ultra-fast zero-serialization messaging for real-time robotics control loops.
 //!
-//! This module provides a `PodMessage` trait that enables zero-copy message transfer
-//! by bypassing serialization entirely. Messages implementing this trait are copied
-//! directly as raw bytes, achieving ~50ns latency vs ~250ns with bincode.
+//! ## Automatic POD Detection
+//!
+//! HORUS automatically detects POD types using `std::mem::needs_drop::<T>()`.
+//! **No registration or special traits required!**
+//!
+//! ```rust,ignore
+//! // Just define your struct - HORUS auto-detects it as POD
+//! struct MotorCommand {
+//!     velocity: f32,
+//!     torque: f32,
+//! }
+//!
+//! // Use it directly - zero-copy path selected automatically
+//! let topic: Topic<MotorCommand> = Topic::new("motor")?;
+//! topic.send(MotorCommand { velocity: 1.0, torque: 0.5 })?;
+//! ```
+//!
+//! ## How Auto-Detection Works
+//!
+//! A type is POD if:
+//! - `!std::mem::needs_drop::<T>()` - No destructor (no heap pointers)
+//! - `std::mem::size_of::<T>() > 0` - Not a zero-sized type
+//!
+//! This automatically excludes String, Vec, Box, and any type containing them.
 //!
 //! ## Performance Characteristics
 //!
-//! | Method | Latency | Use Case |
-//! |--------|---------|----------|
-//! | POD (this module) | ~50ns | Hard real-time control loops |
-//! | Bincode (default) | ~250ns | General sensor/state data |
-//! | MessagePack | ~4μs | Cross-language (Python) |
+//! | Type | Detection | Latency |
+//! |------|-----------|---------|
+//! | POD (auto-detected) | Automatic | ~50ns |
+//! | Non-POD | Automatic | ~167ns (bincode) |
 //!
-//! ## Safety Requirements
+//! ## PodMessage Trait (Optional)
 //!
-//! POD messages must satisfy strict requirements:
-//! - `#[repr(C)]` - C-compatible memory layout
-//! - `Copy` - Bitwise copyable
-//! - `bytemuck::Pod` - Safe to cast from/to bytes
-//! - No padding bytes that could leak data
-//! - Fixed size known at compile time
-//!
-//! ## Smart Detection
-//!
-//! POD types are automatically detected at runtime using the `inventory` crate.
-//! When a type is registered as POD, `Topic::new()` will automatically select
-//! the fastest backend (PodShm ~50ns instead of MpmcShm ~167ns).
-//!
-//! ### Registering POD Types
-//!
-//! ```rust,ignore
-//! use horus_core::communication::{PodMessage, register_pod_type};
-//! use bytemuck::{Pod, Zeroable};
-//!
-//! #[repr(C)]
-//! #[derive(Clone, Copy, Pod, Zeroable)]
-//! pub struct MotorCommand {
-//!     pub timestamp_ns: u64,
-//!     pub motor_id: u32,
-//!     pub velocity: f32,
-//!     pub torque: f32,
-//!     pub _pad: [u8; 4],
-//! }
-//!
-//! unsafe impl PodMessage for MotorCommand {}
-//!
-//! // Register for smart detection (do this once, at module level)
-//! register_pod_type!(MotorCommand);
-//! ```
-//!
-//! ## Example
+//! For explicit POD types with bytemuck guarantees, you can still use `PodMessage`:
 //!
 //! ```rust,ignore
 //! use horus_core::communication::PodMessage;
@@ -61,120 +46,50 @@
 //! #[derive(Clone, Copy, Pod, Zeroable)]
 //! pub struct MotorCommand {
 //!     pub timestamp_ns: u64,
-//!     pub motor_id: u32,
 //!     pub velocity: f32,
 //!     pub torque: f32,
-//!     pub _pad: [u8; 4],  // Explicit padding to cache line boundary
+//!     pub _pad: [u8; 4],
 //! }
 //!
-//! // Implement the marker trait
 //! unsafe impl PodMessage for MotorCommand {}
 //! ```
 //!
-//! ## Trade-offs
-//!
-//! **Pros:**
-//! - 5x faster than bincode serialization
-//! - Zero allocation, zero copying (direct memcpy)
-//! - Predictable, constant-time transfer
-//! - Cache-line aligned for optimal CPU performance
-//!
-//! **Cons:**
-//! - No schema evolution - struct changes break compatibility
-//! - Platform-dependent (endianness, padding)
-//! - Requires unsafe trait implementation
-//! - Fixed-size only (no Vec, String, etc.)
+//! This provides additional methods like `as_bytes()`, `from_bytes()`, etc.
 
 use bytemuck::{Pod, Zeroable};
-use std::any::TypeId;
 use std::mem;
 
 // ============================================================================
-// POD Type Registration System (for Smart Detection)
+// Automatic POD Detection
 // ============================================================================
 
-/// Registration entry for a POD type.
-/// Used by the smart detection system to identify POD types at runtime.
-pub struct PodTypeRegistration {
-    /// TypeId of the registered POD type
-    pub type_id: TypeId,
-    /// Size of the type in bytes
-    pub size: usize,
-    /// Alignment requirement
-    pub align: usize,
-    /// Function to get type name (deferred to avoid const issues)
-    pub type_name_fn: fn() -> &'static str,
-}
-
-// Collect all POD type registrations using inventory
-inventory::collect!(PodTypeRegistration);
-
-/// Check if a type is registered as a POD type.
-/// Used by Topic::new() for smart backend selection.
+/// Automatically detect if a type is POD-safe for zero-copy IPC.
 ///
-/// # Performance
-/// This function iterates through registered POD types, but this only happens
-/// once at Topic creation time, not on every send/recv.
-#[inline]
-pub fn is_registered_pod<T: 'static>() -> bool {
-    let target_id = TypeId::of::<T>();
-    inventory::iter::<PodTypeRegistration>().any(|reg| reg.type_id == target_id)
-}
-
-/// Get registration info for a POD type, if registered.
-pub fn get_pod_registration<T: 'static>() -> Option<&'static PodTypeRegistration> {
-    let target_id = TypeId::of::<T>();
-    inventory::iter::<PodTypeRegistration>().find(|reg| reg.type_id == target_id)
-}
-
-/// Get the count of registered POD types (useful for debugging/metrics).
-pub fn registered_pod_count() -> usize {
-    inventory::iter::<PodTypeRegistration>().count()
-}
-
-/// List all registered POD type names (useful for debugging).
-pub fn registered_pod_types() -> Vec<&'static str> {
-    inventory::iter::<PodTypeRegistration>()
-        .map(|reg| (reg.type_name_fn)())
-        .collect()
-}
-
-/// Register a POD type for smart detection.
+/// A type is considered POD if:
+/// - It has no destructor (`!needs_drop::<T>()`)
+/// - It's not a zero-sized type (`size_of::<T>() > 0`)
 ///
-/// This macro should be called once per POD type, typically at module level.
-/// It enables automatic backend selection in `Topic::new()`.
+/// Types with destructors (String, Vec, Box, etc.) contain heap pointers
+/// that become invalid in cross-process communication, so they're excluded.
 ///
 /// # Example
 ///
 /// ```rust,ignore
-/// use horus_core::communication::{PodMessage, register_pod_type};
+/// use horus_core::communication::is_pod;
 ///
-/// #[repr(C)]
-/// #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-/// pub struct Twist {
-///     pub linear: [f64; 3],
-///     pub angular: [f64; 3],
-/// }
+/// struct MyPod { x: f32, y: f32 }
+/// struct NotPod { name: String }
 ///
-/// unsafe impl PodMessage for Twist {}
-/// register_pod_type!(Twist);
+/// assert!(is_pod::<MyPod>());      // true - no Drop
+/// assert!(!is_pod::<NotPod>());    // false - String has Drop
+/// assert!(is_pod::<[f32; 3]>());   // true - primitives are POD
+/// assert!(!is_pod::<Vec<u8>>());   // false - Vec has Drop
 /// ```
-#[macro_export]
-macro_rules! register_pod_type {
-    ($type:ty) => {
-        $crate::inventory::submit! {
-            $crate::communication::pod::PodTypeRegistration {
-                type_id: std::any::TypeId::of::<$type>(),
-                size: std::mem::size_of::<$type>(),
-                align: std::mem::align_of::<$type>(),
-                type_name_fn: || std::any::type_name::<$type>(),
-            }
-        }
-    };
+#[inline]
+pub fn is_pod<T: 'static>() -> bool {
+    !mem::needs_drop::<T>() && mem::size_of::<T>() > 0
 }
 
-// Re-export inventory for use in the macro
-pub use inventory;
 
 // ============================================================================
 // POD Message Trait

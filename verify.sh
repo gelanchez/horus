@@ -7,40 +7,58 @@
 # Get script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-CYAN='\033[0;36m'
-BLUE='\033[0;34m'
-MAGENTA='\033[0;35m'
-WHITE='\033[1;37m'
-NC='\033[0m' # No Color
-
-# Status indicators
-STATUS_OK="[+]"
-STATUS_ERR="[-]"
-STATUS_WARN="[!]"
-STATUS_INFO="[*]"
-
 # Script version
 SCRIPT_VERSION="3.0.0"
 
-# Spinner function - simple dots
-spin() {
-    local pid=$1
-    local msg="$2"
-    local spin_chars=('.' '..' '...' '....')
-    local i=0
-    tput civis 2>/dev/null || true
-    while kill -0 $pid 2>/dev/null; do
-        printf "\r  ${spin_chars[$i]} ${msg}"
-        i=$(( (i + 1) % ${#spin_chars[@]} ))
-        sleep 0.25
-    done
-    tput cnorm 2>/dev/null || true
-    printf "\r\033[K"
-}
+# Source shared functions from deps.sh (provides colors, status indicators, OS detection, spinner)
+if [ -f "$SCRIPT_DIR/scripts/deps.sh" ]; then
+    source "$SCRIPT_DIR/scripts/deps.sh"
+    DEPS_SOURCED=true
+else
+    DEPS_SOURCED=false
+    # Minimal fallback if deps.sh not found
+    RED='\033[0;31m'
+    GREEN='\033[0;32m'
+    YELLOW='\033[1;33m'
+    CYAN='\033[0;36m'
+    BLUE='\033[0;34m'
+    MAGENTA='\033[0;35m'
+    WHITE='\033[1;37m'
+    NC='\033[0m'
+    STATUS_OK="[+]"
+    STATUS_ERR="[-]"
+    STATUS_WARN="[!]"
+    STATUS_INFO="[*]"
+    # Fallback OS detection
+    OS_TYPE="unknown"
+    OS_DISTRO="unknown"
+    case "$(uname -s)" in
+        Linux*) OS_TYPE="linux" ;;
+        Darwin*) OS_TYPE="macos" ;;
+        FreeBSD*) OS_TYPE="bsd"; OS_DISTRO="freebsd" ;;
+        OpenBSD*) OS_TYPE="bsd"; OS_DISTRO="openbsd" ;;
+        NetBSD*) OS_TYPE="bsd"; OS_DISTRO="netbsd" ;;
+    esac
+    # Check for WSL
+    if [ "$OS_TYPE" = "linux" ] && grep -qi microsoft /proc/version 2>/dev/null; then
+        OS_TYPE="wsl"
+    fi
+    # Fallback spinner
+    spin() {
+        local pid=$1
+        local msg="$2"
+        local spin_chars=('.' '..' '...' '....')
+        local i=0
+        tput civis 2>/dev/null || true
+        while kill -0 $pid 2>/dev/null; do
+            printf "\r  ${spin_chars[$i]} ${msg}"
+            i=$(( (i + 1) % ${#spin_chars[@]} ))
+            sleep 0.25
+        done
+        tput cnorm 2>/dev/null || true
+        printf "\r\033[K"
+    }
+fi
 
 # ============================================================================
 # PROGRESS BAR FUNCTIONS - Real progress with percentages
@@ -102,27 +120,12 @@ complete_verify_progress() {
     printf "\r  ${STATUS_OK} [█████████████████████████] 100%% Verification completed in ${elapsed}s    \n"
 }
 
-# Source shared dependency functions
-if [ -f "$SCRIPT_DIR/scripts/deps.sh" ]; then
-    source "$SCRIPT_DIR/scripts/deps.sh"
-    DEPS_SOURCED=true
-else
-    DEPS_SOURCED=false
-    # Fallback OS detection
-    OS_TYPE="unknown"
-    OS_DISTRO="unknown"
-    case "$(uname -s)" in
-        Linux*) OS_TYPE="linux" ;;
-        Darwin*) OS_TYPE="macos" ;;
-    esac
-fi
-
-# Symbols
-CHECK="${GREEN}✓${NC}"
-CROSS="${RED}✗${NC}"
-WARN="${YELLOW}!${NC}"
-INFO="${CYAN}i${NC}"
-SKIP="${WHITE}-${NC}"
+# Symbols (fallback if deps.sh didn't define them)
+: "${CHECK:=${GREEN}✓${NC}}"
+: "${CROSS:=${RED}✗${NC}}"
+: "${WARN:=${YELLOW}!${NC}}"
+: "${INFO:=${CYAN}i${NC}}"
+: "${SKIP:=${WHITE}-${NC}}"
 
 # Statistics
 ERRORS=0
@@ -645,9 +648,24 @@ if [ "$OS_TYPE" = "linux" ]; then
         fail "/dev/shm not available"
     fi
 else
-    # macOS fallback
+    # macOS and other non-Linux systems use /tmp for shared memory
     if [ -d "/tmp" ] && [ -w "/tmp" ]; then
-        pass "Shared memory fallback: /tmp"
+        pass "Shared memory available: /tmp (macOS/BSD fallback)"
+
+        # Check if HORUS session can be created
+        TEST_SHM="/tmp/horus_verify_test_$$"
+        if mkdir -p "$TEST_SHM" 2>/dev/null; then
+            pass "Can create HORUS sessions"
+            rmdir "$TEST_SHM" 2>/dev/null
+        else
+            fail "Cannot create HORUS sessions in /tmp"
+        fi
+
+        # Show existing HORUS sessions
+        if [ -d "/tmp/horus" ]; then
+            SESSION_COUNT=$(ls -d /tmp/horus/* 2>/dev/null | wc -l)
+            info "Active HORUS sessions: $SESSION_COUNT"
+        fi
     else
         fail "/tmp not writable for shared memory"
     fi
@@ -989,6 +1007,10 @@ if pkg-config --exists zenohc 2>/dev/null; then
     ZENOH_VERSION=$(pkg-config --modversion zenohc 2>/dev/null)
     pass "Zenoh C library: $ZENOH_VERSION"
 elif [ -f "/usr/lib/libzenohc.so" ] || [ -f "/usr/local/lib/libzenohc.so" ]; then
+    # Linux .so
+    pass "Zenoh C library found"
+elif [ -f "/usr/local/lib/libzenohc.dylib" ] || [ -f "/opt/homebrew/lib/libzenohc.dylib" ]; then
+    # macOS .dylib (Intel and Apple Silicon)
     pass "Zenoh C library found"
 else
     info "Zenoh C library not found (Rust implementation will be used)"
@@ -1092,6 +1114,10 @@ for lib_info in "${DRIVER_LIBS[@]}"; do
         VERSION=$(pkg-config --modversion "$lib" 2>/dev/null || echo "installed")
         pass "$desc: $VERSION"
     elif [ -f "/usr/lib/lib${lib}.so" ] || [ -f "/usr/lib/x86_64-linux-gnu/lib${lib}.so" ]; then
+        # Linux .so files
+        pass "$desc: installed"
+    elif [ -f "/usr/local/lib/lib${lib}.dylib" ] || [ -f "/opt/homebrew/lib/lib${lib}.dylib" ]; then
+        # macOS .dylib files (Intel and Apple Silicon Homebrew paths)
         pass "$desc: installed"
     else
         info "$desc: not found (may limit hardware support)"

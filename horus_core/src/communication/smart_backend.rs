@@ -5,16 +5,16 @@
 //!
 //! ## How It Works
 //!
-//! 1. At construction, checks `is_registered_pod::<T>()`
+//! 1. At construction, auto-detects POD types via `is_pod::<T>()`
 //! 2. If POD: Uses zero-copy byte transfer (~50ns)
 //! 3. If not POD: Uses bincode serialization (~167ns)
 //!
 //! ## Safety
 //!
 //! The POD path uses unsafe type erasure, but this is sound because:
-//! - User explicitly registered T as POD via `unsafe impl PodMessage`
-//! - Registration captures size/alignment which we verify at runtime
-//! - The bytemuck crate guarantees safe byte casting for Pod types
+//! - POD types are auto-detected via `!needs_drop::<T>()` - no heap pointers
+//! - Size and alignment are verified at runtime
+//! - Types without Drop cannot contain references or smart pointers
 
 use std::marker::PhantomData;
 use std::mem;
@@ -22,10 +22,16 @@ use std::ptr::NonNull;
 use std::sync::atomic::{AtomicU64, AtomicU32, AtomicU8, Ordering};
 use std::sync::Arc;
 
-use crate::communication::pod::is_registered_pod;
+use serde::{Serialize, de::DeserializeOwned};
+
+use crate::communication::pod::is_pod;
 use crate::communication::topic::TopicBackendTrait;
 use crate::error::{HorusError, HorusResult};
 use crate::memory::shm_region::ShmRegion;
+
+/// Default maximum serialized message size for Ring mode (16 MB)
+/// This is used when no explicit size is provided.
+const DEFAULT_MAX_SERIALIZED_SIZE: usize = 16 * 1024 * 1024;
 
 // ============================================================================
 // Smart Backend Header
@@ -123,7 +129,7 @@ impl SmartBackendHeader {
 /// Smart shared memory backend that automatically selects optimal strategy.
 ///
 /// - For registered POD types: Zero-copy byte transfer (~50ns)
-/// - For other types: Ring buffer with serialization (~167ns)
+/// - For other types: Ring buffer with bincode serialization
 pub struct SmartShmBackend<T> {
     /// Shared memory region
     region: Arc<ShmRegion>,
@@ -137,6 +143,8 @@ pub struct SmartShmBackend<T> {
     mode: BackendMode,
     /// Last seen sequence (for POD mode consumer tracking)
     last_seen: AtomicU64,
+    /// Slot size for Ring mode (includes 16 byte header + max serialized size)
+    slot_size: usize,
     /// Type marker
     _phantom: PhantomData<T>,
 }
@@ -145,24 +153,45 @@ pub struct SmartShmBackend<T> {
 unsafe impl<T: Send> Send for SmartShmBackend<T> {}
 unsafe impl<T: Sync> Sync for SmartShmBackend<T> {}
 
-impl<T: Clone + Send + Sync + 'static> SmartShmBackend<T> {
+impl<T: Clone + Send + Sync + Serialize + DeserializeOwned + 'static> SmartShmBackend<T> {
     /// Create a new smart backend.
     ///
     /// Automatically selects POD mode if T is registered, otherwise Ring mode.
+    /// For Ring mode, uses DEFAULT_MAX_SERIALIZED_SIZE for slot size.
     pub fn new(name: &str, capacity: usize, is_producer: bool) -> HorusResult<Self> {
-        let is_pod = is_registered_pod::<T>();
+        Self::with_max_size(name, capacity, is_producer, DEFAULT_MAX_SERIALIZED_SIZE)
+    }
+
+    /// Create a new smart backend with custom max serialized message size.
+    ///
+    /// For Ring mode (non-POD types), `max_serialized_size` determines the maximum
+    /// size of a single serialized message. Messages larger than this will fail.
+    pub fn with_max_size(
+        name: &str,
+        capacity: usize,
+        is_producer: bool,
+        max_serialized_size: usize,
+    ) -> HorusResult<Self> {
+        let type_is_pod = is_pod::<T>();
         let type_size = mem::size_of::<T>();
         let type_align = mem::align_of::<T>();
 
-        // Calculate required size
+        // Calculate slot size and required total size
         let header_size = mem::size_of::<SmartBackendHeader>();
-        let data_size = if is_pod {
+        // For owner: computed based on mode
+        // For joiner: will be read from header (for Ring mode)
+        let mut slot_size = if type_is_pod {
+            // POD mode: slot is just the type size
+            type_size
+        } else {
+            // Ring mode: 8 bytes sequence + 8 bytes length + serialized data
+            16 + max_serialized_size
+        };
+        let data_size = if type_is_pod {
             // POD mode: just one slot for the latest value
             type_size
         } else {
             // Ring mode: capacity * slot_size
-            // Each slot: 8 bytes sequence + type_size (aligned)
-            let slot_size = 8 + ((type_size + 7) & !7); // 8-byte aligned
             capacity * slot_size
         };
 
@@ -180,7 +209,7 @@ impl<T: Clone + Send + Sync + 'static> SmartShmBackend<T> {
             NonNull::new_unchecked(region.as_ptr().add(header_size) as *mut u8)
         };
 
-        let mode = if is_pod { BackendMode::Pod } else { BackendMode::Ring };
+        let mode = if type_is_pod { BackendMode::Pod } else { BackendMode::Ring };
 
         if is_owner {
             // Initialize header
@@ -189,7 +218,8 @@ impl<T: Clone + Send + Sync + 'static> SmartShmBackend<T> {
                 (*h).magic = SMART_MAGIC;
                 (*h).mode = AtomicU8::new(mode as u8);
                 (*h)._flags = [0; 3];
-                (*h).type_size = type_size as u32;
+                // For Ring mode, store slot_size in type_size field for joiners
+                (*h).type_size = if type_is_pod { type_size as u32 } else { slot_size as u32 };
                 (*h).type_align = type_align as u32;
                 (*h).capacity = capacity as u32;
                 (*h).mask = (capacity - 1) as u32;
@@ -207,8 +237,8 @@ impl<T: Clone + Send + Sync + 'static> SmartShmBackend<T> {
             }
 
             log::debug!(
-                "SmartShmBackend '{}': Created with {:?} mode (is_pod={}, size={}, capacity={})",
-                name, mode, is_pod, type_size, capacity
+                "SmartShmBackend '{}': Created with {:?} mode (type_is_pod={}, size={}, capacity={})",
+                name, mode, type_is_pod, type_size, capacity
             );
         } else {
             // Validate existing header
@@ -230,11 +260,17 @@ impl<T: Clone + Send + Sync + 'static> SmartShmBackend<T> {
                 );
             }
 
-            if h.type_size != type_size as u32 {
-                return Err(HorusError::Communication(format!(
-                    "Type size mismatch: expected {}, got {}",
-                    type_size, h.type_size
-                )));
+            // For POD mode, validate type size; for Ring mode, read slot_size from header
+            if type_is_pod {
+                if h.type_size != type_size as u32 {
+                    return Err(HorusError::Communication(format!(
+                        "Type size mismatch: expected {}, got {}",
+                        type_size, h.type_size
+                    )));
+                }
+            } else {
+                // Ring mode: use slot_size stored in header
+                slot_size = h.type_size as usize;
             }
 
             // Register this endpoint
@@ -259,6 +295,7 @@ impl<T: Clone + Send + Sync + 'static> SmartShmBackend<T> {
             is_producer,
             mode,
             last_seen: AtomicU64::new(0),
+            slot_size,
             _phantom: PhantomData,
         })
     }
@@ -311,7 +348,9 @@ impl<T: Clone + Send + Sync + 'static> SmartShmBackend<T> {
         Some(result)
     }
 
-    /// Push using Ring mode (with Clone).
+    /// Push using Ring mode with bincode serialization.
+    ///
+    /// Slot layout: [8 bytes sequence][8 bytes length][serialized data...]
     #[inline]
     fn push_ring(&self, msg: T) -> Result<(), T> {
         let header = unsafe { self.header.as_ref() };
@@ -327,22 +366,44 @@ impl<T: Clone + Send + Sync + 'static> SmartShmBackend<T> {
             return Err(msg);
         }
 
+        // Serialize the message using bincode
+        let serialized = match bincode::serialize(&msg) {
+            Ok(data) => data,
+            Err(e) => {
+                log::error!("Failed to serialize message: {}", e);
+                return Err(msg);
+            }
+        };
+
+        // Check if serialized data fits in slot
+        let max_data_size = self.slot_size.saturating_sub(16); // slot_size - 8 seq - 8 len
+        if serialized.len() > max_data_size {
+            log::error!(
+                "Serialized message too large: {} bytes > {} max",
+                serialized.len(),
+                max_data_size
+            );
+            return Err(msg);
+        }
+
         // Calculate slot position
         let slot_idx = (head & mask) as usize;
-        let type_size = mem::size_of::<T>();
-        let slot_size = 8 + ((type_size + 7) & !7);
-        let slot_offset = slot_idx * slot_size;
+        let slot_offset = slot_idx * self.slot_size;
 
         unsafe {
             let slot_ptr = self.data_ptr.as_ptr().add(slot_offset);
 
-            // Write sequence number
+            // Write length first (so readers can validate)
+            let len_ptr = slot_ptr.add(8) as *mut u64;
+            std::ptr::write_volatile(len_ptr, serialized.len() as u64);
+
+            // Write serialized data
+            let data_ptr = slot_ptr.add(16);
+            std::ptr::copy_nonoverlapping(serialized.as_ptr(), data_ptr, serialized.len());
+
+            // Write sequence number last (signals data is ready)
             let seq_ptr = slot_ptr as *mut u64;
             std::ptr::write_volatile(seq_ptr, head + 1);
-
-            // Write data (using ptr::write to handle Drop correctly)
-            let data_ptr = slot_ptr.add(8) as *mut T;
-            std::ptr::write(data_ptr, msg);
         }
 
         // Advance head
@@ -351,7 +412,9 @@ impl<T: Clone + Send + Sync + 'static> SmartShmBackend<T> {
         Ok(())
     }
 
-    /// Pop using Ring mode (with Clone).
+    /// Pop using Ring mode with bincode deserialization.
+    ///
+    /// Slot layout: [8 bytes sequence][8 bytes length][serialized data...]
     #[inline]
     fn pop_ring(&self) -> Option<T> {
         let header = unsafe { self.header.as_ref() };
@@ -367,9 +430,7 @@ impl<T: Clone + Send + Sync + 'static> SmartShmBackend<T> {
 
         // Calculate slot position
         let slot_idx = (tail & mask) as usize;
-        let type_size = mem::size_of::<T>();
-        let slot_size = 8 + ((type_size + 7) & !7);
-        let slot_offset = slot_idx * slot_size;
+        let slot_offset = slot_idx * self.slot_size;
 
         let msg = unsafe {
             let slot_ptr = self.data_ptr.as_ptr().add(slot_offset);
@@ -381,9 +442,33 @@ impl<T: Clone + Send + Sync + 'static> SmartShmBackend<T> {
                 return None; // Write not complete
             }
 
-            // Read data
-            let data_ptr = slot_ptr.add(8) as *const T;
-            std::ptr::read(data_ptr)
+            // Read length
+            let len_ptr = slot_ptr.add(8) as *const u64;
+            let len = std::ptr::read_volatile(len_ptr) as usize;
+
+            // Validate length
+            let max_data_size = self.slot_size.saturating_sub(16);
+            if len > max_data_size {
+                log::error!("Invalid message length: {} > {}", len, max_data_size);
+                // Skip this corrupted message
+                header.tail.store(tail + 1, Ordering::Release);
+                return None;
+            }
+
+            // Read serialized data
+            let data_ptr = slot_ptr.add(16);
+            let serialized = std::slice::from_raw_parts(data_ptr, len);
+
+            // Deserialize
+            match bincode::deserialize(serialized) {
+                Ok(msg) => msg,
+                Err(e) => {
+                    log::error!("Failed to deserialize message: {}", e);
+                    // Skip this corrupted message
+                    header.tail.store(tail + 1, Ordering::Release);
+                    return None;
+                }
+            }
         };
 
         // Advance tail
@@ -405,7 +490,7 @@ impl<T: Clone + Send + Sync + 'static> SmartShmBackend<T> {
     }
 }
 
-impl<T: Clone + Send + Sync + 'static> TopicBackendTrait<T> for SmartShmBackend<T> {
+impl<T: Clone + Send + Sync + Serialize + DeserializeOwned + 'static> TopicBackendTrait<T> for SmartShmBackend<T> {
     #[inline]
     fn push(&self, msg: T) -> Result<(), T> {
         if !self.is_producer {
@@ -414,7 +499,7 @@ impl<T: Clone + Send + Sync + 'static> TopicBackendTrait<T> for SmartShmBackend<
 
         match self.mode {
             BackendMode::Pod => {
-                // Safety: mode is Pod only if is_registered_pod::<T>() was true
+                // Safety: mode is Pod only if is_pod::<T>() was true (no Drop = no heap pointers)
                 unsafe { self.push_pod(msg) }
             }
             BackendMode::Ring => {
@@ -430,7 +515,7 @@ impl<T: Clone + Send + Sync + 'static> TopicBackendTrait<T> for SmartShmBackend<
     fn pop(&self) -> Option<T> {
         match self.mode {
             BackendMode::Pod => {
-                // Safety: mode is Pod only if is_registered_pod::<T>() was true
+                // Safety: mode is Pod only if is_pod::<T>() was true (no Drop = no heap pointers)
                 unsafe { self.pop_pod() }
             }
             BackendMode::Ring => {
@@ -487,6 +572,7 @@ impl<T> Clone for SmartShmBackend<T> {
             is_producer: self.is_producer,
             mode: self.mode,
             last_seen: AtomicU64::new(self.last_seen.load(Ordering::Relaxed)),
+            slot_size: self.slot_size,
             _phantom: PhantomData,
         }
     }
@@ -508,11 +594,11 @@ impl<T> Drop for SmartShmBackend<T> {
 mod tests {
     use super::*;
     use crate::communication::pod::PodMessage;
-    use crate::register_pod_type;
+    use serde::{Serialize, Deserialize};
 
-    // Test POD type - registered for smart detection
+    // Test POD type - auto-detected via needs_drop
     #[repr(C)]
-    #[derive(Clone, Copy, Debug, PartialEq)]
+    #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
     struct TestPodMsg {
         timestamp: u64,
         value: f32,
@@ -522,7 +608,6 @@ mod tests {
     unsafe impl crate::bytemuck::Zeroable for TestPodMsg {}
     unsafe impl crate::bytemuck::Pod for TestPodMsg {}
     unsafe impl PodMessage for TestPodMsg {}
-    register_pod_type!(TestPodMsg);
 
     #[test]
     fn test_header_size() {
@@ -541,20 +626,20 @@ mod tests {
     }
 
     #[test]
-    fn test_primitive_non_registered() {
-        // u64 is Copy but not registered as POD, should use Ring mode
+    fn test_primitive_auto_pod() {
+        // u64 is auto-detected as POD (no Drop), should use Pod mode
         let backend: SmartShmBackend<u64> =
             SmartShmBackend::new("/test_smart_u64", 64, true).unwrap();
-        // Note: u64 is not registered via register_pod_type!, so Ring mode
-        assert_eq!(backend.mode(), BackendMode::Ring);
+        // u64 auto-detected as POD via needs_drop
+        assert_eq!(backend.mode(), BackendMode::Pod);
 
         // Cleanup
         std::fs::remove_file("/dev/shm/test_smart_u64").ok();
     }
 
     #[test]
-    fn test_registered_pod_type() {
-        // TestPodMsg is registered via register_pod_type!, should use Pod mode
+    fn test_auto_detected_pod_type() {
+        // TestPodMsg is auto-detected as POD (no Drop), should use Pod mode
         let backend: SmartShmBackend<TestPodMsg> =
             SmartShmBackend::new("/test_smart_pod", 64, true).unwrap();
         assert_eq!(backend.mode(), BackendMode::Pod);

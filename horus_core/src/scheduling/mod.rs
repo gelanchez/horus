@@ -56,6 +56,12 @@ pub mod zero_copy_recording;
 // Deterministic execution
 pub mod deterministic;
 
+// Runtime capability detection for auto-optimization
+pub mod capabilities;
+
+// Builder pattern for explicit scheduler configuration
+pub mod builder;
+
 // Distributed multi-process/robot recording
 pub mod distributed_recording;
 
@@ -73,7 +79,7 @@ pub use config::{
     TimingConfig,
 };
 pub use safety_monitor::{SafetyMonitor, SafetyState, SafetyStats, WCETEnforcer, Watchdog};
-pub use scheduler::Scheduler;
+pub use scheduler::{DegradationSeverity, RtDegradation, RtFeature, Scheduler};
 pub use types::{NodeControlCommand, SchedulerNodeMetrics};
 
 // Re-export runtime features
@@ -187,3 +193,9 @@ pub use cloud_recording::{
     CloudBackend, CloudConfig, CloudError, CloudProvider, CloudRecordingIndex,
     CloudRecordingMetadata, CloudUploader, RecordingQuery, UploadProgress, UploadStatus,
 };
+
+// Re-export runtime capabilities
+pub use capabilities::RuntimeCapabilities;
+
+// Re-export builder
+pub use builder::{CircuitBreakerConfig, SchedulerBuilder};

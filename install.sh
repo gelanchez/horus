@@ -9,6 +9,30 @@ set -o pipefail  # Fail on pipe errors
 # Script version
 SCRIPT_VERSION="2.6.0"
 
+# Check bash version - we need bash 4+ for associative arrays
+if ((BASH_VERSINFO[0] < 4)); then
+    echo "Error: This script requires bash version 4.0 or higher."
+    echo "Your current bash version: ${BASH_VERSION}"
+    echo ""
+    if [[ "$(uname)" == "Darwin" ]]; then
+        echo "macOS ships with bash 3.2 by default. To fix this:"
+        echo ""
+        echo "  1. Install bash 4+ via Homebrew:"
+        echo "     brew install bash"
+        echo ""
+        echo "  2. Run this script with the new bash:"
+        echo "     /opt/homebrew/bin/bash install.sh"
+        echo "     (or /usr/local/bin/bash on Intel Macs)"
+        echo ""
+        echo "  Alternatively, add the new bash to your PATH:"
+        echo "     export PATH=\"/opt/homebrew/bin:\$PATH\""
+        echo "     ./install.sh"
+    else
+        echo "Please install bash 4.0 or higher and try again."
+    fi
+    exit 1
+fi
+
 # Get script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -261,6 +285,25 @@ detect_os() {
     if [[ "$OSTYPE" == "darwin"* ]]; then
         os_type="macos"
         os_distro="macos"
+    elif [[ "$OSTYPE" == "msys"* ]] || [[ "$OSTYPE" == "cygwin"* ]] || [[ "$OSTYPE" == "mingw"* ]]; then
+        # Native Windows with Git Bash, MSYS2, or Cygwin
+        os_type="windows"
+        os_distro="windows"
+    elif [[ "$OSTYPE" == "freebsd"* ]]; then
+        os_type="bsd"
+        os_distro="freebsd"
+    elif [[ "$OSTYPE" == "openbsd"* ]]; then
+        os_type="bsd"
+        os_distro="openbsd"
+    elif [[ "$OSTYPE" == "netbsd"* ]]; then
+        os_type="bsd"
+        os_distro="netbsd"
+    elif [[ "$OSTYPE" == "dragonfly"* ]]; then
+        os_type="bsd"
+        os_distro="dragonfly"
+    elif [[ "$OSTYPE" == "solaris"* ]] || [[ "$OSTYPE" == "sunos"* ]]; then
+        os_type="solaris"
+        os_distro="solaris"
     elif [[ "$OSTYPE" == "linux"* ]]; then
         os_type="linux"
 
@@ -318,6 +361,125 @@ else
     OS_INFO=$(detect_os)
     IFS=':' read -r OS_TYPE OS_DISTRO <<< "$OS_INFO"
     echo -e "${CYAN}[i]${NC} Detected OS: $OS_TYPE ($OS_DISTRO)"
+fi
+
+# ============================================================================
+# WINDOWS NATIVE CHECK - RECOMMEND WSL
+# ============================================================================
+# HORUS requires Unix-like environment. On Windows, WSL is required.
+if [ "$OS_TYPE" = "windows" ]; then
+    echo ""
+    echo -e "${RED}╔══════════════════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${RED}║                    WINDOWS NATIVE ENVIRONMENT DETECTED                       ║${NC}"
+    echo -e "${RED}╠══════════════════════════════════════════════════════════════════════════════╣${NC}"
+    echo -e "${RED}║  HORUS requires a Unix-like environment and cannot run natively on Windows. ║${NC}"
+    echo -e "${RED}║                                                                              ║${NC}"
+    echo -e "${RED}║  Please use Windows Subsystem for Linux (WSL2) instead:                     ║${NC}"
+    echo -e "${RED}║                                                                              ║${NC}"
+    echo -e "${RED}║  1. Install WSL2:                                                            ║${NC}"
+    echo -e "${RED}║     wsl --install                                                            ║${NC}"
+    echo -e "${RED}║                                                                              ║${NC}"
+    echo -e "${RED}║  2. Restart your computer                                                    ║${NC}"
+    echo -e "${RED}║                                                                              ║${NC}"
+    echo -e "${RED}║  3. Open WSL (Ubuntu) and run the install script there:                     ║${NC}"
+    echo -e "${RED}║     curl -fsSL https://softmata.ai/install.sh | bash                        ║${NC}"
+    echo -e "${RED}║                                                                              ║${NC}"
+    echo -e "${RED}║  WSL provides full Linux compatibility with excellent performance.          ║${NC}"
+    echo -e "${RED}║  HORUS will work exactly as it does on native Linux.                        ║${NC}"
+    echo -e "${RED}╚══════════════════════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    exit 1
+fi
+
+# ============================================================================
+# BSD SYSTEMS - EXPERIMENTAL SUPPORT
+# ============================================================================
+if [ "$OS_TYPE" = "bsd" ]; then
+    echo ""
+    echo -e "${YELLOW}╔══════════════════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${YELLOW}║                      BSD SYSTEM DETECTED: $OS_DISTRO                         ${NC}"
+    echo -e "${YELLOW}╠══════════════════════════════════════════════════════════════════════════════╣${NC}"
+    echo -e "${YELLOW}║  HORUS has EXPERIMENTAL support for BSD systems.                            ║${NC}"
+    echo -e "${YELLOW}║                                                                              ║${NC}"
+    echo -e "${YELLOW}║  Known limitations:                                                          ║${NC}"
+    echo -e "${YELLOW}║  - Some Linux-specific features may not work (e.g., /proc filesystem)       ║${NC}"
+    echo -e "${YELLOW}║  - Package names differ from Linux (install manually if needed)             ║${NC}"
+    echo -e "${YELLOW}║  - Shared memory uses different paths                                       ║${NC}"
+    echo -e "${YELLOW}║  - Audio subsystem differs (OSS vs ALSA)                                    ║${NC}"
+    echo -e "${YELLOW}║                                                                              ║${NC}"
+    if [ "$OS_DISTRO" = "freebsd" ]; then
+        echo -e "${YELLOW}║  FreeBSD prerequisites:                                                     ║${NC}"
+        echo -e "${YELLOW}║    pkg install rust cmake pkgconf openssl llvm git                         ║${NC}"
+    elif [ "$OS_DISTRO" = "openbsd" ]; then
+        echo -e "${YELLOW}║  OpenBSD prerequisites:                                                     ║${NC}"
+        echo -e "${YELLOW}║    pkg_add rust cmake pkgconf openssl llvm git                             ║${NC}"
+    elif [ "$OS_DISTRO" = "netbsd" ]; then
+        echo -e "${YELLOW}║  NetBSD prerequisites:                                                      ║${NC}"
+        echo -e "${YELLOW}║    pkgin install rust cmake pkg-config openssl llvm git                    ║${NC}"
+    fi
+    echo -e "${YELLOW}║                                                                              ║${NC}"
+    echo -e "${YELLOW}║  For best experience, Linux (native or VM) is recommended.                  ║${NC}"
+    echo -e "${YELLOW}╚══════════════════════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo -e "${CYAN}[?]${NC} Continue with experimental BSD support? [y/N]: "
+    read -r BSD_CONTINUE
+    if [[ ! "$BSD_CONTINUE" =~ ^[Yy]$ ]]; then
+        echo -e "${YELLOW}Installation cancelled. Consider using Linux for full compatibility.${NC}"
+        exit 0
+    fi
+    echo -e "${GREEN}[✓]${NC} Continuing with experimental BSD support..."
+fi
+
+# ============================================================================
+# SOLARIS/ILLUMOS - NOT SUPPORTED
+# ============================================================================
+if [ "$OS_TYPE" = "solaris" ]; then
+    echo ""
+    echo -e "${RED}╔══════════════════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${RED}║                    SOLARIS/ILLUMOS DETECTED - NOT SUPPORTED                  ║${NC}"
+    echo -e "${RED}╠══════════════════════════════════════════════════════════════════════════════╣${NC}"
+    echo -e "${RED}║  HORUS does not currently support Solaris or illumos-based systems.         ║${NC}"
+    echo -e "${RED}║                                                                              ║${NC}"
+    echo -e "${RED}║  HORUS relies on Linux-specific features:                                   ║${NC}"
+    echo -e "${RED}║  - POSIX shared memory semantics                                            ║${NC}"
+    echo -e "${RED}║  - Linux proc filesystem                                                    ║${NC}"
+    echo -e "${RED}║  - GNU toolchain compatibility                                              ║${NC}"
+    echo -e "${RED}║                                                                              ║${NC}"
+    echo -e "${RED}║  Alternatives:                                                              ║${NC}"
+    echo -e "${RED}║  - Use a Linux VM (VirtualBox, bhyve, zones with Linux brand)              ║${NC}"
+    echo -e "${RED}║  - Use a Linux container                                                    ║${NC}"
+    echo -e "${RED}║  - Install on a Linux system                                                ║${NC}"
+    echo -e "${RED}╚══════════════════════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    exit 1
+fi
+
+# ============================================================================
+# UNKNOWN OS - WARN AND OFFER TO CONTINUE
+# ============================================================================
+if [ "$OS_TYPE" = "unknown" ]; then
+    echo ""
+    echo -e "${YELLOW}╔══════════════════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${YELLOW}║                    UNKNOWN OPERATING SYSTEM DETECTED                         ║${NC}"
+    echo -e "${YELLOW}╠══════════════════════════════════════════════════════════════════════════════╣${NC}"
+    echo -e "${YELLOW}║  Could not detect your operating system.                                    ║${NC}"
+    echo -e "${YELLOW}║  OSTYPE: $OSTYPE                                                            ${NC}"
+    echo -e "${YELLOW}║                                                                              ║${NC}"
+    echo -e "${YELLOW}║  HORUS is tested on:                                                        ║${NC}"
+    echo -e "${YELLOW}║  - Linux (Ubuntu, Debian, Fedora, Arch, etc.)                              ║${NC}"
+    echo -e "${YELLOW}║  - macOS (Intel and Apple Silicon)                                         ║${NC}"
+    echo -e "${YELLOW}║  - Windows via WSL2                                                         ║${NC}"
+    echo -e "${YELLOW}║                                                                              ║${NC}"
+    echo -e "${YELLOW}║  You may continue, but expect potential compatibility issues.               ║${NC}"
+    echo -e "${YELLOW}╚══════════════════════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo -e "${CYAN}[?]${NC} Continue anyway? [y/N]: "
+    read -r UNKNOWN_CONTINUE
+    if [[ ! "$UNKNOWN_CONTINUE" =~ ^[Yy]$ ]]; then
+        echo -e "${YELLOW}Installation cancelled.${NC}"
+        exit 0
+    fi
+    echo -e "${GREEN}[✓]${NC} Continuing with unknown OS support..."
 fi
 
 # ============================================================================
@@ -508,7 +670,8 @@ declare -A MAX_TESTED_LIB_VERSIONS=(
 # │ - Used for build error diagnosis and auto-resolution                       │
 # └─────────────────────────────────────────────────────────────────────────────┘
 declare -A CARGO_MIN_VERSIONS=(
-    ["syn"]="2.0"             # Proc-macro parsing
+    # Note: syn intentionally omitted - syn 1.x and 2.x coexist in modern Rust
+    # ecosystems (proc-macro crates often depend on both transitively)
     ["proc-macro2"]="1.0"     # Token streams
     ["quote"]="1.0"           # Token generation
     ["serde"]="1.0"           # Serialization
@@ -547,16 +710,41 @@ version_gt() {
     fi
 
     # Extract major.minor.patch (default to 0 if missing)
-    local v1_major=$(echo "$v1" | cut -d'.' -f1)
-    local v1_minor=$(echo "$v1" | cut -d'.' -f2)
-    local v1_patch=$(echo "$v1" | cut -d'.' -f3)
+    # Note: cut returns the whole string if delimiter not found, so we must check
+    local v1_major v1_minor v1_patch v2_major v2_minor v2_patch
+
+    # Parse v1 - handle cases where dots may be missing
+    v1_major=$(echo "$v1" | cut -d'.' -f1)
+    if [[ "$v1" == *"."* ]]; then
+        v1_minor=$(echo "$v1" | cut -d'.' -f2)
+        if [[ "$v1" == *"."*"."* ]]; then
+            v1_patch=$(echo "$v1" | cut -d'.' -f3)
+        else
+            v1_patch=0
+        fi
+    else
+        v1_minor=0
+        v1_patch=0
+    fi
+
+    # Parse v2 - handle cases where dots may be missing
+    v2_major=$(echo "$v2" | cut -d'.' -f1)
+    if [[ "$v2" == *"."* ]]; then
+        v2_minor=$(echo "$v2" | cut -d'.' -f2)
+        if [[ "$v2" == *"."*"."* ]]; then
+            v2_patch=$(echo "$v2" | cut -d'.' -f3)
+        else
+            v2_patch=0
+        fi
+    else
+        v2_minor=0
+        v2_patch=0
+    fi
+
+    # Default empty values to 0
     v1_major=${v1_major:-0}
     v1_minor=${v1_minor:-0}
     v1_patch=${v1_patch:-0}
-
-    local v2_major=$(echo "$v2" | cut -d'.' -f1)
-    local v2_minor=$(echo "$v2" | cut -d'.' -f2)
-    local v2_patch=$(echo "$v2" | cut -d'.' -f3)
     v2_major=${v2_major:-0}
     v2_minor=${v2_minor:-0}
     v2_patch=${v2_patch:-0}
@@ -591,16 +779,41 @@ version_gte() {
     fi
 
     # Extract major.minor.patch (default to 0 if missing)
-    local v1_major=$(echo "$v1" | cut -d'.' -f1)
-    local v1_minor=$(echo "$v1" | cut -d'.' -f2)
-    local v1_patch=$(echo "$v1" | cut -d'.' -f3)
+    # Note: cut returns the whole string if delimiter not found, so we must check
+    local v1_major v1_minor v1_patch v2_major v2_minor v2_patch
+
+    # Parse v1 - handle cases where dots may be missing
+    v1_major=$(echo "$v1" | cut -d'.' -f1)
+    if [[ "$v1" == *"."* ]]; then
+        v1_minor=$(echo "$v1" | cut -d'.' -f2)
+        if [[ "$v1" == *"."*"."* ]]; then
+            v1_patch=$(echo "$v1" | cut -d'.' -f3)
+        else
+            v1_patch=0
+        fi
+    else
+        v1_minor=0
+        v1_patch=0
+    fi
+
+    # Parse v2 - handle cases where dots may be missing
+    v2_major=$(echo "$v2" | cut -d'.' -f1)
+    if [[ "$v2" == *"."* ]]; then
+        v2_minor=$(echo "$v2" | cut -d'.' -f2)
+        if [[ "$v2" == *"."*"."* ]]; then
+            v2_patch=$(echo "$v2" | cut -d'.' -f3)
+        else
+            v2_patch=0
+        fi
+    else
+        v2_minor=0
+        v2_patch=0
+    fi
+
+    # Default empty values to 0
     v1_major=${v1_major:-0}
     v1_minor=${v1_minor:-0}
     v1_patch=${v1_patch:-0}
-
-    local v2_major=$(echo "$v2" | cut -d'.' -f1)
-    local v2_minor=$(echo "$v2" | cut -d'.' -f2)
-    local v2_patch=$(echo "$v2" | cut -d'.' -f3)
     v2_major=${v2_major:-0}
     v2_minor=${v2_minor:-0}
     v2_patch=${v2_patch:-0}
@@ -844,7 +1057,21 @@ install_system_deps() {
                         echo "Please install from https://brew.sh then re-run this script"
                         exit 1
                     fi
-                    brew install pkg-config opencv pipx
+                    # Install dependencies for macOS:
+                    # - pkg-config: library detection
+                    # - openssl: TLS/crypto (macOS uses LibreSSL by default)
+                    # - llvm: provides libclang for bindgen
+                    # - opencv: computer vision (optional)
+                    # - cmake: build system for some native deps
+                    # - pipx: Python CLI tools
+                    brew install pkg-config openssl llvm opencv cmake pipx
+
+                    # Set environment variables for OpenSSL and LLVM
+                    # These are needed because Homebrew doesn't link these by default
+                    echo -e "${CYAN}  Note: You may need to set these environment variables:${NC}"
+                    echo -e "  export OPENSSL_DIR=\"\$(brew --prefix openssl)\""
+                    echo -e "  export LIBCLANG_PATH=\"\$(brew --prefix llvm)/lib\""
+
                     pipx ensurepath 2>/dev/null || true
                     ;;
                 *)
@@ -976,19 +1203,23 @@ NEW_LIBS=""
 display_lib_result "openssl" "OpenSSL" "$(check_lib_version_full openssl || true)"
 display_lib_result "libudev" "libudev" "$(check_lib_version_full libudev || true)"
 
-# ALSA check
-if ! pkg-config --exists alsa 2>/dev/null; then
-    echo -e "${YELLOW}${STATUS_WARN}  ALSA: not found${NC}"
-    MISSING_LIBS="${MISSING_LIBS} alsa"
-else
-    ALSA_VER=$(get_lib_version "alsa")
-    ALSA_MIN="${REQUIRED_LIB_VERSIONS[alsa]:-1.1.0}"
-    if version_gte "$ALSA_VER" "$ALSA_MIN"; then
-        echo -e "${GREEN}${STATUS_OK}  ALSA $ALSA_VER${NC}"
+# ALSA check (Linux only - macOS uses CoreAudio)
+if [ "$OS_TYPE" = "linux" ] || [ "$OS_TYPE" = "wsl" ]; then
+    if ! pkg-config --exists alsa 2>/dev/null; then
+        echo -e "${YELLOW}${STATUS_WARN}  ALSA: not found${NC}"
+        MISSING_LIBS="${MISSING_LIBS} alsa"
     else
-        echo -e "${YELLOW}${STATUS_WARN}  ALSA $ALSA_VER is too old (requires >= $ALSA_MIN)${NC}"
-        OLD_LIBS="${OLD_LIBS} alsa"
+        ALSA_VER=$(get_lib_version "alsa")
+        ALSA_MIN="${REQUIRED_LIB_VERSIONS[alsa]:-1.1.0}"
+        if version_gte "$ALSA_VER" "$ALSA_MIN"; then
+            echo -e "${GREEN}${STATUS_OK}  ALSA $ALSA_VER${NC}"
+        else
+            echo -e "${YELLOW}${STATUS_WARN}  ALSA $ALSA_VER is too old (requires >= $ALSA_MIN)${NC}"
+            OLD_LIBS="${OLD_LIBS} alsa"
+        fi
     fi
+elif [ "$OS_TYPE" = "macos" ]; then
+    echo -e "${GREEN}${STATUS_OK}  CoreAudio (macOS native audio)${NC}"
 fi
 
 # Check libclang version (critical for bindgen)
@@ -996,7 +1227,15 @@ LIBCLANG_VERSION=""
 if command -v llvm-config &>/dev/null; then
     LIBCLANG_VERSION=$(llvm-config --version 2>/dev/null | cut -d'.' -f1-2)
 elif [ -f /usr/lib/llvm-*/bin/llvm-config ]; then
-    LIBCLANG_VERSION=$(ls -d /usr/lib/llvm-* 2>/dev/null | tail -1 | grep -oP 'llvm-\K[0-9]+')
+    # Linux: check system LLVM (use sed instead of grep -P for BSD compatibility)
+    LIBCLANG_VERSION=$(ls -d /usr/lib/llvm-* 2>/dev/null | tail -1 | sed 's/.*llvm-//' | sed 's/[^0-9].*//')
+elif [ "$OS_TYPE" = "macos" ]; then
+    # macOS: check Homebrew LLVM (both Intel and Apple Silicon paths)
+    if [ -f "/opt/homebrew/opt/llvm/bin/llvm-config" ]; then
+        LIBCLANG_VERSION=$(/opt/homebrew/opt/llvm/bin/llvm-config --version 2>/dev/null | cut -d'.' -f1-2)
+    elif [ -f "/usr/local/opt/llvm/bin/llvm-config" ]; then
+        LIBCLANG_VERSION=$(/usr/local/opt/llvm/bin/llvm-config --version 2>/dev/null | cut -d'.' -f1-2)
+    fi
 fi
 
 LIBCLANG_MIN="${REQUIRED_LIB_VERSIONS[libclang]:-11.0}"
@@ -1013,9 +1252,11 @@ if [ -n "$LIBCLANG_VERSION" ]; then
         echo -e "${GREEN}${STATUS_OK}  libclang $LIBCLANG_VERSION${NC}"
     fi
 else
-    # Try to detect from ldconfig
+    # Try to detect from ldconfig (Linux only) or check for library files
     if ldconfig -p 2>/dev/null | grep -q libclang; then
         echo -e "${GREEN}${STATUS_OK}  libclang found (version unknown)${NC}"
+    elif [ "$OS_TYPE" = "macos" ] && ([ -f "/opt/homebrew/lib/libclang.dylib" ] || [ -f "/usr/local/lib/libclang.dylib" ]); then
+        echo -e "${GREEN}${STATUS_OK}  libclang found (version unknown, Homebrew)${NC}"
     else
         echo -e "${YELLOW}${STATUS_WARN}  libclang not found (needed for some FFI bindings)${NC}"
         MISSING_LIBS="${MISSING_LIBS} libclang"
@@ -1114,7 +1355,11 @@ if [ ! -z "$MISSING_LIBS" ]; then
     echo ""
     echo -e "${CYAN}macOS:${NC}"
     echo "  xcode-select --install"
-    echo "  brew install pkg-config"
+    echo "  brew install pkg-config openssl llvm cmake"
+    echo ""
+    echo "  # Set environment variables (add to ~/.zshrc or ~/.bash_profile):"
+    echo "  export OPENSSL_DIR=\"\$(brew --prefix openssl)\""
+    echo "  export LIBCLANG_PATH=\"\$(brew --prefix llvm)/lib\""
     echo ""
 
     # Platform-specific notes
@@ -2397,14 +2642,20 @@ echo -e "${CYAN}${NC} Installing horus_macros@$HORUS_MACROS_VERSION..."
 HORUS_MACROS_DIR="$CACHE_DIR/horus_macros@$HORUS_MACROS_VERSION"
 mkdir -p "$HORUS_MACROS_DIR/lib"
 
-# Copy procedural macro library
+# Copy procedural macro library (platform-specific extensions)
 cp -r target/release/libhorus_macros.* "$HORUS_MACROS_DIR/lib/" 2>/dev/null || true
+# Linux uses .so, macOS uses .dylib
 cp -r target/release/deps/libhorus_macros*.so "$HORUS_MACROS_DIR/lib/" 2>/dev/null || true
+cp -r target/release/deps/libhorus_macros*.dylib "$HORUS_MACROS_DIR/lib/" 2>/dev/null || true
 
 # Also copy to target/release for Cargo
 mkdir -p "$HORUS_MACROS_DIR/target/release"
+# Linux
 cp -r target/release/libhorus_macros.so "$HORUS_MACROS_DIR/target/release/" 2>/dev/null || true
 cp -r target/release/deps/libhorus_macros*.so "$HORUS_MACROS_DIR/target/release/" 2>/dev/null || true
+# macOS
+cp -r target/release/libhorus_macros.dylib "$HORUS_MACROS_DIR/target/release/" 2>/dev/null || true
+cp -r target/release/deps/libhorus_macros*.dylib "$HORUS_MACROS_DIR/target/release/" 2>/dev/null || true
 
 # Create metadata
 cat > "$HORUS_MACROS_DIR/metadata.json" << EOF
@@ -2423,13 +2674,18 @@ echo -e "${CYAN}${NC} Installing horus_library@$HORUS_LIBRARY_VERSION..."
 HORUS_LIBRARY_DIR="$CACHE_DIR/horus_library@$HORUS_LIBRARY_VERSION"
 mkdir -p "$HORUS_LIBRARY_DIR/lib"
 
-# Copy compiled libraries
+# Copy compiled libraries (platform-specific extensions)
 cp -r target/release/libhorus_library.* "$HORUS_LIBRARY_DIR/lib/" 2>/dev/null || true
 cp -r target/release/deps/libhorus_library*.rlib "$HORUS_LIBRARY_DIR/lib/" 2>/dev/null || true
+# Linux .so and macOS .dylib
+cp -r target/release/deps/libhorus_library*.so "$HORUS_LIBRARY_DIR/lib/" 2>/dev/null || true
+cp -r target/release/deps/libhorus_library*.dylib "$HORUS_LIBRARY_DIR/lib/" 2>/dev/null || true
 
 # Also copy to target/release
 mkdir -p "$HORUS_LIBRARY_DIR/target/release"
 cp -r target/release/libhorus_library*.rlib "$HORUS_LIBRARY_DIR/target/release/" 2>/dev/null || true
+cp -r target/release/libhorus_library*.so "$HORUS_LIBRARY_DIR/target/release/" 2>/dev/null || true
+cp -r target/release/libhorus_library*.dylib "$HORUS_LIBRARY_DIR/target/release/" 2>/dev/null || true
 
 # Create metadata
 cat > "$HORUS_LIBRARY_DIR/metadata.json" << EOF
@@ -2461,7 +2717,8 @@ parse_pip_error() {
         fi
     elif echo "$pip_output" | grep -qi "requires python"; then
         error_type="python_version"
-        local required=$(echo "$pip_output" | grep -oP "requires python\s*[<>=]+\s*\K[0-9.]+" | head -1)
+        # Use sed instead of grep -P for BSD (macOS) compatibility
+        local required=$(echo "$pip_output" | sed -n 's/.*[Rr]equires [Pp]ython[^0-9]*\([0-9.]*\).*/\1/p' | head -1)
         if [ -n "$required" ]; then
             echo -e "${YELLOW}${STATUS_WARN} Package requires Python $required (you have $PYTHON_VERSION)${NC}"
         fi
@@ -2582,6 +2839,22 @@ if [ "$PYTHON_AVAILABLE" = true ]; then
                 elif command -v apk &> /dev/null && sudo apk add py3-maturin 2>/dev/null; then
                     MATURIN_AVAILABLE=true
                     echo -e "${GREEN}${STATUS_OK} maturin installed via apk${NC}"
+                # BSD systems
+                elif command -v pkg &> /dev/null && sudo pkg install -y py39-maturin 2>/dev/null; then
+                    MATURIN_AVAILABLE=true
+                    echo -e "${GREEN}${STATUS_OK} maturin installed via pkg (FreeBSD)${NC}"
+                # Void Linux
+                elif command -v xbps-install &> /dev/null && sudo xbps-install -y python3-maturin 2>/dev/null; then
+                    MATURIN_AVAILABLE=true
+                    echo -e "${GREEN}${STATUS_OK} maturin installed via xbps${NC}"
+                fi
+            fi
+
+            # NixOS - try nix-env (doesn't need sudo in user profile mode)
+            if [ "$MATURIN_AVAILABLE" != true ] && command -v nix-env &> /dev/null; then
+                if nix-env -iA nixpkgs.maturin 2>/dev/null; then
+                    MATURIN_AVAILABLE=true
+                    echo -e "${GREEN}${STATUS_OK} maturin installed via nix-env${NC}"
                 fi
             fi
 
@@ -2601,6 +2874,11 @@ if [ "$PYTHON_AVAILABLE" = true ]; then
                 echo -e "   ${CYAN}  Debian/Ubuntu: sudo apt install python3-maturin${NC}"
                 echo -e "   ${CYAN}  Fedora/RHEL:   sudo dnf install python3-maturin${NC}"
                 echo -e "   ${CYAN}  Arch:          sudo pacman -S python-maturin${NC}"
+                echo -e "   ${CYAN}  openSUSE:      sudo zypper install python3-maturin${NC}"
+                echo -e "   ${CYAN}  Alpine:        sudo apk add py3-maturin${NC}"
+                echo -e "   ${CYAN}  FreeBSD:       sudo pkg install py39-maturin${NC}"
+                echo -e "   ${CYAN}  Void:          sudo xbps-install python3-maturin${NC}"
+                echo -e "   ${CYAN}  NixOS:         nix-env -iA nixpkgs.maturin${NC}"
                 echo -e "   ${CYAN}  macOS:         brew install maturin${NC}"
                 echo -e "   ${CYAN}  Any OS:        pipx install maturin${NC}"
                 echo -e "   ${CYAN}  Any OS:        cargo install maturin${NC}"
@@ -2914,7 +3192,7 @@ echo -e "${GREEN}${STATUS_OK} HORUS: ${HORUS_VERSION:-0.1.x}${NC}"
 
 # Key Cargo dependencies
 if [ -f "Cargo.lock" ]; then
-    for crate in syn serde tokio; do
+    for crate in serde tokio pyo3; do
         CRATE_VER=$(get_cargo_lock_version "$crate")
         if [ -n "$CRATE_VER" ]; then
             MIN_VER="${CARGO_MIN_VERSIONS[$crate]:-}"

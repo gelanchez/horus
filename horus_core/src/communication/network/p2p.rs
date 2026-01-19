@@ -930,8 +930,11 @@ impl P2pConnector {
         peer_addr: SocketAddr,
         notify_status: impl Fn(P2pConnectionState),
     ) -> P2pResult<P2pConnection> {
+        #[allow(unused_assignments)]
         let mut direct_error = None;
+        #[allow(unused_assignments)]
         let mut stun_error = None;
+        #[allow(unused_assignments)]
         let mut turn_error = None;
 
         // Step 1: Try direct connection (fastest, same LAN)
@@ -1388,7 +1391,8 @@ pub struct P2pResponder {
     socket: Arc<UdpSocket>,
     /// Local address
     local_addr: SocketAddr,
-    /// Configuration
+    /// Configuration (reserved for future connection options)
+    #[allow(dead_code)]
     config: P2pConfig,
 }
 

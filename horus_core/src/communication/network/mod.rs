@@ -150,7 +150,10 @@ pub use udp_direct::UdpDirectBackend;
 pub use udp_multicast::UdpMulticastBackend;
 
 // Re-export new modules
-pub use batching::{BatchConfig, BatchReceiver, MessageBatch, MessageBatcher, SharedBatcher};
+pub use batching::{
+    AdaptiveBatcher, AdaptiveBatcherConfig, AdaptiveMode, BatchConfig, BatchReceiver,
+    FrequencyTracker, FrequencyTrackerConfig, MessageBatch, MessageBatcher, SharedBatcher,
+};
 pub use caching::{CacheConfig, CacheStats, SharedCache, TopicCache};
 pub use compression::{
     CompressedData, CompressedPacket, CompressionAlgo, CompressionConfig, Compressor,

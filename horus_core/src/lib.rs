@@ -137,5 +137,3 @@ pub use serde_json;
 // Re-export bytemuck for consistent Pod/Zeroable trait usage
 pub use bytemuck;
 
-// Re-export inventory for register_pod_type! macro
-pub use inventory;

@@ -103,7 +103,7 @@ except ImportError:
     class TensorHandle:
         pass
 
-__version__ = "0.1.6"
+__version__ = "0.1.7"
 
 
 def _truncate_for_logging(data: Any, max_size: int = MAX_LOG_DATA_SIZE) -> str:
@@ -1180,6 +1180,8 @@ __all__ = [
     "LaserScan",
     # Custom message generation
     "msggen",  # horus.msggen module for custom typed messages
+    # AI/ML submodule
+    "ai",  # horus.ai module for ML integration
     # Tensor system for zero-copy ML/AI
     "TensorPool",
     "TensorHandle",
@@ -1220,11 +1222,15 @@ __all__ = [
     "WorldConfigPy",
 ]
 
-# Export typed message classes
-CmdVel = _RustCmdVel
-Pose2D = _RustPose2D
-Imu = _RustImu
-Odometry = _RustOdometry
+# Export typed message classes (only if Rust bindings available)
+try:
+    CmdVel = _RustCmdVel
+    Pose2D = _RustPose2D
+    Imu = _RustImu
+    Odometry = _RustOdometry
+except NameError:
+    # Rust bindings not available, leave undefined (library fallback will handle)
+    pass
 # LaserScan handled below (after nodes import to avoid override)
 
 # Import simple async API
@@ -1276,8 +1282,15 @@ except NameError:
 # Import custom message generator module
 from . import msggen
 
+# Import AI/ML submodule (horus.ai)
+from . import ai
+
 # Ensure LaserScan from Rust is exported (not overwritten by nodes)
-LaserScan = _RustLaserScan
+try:
+    LaserScan = _RustLaserScan
+except NameError:
+    # Rust bindings not available, keep nodes import or leave undefined
+    pass
 
 # Add message types to __all__ if available
 if _has_messages:

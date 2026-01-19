@@ -45,11 +45,8 @@ use crate::memory::shm_region::ShmRegion;
 pub use crate::communication::pod::PodMessage;
 
 // Smart detection for automatic backend selection
-use crate::communication::pod::is_registered_pod;
-use crate::communication::smart_detect::{
-    RecommendedBackend, DetectedPattern, detect_optimal_backend,
-};
 use crate::communication::smart_backend::SmartShmBackend;
+use crate::communication::adaptive_topic::AdaptiveTopic;
 
 // ============================================================================
 // Topic Configuration
@@ -2901,7 +2898,8 @@ use crate::communication::network::{parse_endpoint, Endpoint, NetworkBackend};
 struct NetworkTopicBackend<T> {
     /// The underlying network backend (wrapped in Mutex for recv mutability)
     inner: std::sync::Mutex<NetworkBackend<T>>,
-    /// Topic name
+    /// Topic name (stored for debugging and future introspection)
+    #[allow(dead_code)]
     topic: String,
 }
 
@@ -3155,7 +3153,14 @@ enum TopicBackend<T> {
     SpmcShm(SpmcShmBackend<T>),
 
     /// Smart backend - auto-selects POD (~50ns) or Ring (~167ns) based on type
+    /// Reserved for explicit SmartShm construction (currently auto-selected via Adaptive)
+    #[allow(dead_code)]
     SmartShm(SmartShmBackend<T>),
+
+    /// Adaptive backend - full 10-path detection based on topology
+    /// Auto-detects: Direct, SpscIntra, MpscIntra, SpmcIntra, MpmcIntra,
+    /// PodShm, SpscShm, MpscShm, SpmcShm, MpmcShm
+    Adaptive(AdaptiveTopic<T>),
 
     /// Network transport (UDP/Unix/Zenoh/QUIC) - variable latency
     Network(NetworkTopicBackend<T>),
@@ -3245,6 +3250,7 @@ impl<T: Clone> Clone for Topic<T> {
                 TopicBackend::MpscShm(inner) => TopicBackend::MpscShm(inner.clone()),
                 TopicBackend::SpmcShm(inner) => TopicBackend::SpmcShm(inner.clone()),
                 TopicBackend::SmartShm(inner) => TopicBackend::SmartShm(inner.clone()),
+                TopicBackend::Adaptive(inner) => TopicBackend::Adaptive(inner.clone()),
                 TopicBackend::Network(_) => {
                     panic!("Network Topic cannot be cloned. Create a new Topic for additional network connections.")
                 }
@@ -3264,7 +3270,7 @@ impl<T: Clone> Clone for Topic<T> {
 
 impl<T> Topic<T>
 where
-    T: Clone + Send + Sync + 'static,
+    T: Clone + Send + Sync + serde::Serialize + serde::de::DeserializeOwned + 'static,
 {
     /// Create a new topic with automatic backend selection
     ///
@@ -3295,22 +3301,17 @@ where
     /// # Smart Detection
     ///
     /// This method **automatically** selects the optimal backend based on:
-    /// - **POD Detection**: If `T` is registered via `register_pod_type!`, uses zero-copy (~50ns)
+    /// - **POD Detection**: If `T` has no Drop (auto-detected), uses zero-copy (~50ns)
     /// - **Non-POD**: Uses ring buffer with serialization (~167ns)
     ///
-    /// No API changes needed - just register your POD types and get automatic optimization:
+    /// No registration needed - just define your struct and HORUS auto-detects:
     /// ```rust,ignore
-    /// use horus_core::communication::{Topic, PodMessage, register_pod_type};
-    /// use bytemuck::{Pod, Zeroable};
+    /// use horus_core::communication::Topic;
     ///
-    /// #[repr(C)]
-    /// #[derive(Clone, Copy, Pod, Zeroable)]
+    /// // Simple struct - auto-detected as POD (no String, Vec, Box, etc.)
     /// struct MotorCommand { velocity: f32, torque: f32 }
     ///
-    /// unsafe impl PodMessage for MotorCommand {}
-    /// register_pod_type!(MotorCommand);  // <-- This enables ~50ns latency
-    ///
-    /// // Now Topic::new() automatically uses POD optimization!
+    /// // HORUS automatically uses zero-copy path (~50ns)!
     /// let topic: Topic<MotorCommand> = Topic::new("motor")?;
     /// ```
     ///
@@ -3322,28 +3323,27 @@ where
         let name = name.into();
         let shm_name = format!("topic/{}", name);
 
-        // Smart detection: check if T is a registered POD type
-        let is_pod = is_registered_pod::<T>();
+        // Use AdaptiveTopic for full 10-path detection:
+        // - DirectChannel (~3ns) - same thread
+        // - SpscIntra (~18ns) - 1P:1C same process
+        // - SpmcIntra (~24ns) - 1P:NC same process
+        // - MpscIntra (~26ns) - NP:1C same process
+        // - MpmcIntra (~36ns) - NP:NC same process
+        // - PodShm (~50ns) - POD types cross-process
+        // - MpscShm (~65ns) - NP:1C cross-process
+        // - SpmcShm (~70ns) - 1P:NC cross-process
+        // - SpscShm (~85ns) - 1P:1C cross-process
+        // - MpmcShm (~167ns) - NP:NC cross-process
+        let adaptive = AdaptiveTopic::with_capacity(&shm_name, capacity as u32)?;
 
-        log::debug!(
-            "Topic '{}': Smart detection (is_pod={}, size={}) -> using SmartShmBackend",
-            name, is_pod, std::mem::size_of::<T>()
-        );
-
-        // Use SmartShmBackend which automatically selects:
-        // - POD mode (~50ns) if T is registered as POD
-        // - Ring mode (~167ns) otherwise
-        let backend = SmartShmBackend::new(&shm_name, capacity, true)?;
-
-        let mode_str = if backend.is_pod_mode() { "POD ~50ns" } else { "Ring ~167ns" };
         log::info!(
-            "Topic '{}': Created with {} backend",
-            name, mode_str
+            "Topic '{}': Created with AdaptiveTopic (mode={:?}, latency=~{}ns)",
+            name, adaptive.mode(), adaptive.mode().expected_latency_ns()
         );
 
         Ok(Self {
             name,
-            backend: TopicBackend::SmartShm(backend),
+            backend: TopicBackend::Adaptive(adaptive),
             metrics: Arc::new(AtomicTopicMetrics::default()),
             state: std::sync::atomic::AtomicU8::new(ConnectionState::Connected.into_u8()),
             _marker: PhantomData,
@@ -4046,6 +4046,7 @@ where
             TopicBackend::MpscShm(b) => b.push(msg),
             TopicBackend::SpmcShm(b) => b.push(msg),
             TopicBackend::SmartShm(b) => b.push(msg),
+            TopicBackend::Adaptive(b) => b.send(msg),
         };
 
         // Update metrics based on result
@@ -4106,6 +4107,7 @@ where
             TopicBackend::MpscShm(b) => b.pop(),
             TopicBackend::SpmcShm(b) => b.pop(),
             TopicBackend::SmartShm(b) => b.pop(),
+            TopicBackend::Adaptive(b) => b.recv(),
         };
 
         // Update metrics based on result
@@ -4144,6 +4146,7 @@ where
             TopicBackend::MpscShm(b) => !b.is_empty(),
             TopicBackend::SpmcShm(b) => !b.is_empty(),
             TopicBackend::SmartShm(b) => !b.is_empty(),
+            TopicBackend::Adaptive(b) => b.has_message(),
         }
     }
 
@@ -4161,6 +4164,7 @@ where
             TopicBackend::MpscShm(b) => b.backend_name(),
             TopicBackend::SpmcShm(b) => b.backend_name(),
             TopicBackend::SmartShm(b) => b.backend_name(),
+            TopicBackend::Adaptive(b) => b.backend_name(),
         }
     }
 }
@@ -4171,7 +4175,7 @@ where
 
 impl<T> Topic<T>
 where
-    T: Clone + Send + Sync + 'static,
+    T: Clone + Send + Sync + serde::Serialize + serde::de::DeserializeOwned + 'static,
 {
     /// Send a message to the topic
     ///
@@ -4203,6 +4207,7 @@ where
             TopicBackend::MpscShm(inner) => inner.push(msg),
             TopicBackend::SpmcShm(inner) => inner.push(msg),
             TopicBackend::SmartShm(inner) => inner.push(msg),
+            TopicBackend::Adaptive(inner) => inner.send(msg),
             TopicBackend::Network(_) => {
                 // Network backend requires T: Serialize + DeserializeOwned
                 // Use from_endpoint() to create network topics, which ensures proper bounds
@@ -4258,6 +4263,7 @@ where
             TopicBackend::MpscShm(inner) => inner.pop(),
             TopicBackend::SpmcShm(inner) => inner.pop(),
             TopicBackend::SmartShm(inner) => inner.pop(),
+            TopicBackend::Adaptive(inner) => inner.recv(),
             TopicBackend::Network(_) => {
                 // Network backend requires T: Serialize + DeserializeOwned
                 panic!("Network Topic recv() requires DeserializeOwned bound. Network topics should be created via from_endpoint() which ensures T has proper bounds.")
@@ -4306,6 +4312,7 @@ where
             TopicBackend::MpscShm(inner) => !inner.is_empty(),
             TopicBackend::SpmcShm(inner) => !inner.is_empty(),
             TopicBackend::SmartShm(inner) => !inner.is_empty(),
+            TopicBackend::Adaptive(inner) => inner.has_message(),
             TopicBackend::Network(_) => false, // Network backends can't reliably check for pending messages
         }
     }
@@ -4335,6 +4342,7 @@ where
             TopicBackend::MpscShm(inner) => inner.backend_name(),
             TopicBackend::SpmcShm(inner) => inner.backend_name(),
             TopicBackend::SmartShm(inner) => inner.backend_name(),
+            TopicBackend::Adaptive(inner) => inner.backend_name(),
             TopicBackend::Network(_) => "Network",
         }
     }
@@ -4560,6 +4568,7 @@ impl<T> std::fmt::Debug for Topic<T> {
             TopicBackend::MpscShm(_) => "MpscShm",
             TopicBackend::SpmcShm(_) => "SpmcShm",
             TopicBackend::SmartShm(_) => "SmartShm",
+            TopicBackend::Adaptive(_) => "Adaptive",
             TopicBackend::Network(_) => "Network",
         };
         let state = ConnectionState::from_u8(self.state.load(Ordering::Relaxed));
@@ -4611,7 +4620,7 @@ pub use crate::communication::storage::AccessMode as TopicMode;
 mod tests {
     use super::*;
 
-    #[derive(Clone, Debug, PartialEq)]
+    #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
     struct TestMessage {
         id: u64,
         payload: String,
@@ -4622,7 +4631,8 @@ mod tests {
         let unique_name = format!("test_topic_new_{}", std::process::id());
         let topic: Topic<TestMessage> = Topic::new(&unique_name).unwrap();
         assert_eq!(topic.name(), &unique_name);
-        assert_eq!(topic.backend_type(), "MpmcShm");
+        // AdaptiveTopic is now the default - starts as Unknown before first send/recv
+        assert_eq!(topic.backend_type(), "Unknown (Adaptive)");
     }
 
     #[test]
@@ -4719,7 +4729,8 @@ mod tests {
         let debug_str = format!("{:?}", topic);
         assert!(debug_str.contains("Topic"));
         assert!(debug_str.contains(&unique_name));
-        assert!(debug_str.contains("MpmcShm"));
+        // AdaptiveTopic is now the default
+        assert!(debug_str.contains("Adaptive"));
     }
 
     #[test]
@@ -4905,7 +4916,7 @@ mod tests {
         use std::hint::black_box;
         use std::time::Instant;
 
-        #[derive(Clone, Debug)]
+        #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
         struct TinyMsg(u64);
 
         let topic: Topic<TinyMsg> = Topic::direct("latency_test");
@@ -5074,7 +5085,7 @@ mod tests {
         use std::hint::black_box;
         use std::time::Instant;
 
-        #[derive(Clone, Debug)]
+        #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
         struct TinyMsg(u64);
 
         let (producer, consumer) = Topic::<TinyMsg>::spsc_intra("spsc_latency");
@@ -5284,7 +5295,7 @@ mod tests {
         use std::hint::black_box;
         use std::time::Instant;
 
-        #[derive(Clone, Debug)]
+        #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
         struct TinyMsg(u64);
 
         let (producer, consumer) = Topic::<TinyMsg>::mpsc_intra("mpsc_latency", 1024);
@@ -5317,7 +5328,7 @@ mod tests {
 
     #[test]
     fn test_spmc_intra_basic_send_receive() {
-        #[derive(Clone, Debug, PartialEq)]
+        #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
         struct TestData(u64);
 
         let (producer, consumer) = Topic::<TestData>::spmc_intra("spmc_basic");
@@ -5332,7 +5343,7 @@ mod tests {
 
     #[test]
     fn test_spmc_intra_multiple_consumers() {
-        #[derive(Clone, Debug, PartialEq)]
+        #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
         struct TestData(u64);
 
         let (producer, consumer1) = Topic::<TestData>::spmc_intra("spmc_multi");
@@ -5350,7 +5361,7 @@ mod tests {
 
     #[test]
     fn test_spmc_intra_producer_cannot_receive() {
-        #[derive(Clone, Debug)]
+        #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
         struct TestData(u64);
 
         let (producer, _consumer) = Topic::<TestData>::spmc_intra("spmc_prod_no_recv");
@@ -5362,7 +5373,7 @@ mod tests {
 
     #[test]
     fn test_spmc_intra_consumer_cannot_send() {
-        #[derive(Clone, Debug)]
+        #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
         struct TestData(u64);
 
         let (_producer, consumer) = Topic::<TestData>::spmc_intra("spmc_cons_no_send");
@@ -5374,7 +5385,7 @@ mod tests {
 
     #[test]
     fn test_spmc_intra_overwrite_behavior() {
-        #[derive(Clone, Debug, PartialEq)]
+        #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
         struct TestData(u64);
 
         let (producer, consumer) = Topic::<TestData>::spmc_intra("spmc_overwrite");
@@ -5395,7 +5406,7 @@ mod tests {
 
     #[test]
     fn test_spmc_intra_empty_receive() {
-        #[derive(Clone, Debug)]
+        #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
         struct TestData(u64);
 
         let (_producer, consumer) = Topic::<TestData>::spmc_intra("spmc_empty");
@@ -5406,7 +5417,7 @@ mod tests {
 
     #[test]
     fn test_spmc_intra_has_messages() {
-        #[derive(Clone, Debug)]
+        #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
         struct TestData(u64);
 
         let (producer, consumer) = Topic::<TestData>::spmc_intra("spmc_has_msgs");
@@ -5429,7 +5440,7 @@ mod tests {
 
     #[test]
     fn test_spmc_intra_debug() {
-        #[derive(Clone, Debug)]
+        #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
         struct TestData(u64);
 
         let (producer, _consumer) = Topic::<TestData>::spmc_intra("spmc_debug");
@@ -5444,7 +5455,7 @@ mod tests {
         use std::sync::Arc;
         use std::thread;
 
-        #[derive(Clone, Debug, PartialEq)]
+        #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
         struct TestData(u64);
 
         let (producer, consumer) = Topic::<TestData>::spmc_intra("spmc_concurrent");
@@ -5526,7 +5537,7 @@ mod tests {
         use std::hint::black_box;
         use std::time::Instant;
 
-        #[derive(Clone, Debug)]
+        #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
         struct TinyMsg(u64);
 
         let (producer, consumer) = Topic::<TinyMsg>::spmc_intra("spmc_latency");
@@ -5585,7 +5596,7 @@ mod tests {
 
     #[test]
     fn test_mpmc_intra_basic_send_receive() {
-        #[derive(Clone, Debug, PartialEq)]
+        #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
         struct TestData(u64);
 
         let (producer, consumer) = Topic::<TestData>::mpmc_intra("mpmc_basic", 64);
@@ -5600,7 +5611,7 @@ mod tests {
 
     #[test]
     fn test_mpmc_intra_multiple_producers() {
-        #[derive(Clone, Debug, PartialEq)]
+        #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
         struct TestData(u64);
 
         let (producer, consumer) = Topic::<TestData>::mpmc_intra("mpmc_multi_prod", 64);
@@ -5625,7 +5636,7 @@ mod tests {
 
     #[test]
     fn test_mpmc_intra_multiple_consumers() {
-        #[derive(Clone, Debug, PartialEq)]
+        #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
         struct TestData(u64);
 
         let (producer, consumer1) = Topic::<TestData>::mpmc_intra("mpmc_multi_cons", 64);
@@ -5649,7 +5660,7 @@ mod tests {
 
     #[test]
     fn test_mpmc_intra_producer_cannot_receive() {
-        #[derive(Clone, Debug)]
+        #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
         struct TestData(u64);
 
         let (producer, _consumer) = Topic::<TestData>::mpmc_intra("mpmc_prod_no_recv", 64);
@@ -5661,7 +5672,7 @@ mod tests {
 
     #[test]
     fn test_mpmc_intra_consumer_cannot_send() {
-        #[derive(Clone, Debug)]
+        #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
         struct TestData(u64);
 
         let (_producer, consumer) = Topic::<TestData>::mpmc_intra("mpmc_cons_no_send", 64);
@@ -5673,7 +5684,7 @@ mod tests {
 
     #[test]
     fn test_mpmc_intra_queue_full() {
-        #[derive(Clone, Debug)]
+        #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
         struct TestData(u64);
 
         let (producer, _consumer) = Topic::<TestData>::mpmc_intra("mpmc_full", 4);
@@ -5690,7 +5701,7 @@ mod tests {
 
     #[test]
     fn test_mpmc_intra_empty_receive() {
-        #[derive(Clone, Debug)]
+        #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
         struct TestData(u64);
 
         let (_producer, consumer) = Topic::<TestData>::mpmc_intra("mpmc_empty", 64);
@@ -5701,7 +5712,7 @@ mod tests {
 
     #[test]
     fn test_mpmc_intra_has_messages() {
-        #[derive(Clone, Debug)]
+        #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
         struct TestData(u64);
 
         let (producer, consumer) = Topic::<TestData>::mpmc_intra("mpmc_has_msgs", 64);
@@ -5724,7 +5735,7 @@ mod tests {
 
     #[test]
     fn test_mpmc_intra_debug() {
-        #[derive(Clone, Debug)]
+        #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
         struct TestData(u64);
 
         let (producer, _consumer) = Topic::<TestData>::mpmc_intra("mpmc_debug", 64);
@@ -5739,7 +5750,7 @@ mod tests {
         use std::sync::Arc;
         use std::thread;
 
-        #[derive(Clone, Debug, PartialEq)]
+        #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
         struct TestData(u64);
 
         let (producer, consumer) = Topic::<TestData>::mpmc_intra("mpmc_concurrent", 256);
@@ -5815,7 +5826,7 @@ mod tests {
         use std::hint::black_box;
         use std::time::Instant;
 
-        #[derive(Clone, Debug)]
+        #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
         struct TinyMsg(u64);
 
         let (producer, consumer) = Topic::<TinyMsg>::mpmc_intra("mpmc_latency", 1024);
@@ -5958,7 +5969,8 @@ mod tests {
             .cross_process()
             .mpmc();
         let topic: Topic<TestMessage> = Topic::from_config(config).unwrap();
-        assert_eq!(topic.backend_type(), "MpmcShm");
+        // AdaptiveTopic is now used - starts as Unknown before first send/recv
+        assert_eq!(topic.backend_type(), "Unknown (Adaptive)");
     }
 
     #[test]
@@ -6341,7 +6353,7 @@ mod tests {
         use std::time::Instant;
 
         // Use a simpler struct for latency testing
-        #[derive(Clone, Debug)]
+        #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
         struct TinyMsg(u64);
 
         let unique_name = format!("mpsc_shm_latency_{}", std::process::id());
@@ -6377,7 +6389,7 @@ mod tests {
         use std::thread;
 
         // Use a simple u64 message for concurrent test
-        #[derive(Clone, Debug)]
+        #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
         struct SimpleMsg(u64);
 
         let unique_name = format!("mpsc_shm_concurrent_{}", std::process::id());

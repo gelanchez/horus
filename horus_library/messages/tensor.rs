@@ -274,8 +274,7 @@ unsafe impl Zeroable for HorusTensor {}
 // Enable ultra-fast POD messaging (~50ns vs ~250ns with bincode)
 unsafe impl horus_core::communication::PodMessage for HorusTensor {}
 
-// Register for smart detection - Topic::new() will auto-select POD backend
-horus_core::register_pod_type!(HorusTensor);
+// Note: POD types are now auto-detected via needs_drop, no registration needed
 
 // Custom Serialize/Deserialize to handle large arrays
 impl Serialize for HorusTensor {

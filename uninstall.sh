@@ -5,40 +5,64 @@
 
 set -e  # Exit on error
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-CYAN='\033[0;36m'
-BLUE='\033[0;34m'
-MAGENTA='\033[0;35m'
-WHITE='\033[1;37m'
-NC='\033[0m' # No Color
+# Get script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Status indicators
-STATUS_OK="[+]"
-STATUS_ERR="[-]"
-STATUS_WARN="[!]"
-STATUS_INFO="[*]"
-
-# Spinner function - simple dots
-spin() {
-    local pid=$1
-    local msg="$2"
-    local spin_chars=('.' '..' '...' '....')
-    local i=0
-    tput civis 2>/dev/null || true
-    while kill -0 $pid 2>/dev/null; do
-        printf "\r  ${spin_chars[$i]} ${msg}"
-        i=$(( (i + 1) % ${#spin_chars[@]} ))
-        sleep 0.25
-    done
-    tput cnorm 2>/dev/null || true
-    printf "\r\033[K"
-}
+# Source shared functions from deps.sh (provides colors, status indicators, OS detection, spinner, shm paths)
+if [ -f "$SCRIPT_DIR/scripts/deps.sh" ]; then
+    source "$SCRIPT_DIR/scripts/deps.sh"
+    DEPS_SOURCED=true
+else
+    DEPS_SOURCED=false
+    # Minimal fallback if deps.sh not found
+    RED='\033[0;31m'
+    GREEN='\033[0;32m'
+    YELLOW='\033[1;33m'
+    CYAN='\033[0;36m'
+    BLUE='\033[0;34m'
+    MAGENTA='\033[0;35m'
+    WHITE='\033[1;37m'
+    NC='\033[0m'
+    STATUS_OK="[+]"
+    STATUS_ERR="[-]"
+    STATUS_WARN="[!]"
+    STATUS_INFO="[*]"
+    # Fallback spinner
+    spin() {
+        local pid=$1
+        local msg="$2"
+        local spin_chars=('.' '..' '...' '....')
+        local i=0
+        tput civis 2>/dev/null || true
+        while kill -0 $pid 2>/dev/null; do
+            printf "\r  ${spin_chars[$i]} ${msg}"
+            i=$(( (i + 1) % ${#spin_chars[@]} ))
+            sleep 0.25
+        done
+        tput cnorm 2>/dev/null || true
+        printf "\r\033[K"
+    }
+    # Fallback shared memory paths
+    get_shm_base_dir() {
+        case "$(uname -s)" in
+            Linux*) echo "/dev/shm/horus" ;;
+            Darwin*|FreeBSD*|OpenBSD*|NetBSD*) echo "/tmp/horus" ;;
+            MINGW*|MSYS*|CYGWIN*) echo "${TEMP:-/tmp}/horus" ;;
+            *) echo "/tmp/horus" ;;
+        esac
+    }
+    get_shm_logs_path() {
+        case "$(uname -s)" in
+            Linux*) echo "/dev/shm/horus_logs" ;;
+            Darwin*|FreeBSD*|OpenBSD*|NetBSD*) echo "/tmp/horus_logs" ;;
+            MINGW*|MSYS*|CYGWIN*) echo "${TEMP:-/tmp}/horus_logs" ;;
+            *) echo "/tmp/horus_logs" ;;
+        esac
+    }
+fi
 
 # ============================================================================
-# PROGRESS BAR FUNCTIONS - Real progress with percentages
+# PROGRESS BAR FUNCTIONS - Uninstall-specific
 # ============================================================================
 
 # Global uninstall progress tracking
@@ -90,41 +114,6 @@ update_uninstall_progress() {
 complete_uninstall_progress() {
     local elapsed=$(($(date +%s) - UNINSTALL_START_TIME))
     printf "\r  ${STATUS_OK} [█████████████████████████] 100%% Uninstall completed in ${elapsed}s    \n"
-}
-
-# Cross-platform shared memory path detection
-get_shm_base_dir() {
-    case "$(uname -s)" in
-        Linux*)
-            echo "/dev/shm/horus"
-            ;;
-        Darwin*)
-            echo "/tmp/horus"
-            ;;
-        MINGW*|MSYS*|CYGWIN*)
-            echo "${TEMP:-/tmp}/horus"
-            ;;
-        *)
-            echo "/tmp/horus"
-            ;;
-    esac
-}
-
-get_shm_logs_path() {
-    case "$(uname -s)" in
-        Linux*)
-            echo "/dev/shm/horus_logs"
-            ;;
-        Darwin*)
-            echo "/tmp/horus_logs"
-            ;;
-        MINGW*|MSYS*|CYGWIN*)
-            echo "${TEMP:-/tmp}/horus_logs"
-            ;;
-        *)
-            echo "/tmp/horus_logs"
-            ;;
-    esac
 }
 
 # Determine installation paths

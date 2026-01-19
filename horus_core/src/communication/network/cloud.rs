@@ -368,6 +368,7 @@ impl std::error::Error for RoomError {}
 
 /// Room membership entry
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Fields reserved for future room management features
 struct RoomMembership {
     /// Room name
     name: String,

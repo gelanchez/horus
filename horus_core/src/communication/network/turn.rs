@@ -68,11 +68,13 @@ const TURN_CHANNEL_BIND_REQUEST: u16 = 0x0009;
 const TURN_CHANNEL_BIND_RESPONSE: u16 = 0x0109;
 const TURN_CHANNEL_BIND_ERROR: u16 = 0x0119;
 
-// STUN/TURN attribute types
+// STUN/TURN attribute types (some reserved for future protocol extensions)
+#[allow(dead_code)]
 const ATTR_MAPPED_ADDRESS: u16 = 0x0001;
 const ATTR_USERNAME: u16 = 0x0006;
 const ATTR_MESSAGE_INTEGRITY: u16 = 0x0008;
 const ATTR_ERROR_CODE: u16 = 0x0009;
+#[allow(dead_code)]
 const ATTR_UNKNOWN_ATTRIBUTES: u16 = 0x000A;
 const ATTR_REALM: u16 = 0x0014;
 const ATTR_NONCE: u16 = 0x0015;
@@ -83,6 +85,7 @@ const ATTR_DATA: u16 = 0x0013;
 const ATTR_LIFETIME: u16 = 0x000D;
 const ATTR_REQUESTED_TRANSPORT: u16 = 0x0019;
 const ATTR_CHANNEL_NUMBER: u16 = 0x000C;
+#[allow(dead_code)]
 const ATTR_SOFTWARE: u16 = 0x8022;
 const ATTR_FINGERPRINT: u16 = 0x8028;
 
@@ -379,7 +382,8 @@ pub struct TurnClient {
     running: AtomicBool,
     /// Statistics
     stats: Arc<TurnStats>,
-    /// Pending transaction IDs
+    /// Pending transaction IDs (reserved for future transaction tracking)
+    #[allow(dead_code)]
     pending_transactions: Mutex<HashMap<[u8; 12], Instant>>,
 }
 

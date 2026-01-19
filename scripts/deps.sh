@@ -1,21 +1,68 @@
 #!/bin/bash
-# HORUS Shared Dependency Functions
-# Sourced by install.sh, verify.sh
+# HORUS Shared Functions Library
+# Sourced by install.sh, verify.sh, uninstall.sh
 #
 # Usage: source "$(dirname "$0")/scripts/deps.sh" 2>/dev/null || source "$(dirname "$0")/deps.sh"
+#
+# Provides:
+#   - Color definitions
+#   - Status indicators
+#   - OS detection (Linux, macOS, BSD, Windows, Solaris)
+#   - Spinner and progress bar functions
+#   - Shared memory path functions
+#   - Dependency checking and installation
 
-# Colors (only set if not already defined)
+# ============================================================================
+# COLORS (only set if not already defined)
+# ============================================================================
 : "${RED:=\033[0;31m}"
 : "${GREEN:=\033[0;32m}"
 : "${YELLOW:=\033[1;33m}"
 : "${CYAN:=\033[0;36m}"
 : "${BLUE:=\033[0;34m}"
 : "${MAGENTA:=\033[0;35m}"
+: "${WHITE:=\033[1;37m}"
 : "${NC:=\033[0m}"
 
-#=====================================
-# OS Detection
-#=====================================
+# ============================================================================
+# STATUS INDICATORS (only set if not already defined)
+# ============================================================================
+: "${STATUS_OK:=[+]}"
+: "${STATUS_ERR:=[-]}"
+: "${STATUS_WARN:=[!]}"
+: "${STATUS_INFO:=[*]}"
+
+# Unicode symbols for fancy output
+: "${CHECK:=${GREEN}✓${NC}}"
+: "${CROSS:=${RED}✗${NC}}"
+: "${WARN:=${YELLOW}!${NC}}"
+: "${INFO:=${CYAN}i${NC}}"
+: "${SKIP:=${WHITE}-${NC}}"
+
+# ============================================================================
+# SPINNER FUNCTION
+# ============================================================================
+# Usage: long_command & spin $! "Processing..."
+spin() {
+    local pid=$1
+    local msg="$2"
+    local spin_chars=('.' '..' '...' '....')
+    local i=0
+    tput civis 2>/dev/null || true  # Hide cursor
+    while kill -0 $pid 2>/dev/null; do
+        printf "\r  ${spin_chars[$i]} ${msg}"
+        i=$(( (i + 1) % ${#spin_chars[@]} ))
+        sleep 0.25
+    done
+    tput cnorm 2>/dev/null || true  # Show cursor
+    printf "\r\033[K"  # Clear line
+}
+
+# ============================================================================
+# OS DETECTION - Comprehensive cross-platform detection
+# ============================================================================
+# Detects: Linux, macOS, Windows, FreeBSD, OpenBSD, NetBSD, DragonFly, Solaris
+# Returns: "os_type:os_distro" (e.g., "linux:debian-based", "bsd:freebsd")
 detect_os() {
     local os_type="unknown"
     local os_distro="unknown"
@@ -44,6 +91,9 @@ detect_os() {
                     nixos)
                         os_distro="nixos"
                         ;;
+                    void)
+                        os_distro="void"
+                        ;;
                     *)
                         # Try to detect based on package manager
                         if command -v apt-get &>/dev/null; then
@@ -56,6 +106,8 @@ detect_os() {
                             os_distro="opensuse"
                         elif command -v apk &>/dev/null; then
                             os_distro="alpine"
+                        elif command -v xbps-install &>/dev/null; then
+                            os_distro="void"
                         fi
                         ;;
                 esac
@@ -69,6 +121,26 @@ detect_os() {
             os_type="macos"
             os_distro="macos"
             ;;
+        FreeBSD*)
+            os_type="bsd"
+            os_distro="freebsd"
+            ;;
+        OpenBSD*)
+            os_type="bsd"
+            os_distro="openbsd"
+            ;;
+        NetBSD*)
+            os_type="bsd"
+            os_distro="netbsd"
+            ;;
+        DragonFly*)
+            os_type="bsd"
+            os_distro="dragonfly"
+            ;;
+        SunOS*|Solaris*)
+            os_type="solaris"
+            os_distro="solaris"
+            ;;
         MINGW*|MSYS*|CYGWIN*)
             os_type="windows"
             os_distro="windows"
@@ -76,6 +148,88 @@ detect_os() {
     esac
 
     echo "$os_type:$os_distro"
+}
+
+# ============================================================================
+# SHARED MEMORY PATH FUNCTIONS
+# ============================================================================
+# Returns the appropriate shared memory base directory for the current OS
+get_shm_base_dir() {
+    case "$(uname -s)" in
+        Linux*)
+            echo "/dev/shm/horus"
+            ;;
+        Darwin*|FreeBSD*|OpenBSD*|NetBSD*|DragonFly*)
+            echo "/tmp/horus"
+            ;;
+        MINGW*|MSYS*|CYGWIN*)
+            echo "${TEMP:-/tmp}/horus"
+            ;;
+        *)
+            echo "/tmp/horus"
+            ;;
+    esac
+}
+
+# Returns the appropriate shared memory logs path for the current OS
+get_shm_logs_path() {
+    case "$(uname -s)" in
+        Linux*)
+            echo "/dev/shm/horus_logs"
+            ;;
+        Darwin*|FreeBSD*|OpenBSD*|NetBSD*|DragonFly*)
+            echo "/tmp/horus_logs"
+            ;;
+        MINGW*|MSYS*|CYGWIN*)
+            echo "${TEMP:-/tmp}/horus_logs"
+            ;;
+        *)
+            echo "/tmp/horus_logs"
+            ;;
+    esac
+}
+
+# ============================================================================
+# LIBRARY FILE EXTENSION
+# ============================================================================
+# Returns the appropriate library file extension for the current OS
+get_lib_extension() {
+    case "$(uname -s)" in
+        Darwin*)
+            echo "dylib"
+            ;;
+        MINGW*|MSYS*|CYGWIN*)
+            echo "dll"
+            ;;
+        *)
+            echo "so"
+            ;;
+    esac
+}
+
+# ============================================================================
+# PLATFORM SUPPORT CHECK
+# ============================================================================
+# Checks if the current platform is supported and returns appropriate guidance
+# Returns: 0 for full support, 1 for experimental, 2 for unsupported
+check_platform_support() {
+    local os_type="$1"
+    local os_distro="$2"
+
+    case "$os_type" in
+        linux|wsl|macos)
+            return 0  # Full support
+            ;;
+        bsd)
+            return 1  # Experimental
+            ;;
+        windows|solaris|unknown)
+            return 2  # Not supported
+            ;;
+        *)
+            return 2
+            ;;
+    esac
 }
 
 # Initialize OS detection if not already done

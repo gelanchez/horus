@@ -211,9 +211,9 @@ fi
 section "2. Compilation Check (cargo check)"
 
 if [ "$QUICK_MODE" = true ]; then
-    # In quick mode, only check core crates (not sim3d which takes forever)
+    # In quick mode, only check core crates
     info "Quick mode: checking core crates only..."
-    if timeout 300 cargo check -p horus -p horus_core -p horus_macros -p horus_manager -p horus_library 2>&1 | tail -5; then
+    if timeout 300 cargo check -p horus -p horus_core -p horus_macros -p horus_manager -p horus_library -p horus_ai -p horus_perception 2>&1 | tail -5; then
         pass "Core crates compile"
     else
         fail "Core crates compilation failed"
@@ -235,7 +235,7 @@ section "3. Linting (cargo clippy)"
 if [ "$QUICK_MODE" = true ]; then
     # In quick mode, only lint core crates with timeout
     info "Quick mode: linting core crates only..."
-    CLIPPY_OUTPUT=$(timeout 300 cargo clippy -p horus -p horus_core -p horus_macros -p horus_manager -p horus_library 2>&1 || true)
+    CLIPPY_OUTPUT=$(timeout 300 cargo clippy -p horus -p horus_core -p horus_macros -p horus_manager -p horus_library -p horus_ai -p horus_perception 2>&1 || true)
 else
     # Full lint with 10 minute timeout
     CLIPPY_OUTPUT=$(timeout 600 cargo clippy --workspace --all-targets 2>&1 || true)
@@ -327,7 +327,8 @@ else
         pass "Release build successful"
 
         # Check binaries exist
-        for bin in horus sim2d sim3d horus_router; do
+        # NOTE: sim2d and sim3d are now standalone packages at ../horus-sim2d and ../horus-sim3d
+        for bin in horus horus_router; do
             if [ -f "./target/release/$bin" ]; then
                 BIN_SIZE=$(du -h "./target/release/$bin" | cut -f1)
                 pass "Binary: $bin ($BIN_SIZE)"
@@ -410,7 +411,8 @@ if [ -x "$HORUS_BIN" ]; then
     fi
 
     # Test all subcommands help
-    SUBCOMMANDS=(run new init check monitor pkg env auth sim2d sim3d topic node param doctor clean launch msg log)
+    # NOTE: sim2d and sim3d are now standalone packages
+    SUBCOMMANDS=(run new init check monitor pkg env auth topic node param doctor clean launch msg log)
     for cmd in "${SUBCOMMANDS[@]}"; do
         if $HORUS_BIN $cmd --help >/dev/null 2>&1; then
             pass "horus $cmd --help"
@@ -432,19 +434,8 @@ else
     fail "horus binary not found at $HORUS_BIN"
 fi
 
-# Test sim2d and sim3d binaries
-for sim_bin in sim2d sim3d; do
-    SIM_PATH="./target/release/$sim_bin"
-    if [ -x "$SIM_PATH" ]; then
-        if $SIM_PATH --help >/dev/null 2>&1; then
-            pass "$sim_bin --help"
-        else
-            fail "$sim_bin --help failed"
-        fi
-    else
-        warn "$sim_bin binary not found"
-    fi
-done
+# NOTE: sim2d and sim3d are now standalone packages at ../horus-sim2d and ../horus-sim3d
+# They have their own prerelease/release processes
 
 # =============================================================================
 # 10. PYTHON BINDINGS - horus_py
@@ -506,50 +497,10 @@ fi
 # =============================================================================
 section "11. Documentation Site"
 
-if [ "$QUICK_MODE" = true ]; then
-    skip "Documentation build (quick mode)"
-else
-    if [ -d "docs-site" ]; then
-        cd docs-site
-
-        if [ -f "package.json" ]; then
-            # Check if node_modules exists
-            if [ ! -d "node_modules" ]; then
-                info "Installing docs-site dependencies..."
-                npm install >/dev/null 2>&1 || true
-            fi
-
-            # Type check first
-            info "Running TypeScript type check..."
-            if npm run typecheck 2>&1 | tail -5; then
-                pass "TypeScript type check passed"
-            else
-                warn "TypeScript type check had issues"
-            fi
-
-            # Build docs
-            info "Building documentation site..."
-            if npm run build 2>&1 | tail -10; then
-                pass "Documentation site builds successfully"
-            else
-                fail "Documentation site build failed"
-            fi
-
-            # Check search index
-            if [ -f "public/search-index.json" ] || [ -f ".next/static/search-index.json" ]; then
-                pass "Search index generated"
-            else
-                warn "Search index missing"
-            fi
-        else
-            skip "docs-site package.json not found"
-        fi
-
-        cd "$ROOT_DIR"
-    else
-        skip "docs-site directory not found"
-    fi
-fi
+# NOTE: docs-site is now a standalone package at ../horus-docs
+# It has its own build/release process
+info "docs-site is now a standalone package at ../horus-docs"
+skip "Documentation build (standalone package)"
 
 # =============================================================================
 # 12. EXAMPLES COMPILATION (All Crates)
@@ -663,7 +614,7 @@ else
         "tests/monitor/1pub"
         "tests/monitor/robot_fleet_rust"
         "tests/multi_language_example"
-        "tests/sim2d/sim2d_driver"
+        "tests/sim2d/f1tenth_race"
     )
 
     for project in "${TEST_PROJECTS[@]}"; do
@@ -845,6 +796,8 @@ if [ -n "$MAIN_VERSION" ]; then
         "horus_manager/Cargo.toml"
         "horus_py/Cargo.toml"
         "horus_router/Cargo.toml"
+        "horus_ai/Cargo.toml"
+        "horus_perception/Cargo.toml"
         "benchmarks/Cargo.toml"
     )
 

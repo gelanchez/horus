@@ -262,7 +262,7 @@ fn create_horus_yaml(
 
     let content = format!(
         r#"name: {}
-version: 0.1.6
+version: 0.1.7
 description: {}
 author: {}
 license: Apache-2.0

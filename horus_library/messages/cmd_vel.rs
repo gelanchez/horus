@@ -54,8 +54,7 @@ unsafe impl horus_core::bytemuck::Zeroable for CmdVel {}
 // Enable ultra-fast POD messaging (~50ns vs ~250ns with bincode)
 unsafe impl horus_core::communication::PodMessage for CmdVel {}
 
-// Register for smart detection - Topic::new() will auto-select POD backend
-horus_core::register_pod_type!(CmdVel);
+// Note: POD types are now auto-detected via needs_drop, no registration needed
 
 // LogSummary implementation for zero-copy logging
 impl LogSummary for CmdVel {

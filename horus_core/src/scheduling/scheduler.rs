@@ -43,6 +43,73 @@ use super::jit::CompiledDataflow;
 use super::safety_monitor::SafetyMonitor;
 use tokio::sync::mpsc;
 
+// Auto-optimization capabilities
+use super::capabilities::RuntimeCapabilities;
+
+// Deterministic execution (for simulation mode)
+use super::deterministic::{DeterministicClock, DeterministicConfig, ExecutionTrace};
+
+// Debug assistant (for simulation mode)
+use super::ai_debug::DebugAssistant;
+use parking_lot::Mutex as ParkingMutex;
+
+/// Degradation that occurred during auto-optimization.
+///
+/// When `Scheduler::new()` auto-applies RT optimizations, it may encounter
+/// failures (e.g., no RT permission). These are recorded as degradations
+/// rather than errors, allowing the scheduler to still function with
+/// reduced capabilities.
+#[derive(Debug, Clone)]
+pub struct RtDegradation {
+    /// What feature was attempted
+    pub feature: RtFeature,
+    /// What went wrong
+    pub reason: String,
+    /// Severity of the degradation
+    pub severity: DegradationSeverity,
+}
+
+/// RT feature that was attempted during auto-optimization.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RtFeature {
+    /// SCHED_FIFO/SCHED_RR priority
+    RtPriority,
+    /// mlockall() memory locking
+    MemoryLocking,
+    /// CPU affinity to isolated cores
+    CpuAffinity,
+    /// NUMA pinning
+    NumaPinning,
+    /// Watchdog timer
+    Watchdog,
+    /// Safety monitor
+    SafetyMonitor,
+}
+
+impl std::fmt::Display for RtFeature {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RtFeature::RtPriority => write!(f, "RT Priority"),
+            RtFeature::MemoryLocking => write!(f, "Memory Locking"),
+            RtFeature::CpuAffinity => write!(f, "CPU Affinity"),
+            RtFeature::NumaPinning => write!(f, "NUMA Pinning"),
+            RtFeature::Watchdog => write!(f, "Watchdog"),
+            RtFeature::SafetyMonitor => write!(f, "Safety Monitor"),
+        }
+    }
+}
+
+/// Severity of RT degradation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DegradationSeverity {
+    /// Significant impact on performance (e.g., no RT priority)
+    High,
+    /// Moderate impact (e.g., no memory locking)
+    Medium,
+    /// Minor impact (e.g., no NUMA awareness)
+    Low,
+}
+
 /// Central orchestrator: holds nodes, drives the tick loop.
 pub struct Scheduler {
     nodes: Vec<RegisteredNode>,
@@ -117,6 +184,30 @@ pub struct Scheduler {
     replay_stop_tick: Option<u64>,
     // Replay speed multiplier (1.0 = normal, 0.5 = half speed, 2.0 = double)
     replay_speed: f64,
+
+    // === Auto-optimization (NEW) ===
+    /// Detected runtime capabilities (RT, memory, CPU topology, platform)
+    runtime_capabilities: Option<RuntimeCapabilities>,
+
+    /// Degradations that occurred during auto-optimization
+    /// (features that were attempted but failed to apply)
+    rt_degradations: Vec<RtDegradation>,
+
+    // === Deterministic execution (simulation mode) ===
+    /// Deterministic clock for virtual time (simulation mode only)
+    /// Provides reproducible timestamps and seeded RNG
+    deterministic_clock: Option<Arc<DeterministicClock>>,
+
+    /// Execution trace for recording and replay (simulation mode only)
+    /// Records all node executions with timing for reproducibility verification
+    execution_trace: Option<Arc<ParkingMutex<ExecutionTrace>>>,
+
+    /// Debug assistant for AI-powered issue detection (simulation mode only)
+    /// Analyzes execution patterns to find timing violations, jitter, etc.
+    debug_assistant: Option<DebugAssistant>,
+
+    /// Deterministic configuration (seed, tick duration, etc.)
+    deterministic_config: Option<DeterministicConfig>,
 }
 
 impl Default for Scheduler {
@@ -126,25 +217,54 @@ impl Default for Scheduler {
 }
 
 impl Scheduler {
-    /// Create an empty scheduler with **deterministic defaults**.
+    /// Create a new scheduler with **automatic RT optimization**.
     ///
-    /// By default, the scheduler:
-    /// - Disables learning phase (no runtime profiling)
-    /// - Uses sequential execution (predictable order)
-    /// - Is fully deterministic from tick 0
+    /// The scheduler automatically detects and applies available RT features:
+    /// - **RT Priority**: If SCHED_FIFO is available, applies recommended priority
+    /// - **Memory Locking**: If mlockall() is permitted, locks all memory pages
+    /// - **CPU Affinity**: If isolated CPUs exist, pins to the best RT core
+    /// - **Safety Monitor**: Enabled with sensible defaults
     ///
-    /// For adaptive optimization, use `Scheduler::new().enable_learning()`
-    /// or load a pre-computed profile with `Scheduler::with_profile()`.
+    /// Any feature that fails to apply is recorded as a "degradation" rather
+    /// than an error. Check `scheduler.degradations()` to see what didn't work.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// use horus_core::Scheduler;
+    ///
+    /// let scheduler = Scheduler::new();  // Auto-detects and optimizes!
+    ///
+    /// // Check what was applied
+    /// if let Some(caps) = scheduler.capabilities() {
+    ///     println!("RT support: {}", caps.has_rt_support());
+    ///     println!("Can lock memory: {}", caps.can_lock_memory());
+    /// }
+    ///
+    /// // Check what degraded
+    /// for deg in scheduler.degradations() {
+    ///     println!("Warning: {} - {}", deg.feature, deg.reason);
+    /// }
+    /// ```
+    ///
+    /// # Alternative Constructors
+    /// - `Scheduler::simulation()` - Fast, no RT features, no detection
+    /// - `Scheduler::prototype()` - Development mode with verbose logging
+    /// - `Scheduler::builder()` - Full control over every option
     pub fn new() -> Self {
         let running = Arc::new(Mutex::new(true));
         let now = Instant::now();
 
-        Self {
+        // Detect runtime capabilities (~30-100μs one-time cost)
+        let caps = RuntimeCapabilities::detect();
+        let mut degradations = Vec::new();
+
+        // Create base scheduler
+        let mut scheduler = Self {
             nodes: Vec::new(),
             running,
             last_instant: now,
             last_snapshot: now,
-            scheduler_name: "DefaultScheduler".to_string(),
+            scheduler_name: "AutoScheduler".to_string(),
             working_dir: std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/")),
 
             // Initialize intelligence layer - DETERMINISTIC BY DEFAULT
@@ -157,7 +277,7 @@ impl Scheduler {
             async_result_tx: None,
             background_executor: None,
             isolated_executor: None,
-            learning_complete: true, // CHANGED: Default to deterministic (no learning)
+            learning_complete: true,
 
             // JIT compilation
             jit_compiled_nodes: HashMap::new(),
@@ -165,13 +285,13 @@ impl Scheduler {
             // Configuration
             config: None,
 
-            // Safety monitor
-            safety_monitor: None,
+            // Safety monitor (enabled by default now)
+            safety_monitor: Some(SafetyMonitor::new(5)), // Allow 5 deadline misses before action
 
-            // New runtime features (disabled by default)
+            // Runtime features
             tick_period: Duration::from_micros(16667), // ~60Hz default
             checkpoint_manager: None,
-            blackbox: None,
+            blackbox: Some(super::blackbox::BlackBox::new(16)), // 16MB default for crash analysis
             telemetry: None,
             redundancy: None,
 
@@ -189,6 +309,1071 @@ impl Scheduler {
             current_tick: 0,
             replay_stop_tick: None,
             replay_speed: 1.0,
+
+            // Auto-optimization: store capabilities, degradations added below
+            runtime_capabilities: Some(caps.clone()),
+            rt_degradations: Vec::new(),
+
+            // Deterministic execution (disabled in production mode)
+            deterministic_clock: None,
+            execution_trace: None,
+            debug_assistant: None,
+            deterministic_config: None,
+        };
+
+        // === Auto-apply RT features based on detected capabilities ===
+
+        // 1. Apply RT priority if available
+        if caps.has_rt_support() {
+            let priority = caps.recommended_rt_priority();
+            match scheduler.apply_rt_priority_internal(priority) {
+                Ok(()) => {
+                    print_line(&format!(
+                        "[AUTO] RT priority {} applied (SCHED_FIFO)",
+                        priority
+                    ).green().to_string());
+                }
+                Err(e) => {
+                    degradations.push(RtDegradation {
+                        feature: RtFeature::RtPriority,
+                        reason: e.to_string(),
+                        severity: DegradationSeverity::High,
+                    });
+                }
+            }
+        } else {
+            degradations.push(RtDegradation {
+                feature: RtFeature::RtPriority,
+                reason: format!(
+                    "RT scheduling not available (max_priority={}, preempt_rt={})",
+                    caps.max_rt_priority, caps.preempt_rt
+                ),
+                severity: DegradationSeverity::High,
+            });
+        }
+
+        // 2. Apply memory locking if permitted
+        if caps.can_lock_memory() {
+            match scheduler.apply_memory_lock_internal() {
+                Ok(()) => {
+                    print_line(&format!(
+                        "[AUTO] Memory locked (limit: {} MB)",
+                        caps.memlock_limit_bytes / 1024 / 1024
+                    ).green().to_string());
+                }
+                Err(e) => {
+                    degradations.push(RtDegradation {
+                        feature: RtFeature::MemoryLocking,
+                        reason: e.to_string(),
+                        severity: DegradationSeverity::Medium,
+                    });
+                }
+            }
+        } else {
+            degradations.push(RtDegradation {
+                feature: RtFeature::MemoryLocking,
+                reason: format!(
+                    "Memory locking not permitted (mlockall_permitted={}, limit={} bytes)",
+                    caps.mlockall_permitted, caps.memlock_limit_bytes
+                ),
+                severity: DegradationSeverity::Medium,
+            });
+        }
+
+        // 3. Apply CPU affinity ONLY to isolated CPUs (not general CPUs)
+        // Auto-pinning to general CPUs can cause issues - only pin when there
+        // are actual isolated CPUs dedicated for RT use
+        if !caps.isolated_cpus.is_empty() {
+            // Prefer isolated + nohz_full, then isolated only
+            let best_cpu = caps
+                .isolated_cpus
+                .iter()
+                .find(|cpu| caps.nohz_full_cpus.contains(cpu))
+                .or_else(|| caps.isolated_cpus.first())
+                .copied();
+
+            if let Some(cpu) = best_cpu {
+                match scheduler.apply_cpu_affinity_internal(cpu) {
+                    Ok(()) => {
+                        let cpu_type = if caps.nohz_full_cpus.contains(&cpu) {
+                            "isolated+nohz_full"
+                        } else {
+                            "isolated"
+                        };
+                        print_line(&format!(
+                            "[AUTO] Pinned to CPU {} ({})",
+                            cpu, cpu_type
+                        ).green().to_string());
+                    }
+                    Err(e) => {
+                        degradations.push(RtDegradation {
+                            feature: RtFeature::CpuAffinity,
+                            reason: e.to_string(),
+                            severity: DegradationSeverity::Low, // Low severity since isolated CPUs exist
+                        });
+                    }
+                }
+            }
+        }
+        // If no isolated CPUs, don't auto-pin - let the OS scheduler handle it
+
+        // 4. Note NUMA topology for future thread pool optimization
+        if caps.numa_node_count > 1 {
+            print_line(&format!(
+                "[AUTO] NUMA detected ({} nodes) - consider pinning node threads",
+                caps.numa_node_count
+            ).cyan().to_string());
+        }
+
+        // 5. Print capability summary
+        print_line(&caps.summary().cyan().to_string());
+
+        // 6. BlackBox enabled by default for crash analysis
+        print_line(&"[AUTO] BlackBox enabled (16MB buffer for crash analysis)".green().to_string());
+
+        // 7. SafetyMonitor with WCET enforcement enabled by default
+        print_line(&"[AUTO] SafetyMonitor enabled (WCET enforcement for RT nodes)".green().to_string());
+
+        // Store degradations
+        scheduler.rt_degradations = degradations;
+
+        // Print degradation warnings
+        if !scheduler.rt_degradations.is_empty() {
+            for deg in &scheduler.rt_degradations {
+                let severity_color = match deg.severity {
+                    DegradationSeverity::High => "red",
+                    DegradationSeverity::Medium => "yellow",
+                    DegradationSeverity::Low => "white",
+                };
+                let msg = format!("[WARN] {}: {}", deg.feature, deg.reason);
+                match severity_color {
+                    "red" => print_line(&msg.red().to_string()),
+                    "yellow" => print_line(&msg.yellow().to_string()),
+                    _ => print_line(&msg.white().to_string()),
+                }
+            }
+        }
+
+        scheduler
+    }
+
+    /// Create a **builder** for explicit control over all scheduler features.
+    ///
+    /// The builder pattern allows power users to configure every aspect of
+    /// the scheduler before construction. Unlike `new()` which auto-detects
+    /// and gracefully degrades, the builder with `strict()` will fail if
+    /// requested features cannot be applied.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// use horus_core::Scheduler;
+    ///
+    /// // Full control with builder
+    /// let scheduler = Scheduler::builder()
+    ///     .name("MyScheduler")
+    ///     .rt_priority(99)
+    ///     .memory_lock()
+    ///     .cpu_affinity(vec![7])
+    ///     .watchdog(100)
+    ///     .blackbox(16)
+    ///     .build()?;
+    ///
+    /// // Strict mode - fail on errors instead of degrading
+    /// let scheduler = Scheduler::builder()
+    ///     .rt_priority(99)
+    ///     .strict()
+    ///     .build()?;  // Returns Err if RT unavailable
+    /// ```
+    ///
+    /// # Available Methods
+    /// - **RT**: `rt_priority()`, `memory_lock()`, `cpu_affinity()`, `numa_aware()`
+    /// - **Determinism**: `deterministic()`, `seed()`, `virtual_time()`, `enable_tracing()`
+    /// - **Safety**: `watchdog()`, `wcet_enforcement()`, `circuit_breaker()`, `safety_monitor()`
+    /// - **Execution**: `parallel_executor()`, `isolated_executor()`, `async_io_executor()`
+    /// - **Recording**: `blackbox()`, `auto_record()`
+    /// - **Behavior**: `strict()`, `skip_detection()`
+    ///
+    /// # Presets
+    /// - `SchedulerBuilder::hard_realtime()` - Full RT features
+    /// - `SchedulerBuilder::simulation()` - Deterministic virtual time
+    /// - `SchedulerBuilder::prototype()` - Fast dev mode
+    /// - `SchedulerBuilder::safety_critical()` - Zero-tolerance, all safety features
+    pub fn builder() -> super::builder::SchedulerBuilder {
+        super::builder::SchedulerBuilder::new()
+    }
+
+    /// Internal: Apply RT priority without error on failure.
+    fn apply_rt_priority_internal(&self, priority: i32) -> crate::error::HorusResult<()> {
+        #[cfg(target_os = "linux")]
+        unsafe {
+            use libc::{sched_param, sched_setscheduler, SCHED_FIFO};
+
+            let param = sched_param {
+                sched_priority: priority,
+            };
+
+            if sched_setscheduler(0, SCHED_FIFO, &param) != 0 {
+                let err = std::io::Error::last_os_error();
+                return Err(crate::error::HorusError::Internal(format!(
+                    "sched_setscheduler failed: {}",
+                    err
+                )));
+            }
+            Ok(())
+        }
+
+        #[cfg(not(target_os = "linux"))]
+        {
+            Err(crate::error::HorusError::Unsupported(
+                "RT priority only on Linux".to_string(),
+            ))
+        }
+    }
+
+    /// Internal: Apply memory locking without error on failure.
+    fn apply_memory_lock_internal(&self) -> crate::error::HorusResult<()> {
+        #[cfg(target_os = "linux")]
+        unsafe {
+            use libc::{mlockall, MCL_CURRENT, MCL_FUTURE};
+
+            if mlockall(MCL_CURRENT | MCL_FUTURE) != 0 {
+                let err = std::io::Error::last_os_error();
+                return Err(crate::error::HorusError::Internal(format!(
+                    "mlockall failed: {}",
+                    err
+                )));
+            }
+            Ok(())
+        }
+
+        #[cfg(not(target_os = "linux"))]
+        {
+            Err(crate::error::HorusError::Unsupported(
+                "Memory locking only on Linux".to_string(),
+            ))
+        }
+    }
+
+    /// Internal: Apply CPU affinity without error on failure.
+    fn apply_cpu_affinity_internal(&self, cpu_id: usize) -> crate::error::HorusResult<()> {
+        #[cfg(target_os = "linux")]
+        unsafe {
+            use libc::{cpu_set_t, sched_setaffinity, CPU_SET, CPU_ZERO};
+
+            let mut cpuset: cpu_set_t = std::mem::zeroed();
+            CPU_ZERO(&mut cpuset);
+            CPU_SET(cpu_id, &mut cpuset);
+
+            if sched_setaffinity(0, std::mem::size_of::<cpu_set_t>(), &cpuset) != 0 {
+                let err = std::io::Error::last_os_error();
+                return Err(crate::error::HorusError::Internal(format!(
+                    "sched_setaffinity failed: {}",
+                    err
+                )));
+            }
+            Ok(())
+        }
+
+        #[cfg(not(target_os = "linux"))]
+        {
+            Err(crate::error::HorusError::Unsupported(
+                "CPU affinity only on Linux".to_string(),
+            ))
+        }
+    }
+
+    /// Get the detected runtime capabilities.
+    ///
+    /// Returns `None` if `Scheduler::simulation()` was used (skips detection).
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// if let Some(caps) = scheduler.capabilities() {
+    ///     if caps.has_hard_rt_support() {
+    ///         println!("Hard RT available!");
+    ///     }
+    /// }
+    /// ```
+    pub fn capabilities(&self) -> Option<&RuntimeCapabilities> {
+        self.runtime_capabilities.as_ref()
+    }
+
+    /// Get the list of RT features that degraded during auto-optimization.
+    ///
+    /// An empty list means all detected features were successfully applied.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// for deg in scheduler.degradations() {
+    ///     match deg.severity {
+    ///         DegradationSeverity::High => {
+    ///             eprintln!("CRITICAL: {} - {}", deg.feature, deg.reason);
+    ///         }
+    ///         _ => {
+    ///             println!("Note: {} - {}", deg.feature, deg.reason);
+    ///         }
+    ///     }
+    /// }
+    /// ```
+    pub fn degradations(&self) -> &[RtDegradation] {
+        &self.rt_degradations
+    }
+
+    /// Check if the scheduler has full RT capabilities (no high-severity degradations).
+    pub fn has_full_rt(&self) -> bool {
+        !self.rt_degradations.iter().any(|d| d.severity == DegradationSeverity::High)
+    }
+
+    /// Record a degradation (used internally by SchedulerBuilder).
+    ///
+    /// This allows the builder to transfer degradations that occurred during
+    /// configuration to the scheduler instance.
+    pub(crate) fn record_degradation(&mut self, degradation: RtDegradation) {
+        self.rt_degradations.push(degradation);
+    }
+
+    /// Set runtime capabilities (used internally by SchedulerBuilder).
+    ///
+    /// This allows the builder to transfer detected capabilities to the
+    /// scheduler instance.
+    pub(crate) fn set_runtime_capabilities(&mut self, caps: RuntimeCapabilities) {
+        self.runtime_capabilities = Some(caps);
+    }
+
+    /// Set the blackbox flight recorder (used internally by SchedulerBuilder).
+    ///
+    /// This allows the builder to configure a blackbox for the scheduler.
+    pub(crate) fn set_blackbox(&mut self, blackbox: super::blackbox::BlackBox) {
+        self.blackbox = Some(blackbox);
+    }
+
+    /// Get a reference to the BlackBox flight recorder.
+    ///
+    /// The BlackBox automatically records critical events for post-mortem crash analysis:
+    /// - Scheduler start/stop
+    /// - Node additions
+    /// - Deadline misses
+    /// - WCET violations
+    /// - Circuit breaker state changes
+    /// - Emergency stops
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// use horus_core::Scheduler;
+    ///
+    /// let scheduler = Scheduler::new();
+    ///
+    /// // Access the blackbox for debugging
+    /// if let Some(bb) = scheduler.blackbox() {
+    ///     // Get recent events
+    ///     let events = bb.recent(100);
+    ///     println!("Last 100 events: {:?}", events.len());
+    /// }
+    /// ```
+    pub fn blackbox(&self) -> Option<&super::blackbox::BlackBox> {
+        self.blackbox.as_ref()
+    }
+
+    /// Get a mutable reference to the BlackBox flight recorder.
+    ///
+    /// Use this to manually record custom events or configure persistence.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// use horus_core::Scheduler;
+    /// use horus_core::scheduling::BlackBoxEvent;
+    ///
+    /// let mut scheduler = Scheduler::new();
+    ///
+    /// // Record a custom event
+    /// if let Some(bb) = scheduler.blackbox_mut() {
+    ///     bb.record(BlackBoxEvent::Custom {
+    ///         category: "safety".to_string(),
+    ///         message: "Manual override activated".to_string(),
+    ///     });
+    /// }
+    /// ```
+    pub fn blackbox_mut(&mut self) -> Option<&mut super::blackbox::BlackBox> {
+        self.blackbox.as_mut()
+    }
+
+    /// Get the circuit breaker state for a specific node.
+    ///
+    /// Returns the current circuit state (Closed, Open, or HalfOpen) for
+    /// the node with the given name.
+    ///
+    /// # Arguments
+    /// - `node_name` - The name of the node to check
+    ///
+    /// # Returns
+    /// - `Some(CircuitState)` - The circuit state if the node exists
+    /// - `None` - If no node with that name exists
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// use horus_core::Scheduler;
+    /// use horus_core::scheduling::CircuitState;
+    ///
+    /// let scheduler = Scheduler::new();
+    /// scheduler.add(Box::new(my_node), 10, None);
+    ///
+    /// if let Some(state) = scheduler.circuit_state("my_node") {
+    ///     match state {
+    ///         CircuitState::Closed => println!("Node healthy"),
+    ///         CircuitState::Open => println!("Node isolated (failing)"),
+    ///         CircuitState::HalfOpen => println!("Testing recovery"),
+    ///     }
+    /// }
+    /// ```
+    pub fn circuit_state(&self, node_name: &str) -> Option<super::fault_tolerance::CircuitState> {
+        self.nodes
+            .iter()
+            .find(|n| n.node.name() == node_name)
+            .map(|n| n.circuit_breaker.get_state())
+    }
+
+    /// Get a summary of all circuit breaker states.
+    ///
+    /// Returns counts of circuits in each state:
+    /// - `closed` - Normal operation, requests allowed
+    /// - `open` - Failing, requests blocked
+    /// - `half_open` - Testing recovery
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// use horus_core::Scheduler;
+    ///
+    /// let scheduler = Scheduler::new();
+    /// // ... add some nodes ...
+    ///
+    /// let (closed, open, half_open) = scheduler.circuit_summary();
+    /// println!("{} healthy, {} isolated, {} recovering", closed, open, half_open);
+    /// ```
+    pub fn circuit_summary(&self) -> (usize, usize, usize) {
+        let mut closed = 0;
+        let mut open = 0;
+        let mut half_open = 0;
+
+        for node in &self.nodes {
+            match node.circuit_breaker.get_state() {
+                super::fault_tolerance::CircuitState::Closed => closed += 1,
+                super::fault_tolerance::CircuitState::Open => open += 1,
+                super::fault_tolerance::CircuitState::HalfOpen => half_open += 1,
+            }
+        }
+
+        (closed, open, half_open)
+    }
+
+    /// Get safety statistics including WCET overruns, deadline misses, and watchdog expirations.
+    ///
+    /// Returns `None` if the safety monitor is not enabled.
+    ///
+    /// The returned `SafetyStats` contains:
+    /// - `state`: Current safety state (Normal, Degraded, EmergencyStop, SafeMode)
+    /// - `wcet_overruns`: Number of WCET budget violations
+    /// - `deadline_misses`: Number of deadline misses
+    /// - `watchdog_expirations`: Number of watchdog timeouts
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// let scheduler = Scheduler::new();
+    /// // ... run scheduler for a while ...
+    ///
+    /// if let Some(stats) = scheduler.safety_stats() {
+    ///     println!("WCET overruns: {}", stats.wcet_overruns);
+    ///     println!("Deadline misses: {}", stats.deadline_misses);
+    /// }
+    /// ```
+    pub fn safety_stats(&self) -> Option<super::safety_monitor::SafetyStats> {
+        self.safety_monitor.as_ref().map(|m| m.get_stats())
+    }
+
+    /// Get the scheduler name.
+    ///
+    /// Returns the name assigned to this scheduler instance.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// let scheduler = Scheduler::builder()
+    ///     .name("MyScheduler")
+    ///     .build()?;
+    /// assert_eq!(scheduler.get_name(), "MyScheduler");
+    /// ```
+    pub fn get_name(&self) -> &str {
+        &self.scheduler_name
+    }
+
+    /// Get a formatted status report of the scheduler's configuration and state.
+    ///
+    /// Returns a human-readable string showing:
+    /// - Scheduler name and platform
+    /// - RT features status (priority, memory lock, CPU affinity)
+    /// - Determinism mode (simulation vs real-time)
+    /// - Safety features (monitor, watchdog, blackbox)
+    /// - Any degradations that occurred during initialization
+    ///
+    /// This is useful for debugging and auditing scheduler configuration.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// let scheduler = Scheduler::new();
+    /// println!("{}", scheduler.status());
+    /// // Output:
+    /// // ==================================================================
+    /// // SCHEDULER STATUS: AutoOptimized
+    /// // ==================================================================
+    /// // Platform: Linux 5.15.0-generic (8 CPUs, 1 NUMA nodes)
+    /// // ------------------------------------------------------------------
+    /// // RT Features:
+    /// //   [x] PREEMPT_RT kernel
+    /// //   [ ] RT Priority (max=0)
+    /// //   [x] Memory Lock (limit=64MB)
+    /// //   [ ] Isolated CPUs: []
+    /// // ------------------------------------------------------------------
+    /// // Execution Mode:
+    /// //   [ ] Simulation Mode (deterministic)
+    /// //   [x] Real-time Mode
+    /// // ------------------------------------------------------------------
+    /// // Safety Features:
+    /// //   [ ] Safety Monitor
+    /// //   [ ] BlackBox Recorder
+    /// // ==================================================================
+    /// ```
+    pub fn status(&self) -> String {
+        let mut lines = Vec::new();
+        let sep = "==================================================================";
+        let thin_sep = "------------------------------------------------------------------";
+
+        // Header
+        lines.push(sep.to_string());
+        lines.push(format!("SCHEDULER STATUS: {}", self.scheduler_name));
+        lines.push(sep.to_string());
+
+        // Platform info
+        if let Some(caps) = &self.runtime_capabilities {
+            lines.push(format!(
+                "Platform: {} ({} CPUs, {} NUMA nodes)",
+                caps.kernel_version, caps.cpu_count, caps.numa_node_count
+            ));
+
+            lines.push(thin_sep.to_string());
+            lines.push("RT Features:".to_string());
+            lines.push(format!(
+                "  [{}] PREEMPT_RT kernel",
+                if caps.preempt_rt { "x" } else { " " }
+            ));
+            lines.push(format!(
+                "  [{}] RT Priority (max={})",
+                if caps.rt_priority_available { "x" } else { " " },
+                caps.max_rt_priority
+            ));
+            lines.push(format!(
+                "  [{}] Memory Lock (limit={}MB)",
+                if caps.mlockall_permitted { "x" } else { " " },
+                caps.memlock_limit_bytes / (1024 * 1024)
+            ));
+            lines.push(format!(
+                "  [{}] Isolated CPUs: {:?}",
+                if !caps.isolated_cpus.is_empty() { "x" } else { " " },
+                caps.isolated_cpus
+            ));
+            lines.push(format!(
+                "  [{}] Tickless CPUs (nohz_full): {:?}",
+                if !caps.nohz_full_cpus.is_empty() { "x" } else { " " },
+                caps.nohz_full_cpus
+            ));
+        } else {
+            lines.push("Platform: (capabilities not detected)".to_string());
+        }
+
+        // Execution mode
+        lines.push(thin_sep.to_string());
+        lines.push("Execution Mode:".to_string());
+        let is_sim = self.is_simulation_mode();
+        lines.push(format!(
+            "  [{}] Simulation Mode (deterministic)",
+            if is_sim { "x" } else { " " }
+        ));
+        lines.push(format!(
+            "  [{}] Real-time Mode",
+            if !is_sim { "x" } else { " " }
+        ));
+
+        // Safety features
+        lines.push(thin_sep.to_string());
+        lines.push("Safety Features:".to_string());
+        lines.push(format!(
+            "  [{}] Safety Monitor",
+            if self.safety_monitor.is_some() { "x" } else { " " }
+        ));
+        lines.push(format!(
+            "  [{}] BlackBox Recorder",
+            if self.blackbox.is_some() { "x" } else { " " }
+        ));
+        lines.push(format!(
+            "  [{}] Checkpoint Manager",
+            if self.checkpoint_manager.is_some() { "x" } else { " " }
+        ));
+        lines.push(format!(
+            "  [{}] Telemetry",
+            if self.telemetry.is_some() { "x" } else { " " }
+        ));
+        lines.push(format!(
+            "  [{}] Redundancy Manager",
+            if self.redundancy.is_some() { "x" } else { " " }
+        ));
+        // Circuit breakers are always enabled per-node
+        lines.push("  [x] Circuit Breakers (5 failures, 30s timeout)".to_string());
+        // WCET enforcement is enabled when SafetyMonitor is present
+        let has_wcet = self.safety_monitor.is_some()
+            && self.nodes.iter().any(|n| n.wcet_budget.is_some());
+        lines.push(format!(
+            "  [{}] WCET Enforcement (RT nodes)",
+            if has_wcet { "x" } else { " " }
+        ));
+
+        // WCET Stats (if safety monitor enabled and has data)
+        if let Some(ref monitor) = self.safety_monitor {
+            let stats = monitor.get_stats();
+            if stats.wcet_overruns > 0 || stats.deadline_misses > 0 {
+                lines.push(thin_sep.to_string());
+                lines.push("WCET / Deadline Statistics:".to_string());
+                if stats.wcet_overruns > 0 {
+                    lines.push(format!("  [WARN] {} WCET overruns", stats.wcet_overruns));
+                } else {
+                    lines.push("  [OK] No WCET overruns".to_string());
+                }
+                if stats.deadline_misses > 0 {
+                    lines.push(format!("  [WARN] {} deadline misses", stats.deadline_misses));
+                } else {
+                    lines.push("  [OK] No deadline misses".to_string());
+                }
+            }
+        }
+
+        // Node Health (circuit breaker states)
+        if !self.nodes.is_empty() {
+            lines.push(thin_sep.to_string());
+            lines.push("Node Health (Circuit Breakers):".to_string());
+            let mut open_circuits = 0;
+            let mut half_open_circuits = 0;
+            for node in &self.nodes {
+                let state = node.circuit_breaker.get_state();
+                match state {
+                    super::fault_tolerance::CircuitState::Open => open_circuits += 1,
+                    super::fault_tolerance::CircuitState::HalfOpen => half_open_circuits += 1,
+                    super::fault_tolerance::CircuitState::Closed => {}
+                }
+            }
+            if open_circuits == 0 && half_open_circuits == 0 {
+                lines.push(format!(
+                    "  [OK] All {} nodes healthy (circuits closed)",
+                    self.nodes.len()
+                ));
+            } else {
+                lines.push(format!(
+                    "  [WARN] {} open, {} half-open, {} closed",
+                    open_circuits,
+                    half_open_circuits,
+                    self.nodes.len() - open_circuits - half_open_circuits
+                ));
+                // List unhealthy nodes
+                for node in &self.nodes {
+                    let state = node.circuit_breaker.get_state();
+                    match state {
+                        super::fault_tolerance::CircuitState::Open => {
+                            lines.push(format!("    - {}: OPEN (isolated)", node.node.name()));
+                        }
+                        super::fault_tolerance::CircuitState::HalfOpen => {
+                            lines.push(format!(
+                                "    - {}: HALF-OPEN (testing recovery)",
+                                node.node.name()
+                            ));
+                        }
+                        super::fault_tolerance::CircuitState::Closed => {}
+                    }
+                }
+            }
+        }
+
+        // Degradations (if any)
+        if !self.rt_degradations.is_empty() {
+            lines.push(thin_sep.to_string());
+            lines.push("Degradations:".to_string());
+            for deg in &self.rt_degradations {
+                let severity_tag = match deg.severity {
+                    DegradationSeverity::High => "[HIGH]",
+                    DegradationSeverity::Medium => "[MED] ",
+                    DegradationSeverity::Low => "[LOW] ",
+                };
+                lines.push(format!(
+                    "  {} {:?}: {}",
+                    severity_tag, deg.feature, deg.reason
+                ));
+            }
+        }
+
+        // Footer
+        lines.push(sep.to_string());
+
+        lines.join("\n")
+    }
+
+    // =========================================================================
+    // Deterministic Execution Accessors (Simulation Mode)
+    // =========================================================================
+
+    /// Check if this scheduler is running in simulation mode (deterministic execution).
+    ///
+    /// Returns `true` if the scheduler was created with `Scheduler::simulation()` or
+    /// `Scheduler::simulation_with_seed()`, which enables virtual time, seeded RNG,
+    /// and execution tracing.
+    pub fn is_simulation_mode(&self) -> bool {
+        self.deterministic_clock.is_some()
+    }
+
+    /// Get the deterministic clock (simulation mode only).
+    ///
+    /// The deterministic clock provides:
+    /// - Virtual time that advances predictably per tick
+    /// - Seeded RNG for reproducible randomness
+    /// - Tick counting for execution tracing
+    ///
+    /// Returns `None` if not in simulation mode.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// let scheduler = Scheduler::simulation_with_seed(12345);
+    /// if let Some(clock) = scheduler.deterministic_clock() {
+    ///     println!("Virtual time: {:?}", clock.now());
+    ///     println!("Tick: {}", clock.tick());
+    ///     println!("Random u64: {}", clock.random_u64());
+    /// }
+    /// ```
+    pub fn deterministic_clock(&self) -> Option<Arc<DeterministicClock>> {
+        self.deterministic_clock.clone()
+    }
+
+    /// Get the execution trace (simulation mode only).
+    ///
+    /// The execution trace records all node executions with timing data for:
+    /// - Reproducibility verification (compare two runs)
+    /// - Debugging (replay execution to find bugs)
+    /// - Performance analysis (identify slow nodes)
+    ///
+    /// Returns `None` if not in simulation mode.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// let scheduler = Scheduler::simulation();
+    /// // ... run scheduler ...
+    /// if let Some(trace_lock) = scheduler.execution_trace() {
+    ///     let trace = trace_lock.lock();
+    ///     println!("Total ticks: {}", trace.total_ticks);
+    ///     trace.save(Path::new("execution_trace.json")).unwrap();
+    /// }
+    /// ```
+    pub fn execution_trace(&self) -> Option<Arc<ParkingMutex<ExecutionTrace>>> {
+        self.execution_trace.clone()
+    }
+
+    /// Get the debug assistant (simulation mode only).
+    ///
+    /// The debug assistant provides AI-powered issue detection:
+    /// - Timing violation detection
+    /// - Jitter analysis
+    /// - Message loss detection
+    /// - Sensor anomaly detection
+    /// - Control instability detection
+    ///
+    /// Returns `None` if not in simulation mode.
+    pub fn debug_assistant(&self) -> Option<&DebugAssistant> {
+        self.debug_assistant.as_ref()
+    }
+
+    /// Get the deterministic configuration (simulation mode only).
+    ///
+    /// Contains the seed, tick duration, and tracing settings.
+    pub fn deterministic_config(&self) -> Option<&DeterministicConfig> {
+        self.deterministic_config.as_ref()
+    }
+
+    /// Get the seed used for deterministic RNG (simulation mode only).
+    ///
+    /// Returns `None` if not in simulation mode.
+    pub fn seed(&self) -> Option<u64> {
+        self.deterministic_config.as_ref().map(|c| c.seed)
+    }
+
+    /// Get the current virtual time (simulation mode only).
+    ///
+    /// Returns `None` if not in simulation mode.
+    pub fn virtual_time(&self) -> Option<Duration> {
+        self.deterministic_clock.as_ref().map(|c| c.now())
+    }
+
+    /// Get the current virtual tick number (simulation mode only).
+    ///
+    /// Returns `None` if not in simulation mode.
+    pub fn virtual_tick(&self) -> Option<u64> {
+        self.deterministic_clock.as_ref().map(|c| c.tick())
+    }
+
+    /// Create a scheduler optimized for **simulation and research**.
+    ///
+    /// This constructor is designed for lab environments where reproducibility
+    /// and debugging are more important than real-time performance:
+    ///
+    /// - **No capability detection**: Skips RT feature detection entirely
+    /// - **No RT features applied**: No SCHED_FIFO, mlockall, or CPU pinning
+    /// - **Deterministic execution**: Reproducible results across runs
+    /// - **BlackBox enabled**: Flight recorder for post-mortem debugging
+    /// - **Fast startup**: No detection overhead (~10μs vs ~100μs)
+    ///
+    /// # Use Cases
+    /// - Simulation environments (Gazebo, MuJoCo, PyBullet)
+    /// - Research and algorithm development
+    /// - CI/CD pipeline testing
+    /// - Reproducible debugging of node behavior
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// use horus_core::Scheduler;
+    ///
+    /// let scheduler = Scheduler::simulation();  // Fast, deterministic
+    ///
+    /// // No capabilities detected (intentionally)
+    /// assert!(scheduler.capabilities().is_none());
+    ///
+    /// // No degradations (RT wasn't attempted)
+    /// assert!(scheduler.degradations().is_empty());
+    /// ```
+    ///
+    /// # Related Constructors
+    /// - `Scheduler::new()` - Auto-optimizes for production with RT features
+    /// - `Scheduler::prototype()` - Development mode with verbose logging
+    /// - `Scheduler::builder()` - Full manual control
+    pub fn simulation() -> Self {
+        Self::simulation_with_seed(42)
+    }
+
+    /// Create a **simulation scheduler with a specific seed** for reproducibility.
+    ///
+    /// Same as `simulation()` but allows specifying the RNG seed for
+    /// reproducible randomness across runs.
+    ///
+    /// # Arguments
+    /// - `seed` - The seed for deterministic RNG (same seed = same random sequence)
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// use horus_core::Scheduler;
+    ///
+    /// // Run 1: seed 12345
+    /// let scheduler1 = Scheduler::simulation_with_seed(12345);
+    ///
+    /// // Run 2: same seed = identical random behavior
+    /// let scheduler2 = Scheduler::simulation_with_seed(12345);
+    /// ```
+    pub fn simulation_with_seed(seed: u64) -> Self {
+        let running = Arc::new(Mutex::new(true));
+        let now = Instant::now();
+
+        // Create deterministic configuration
+        let det_config = DeterministicConfig {
+            seed,
+            virtual_time: true,
+            tick_duration_ns: 16_667_000, // ~60Hz = 16.667ms per tick
+            record_trace: true,
+        };
+
+        // Create deterministic clock (virtual time + seeded RNG)
+        let det_clock = Arc::new(DeterministicClock::new(&det_config));
+
+        // Create execution trace for replay/verification
+        let exec_trace = Arc::new(ParkingMutex::new(ExecutionTrace::new(det_config.clone())));
+
+        // Create debug assistant for issue detection
+        let debug_assistant = DebugAssistant::new();
+
+        print_line(&"[SIMULATION] Creating deterministic scheduler".cyan().to_string());
+        print_line(&format!("  - Seed: {}", seed).white().to_string());
+        print_line(&"  - Virtual time enabled (DeterministicClock)".white().to_string());
+        print_line(&"  - Execution trace enabled (replay/verification)".white().to_string());
+        print_line(&"  - Debug assistant enabled (AI issue detection)".white().to_string());
+        print_line(&"  - BlackBox flight recorder enabled".white().to_string());
+        print_line(&"  - No RT features (conflicts with virtual time)".white().to_string());
+
+        // Create BlackBox for debugging (8MB buffer)
+        let mut blackbox = super::blackbox::BlackBox::new(8);
+        blackbox.record(super::blackbox::BlackBoxEvent::SchedulerStart {
+            name: "SimulationScheduler".to_string(),
+            node_count: 0,
+            config: format!("simulation_mode, seed={}", seed),
+        });
+
+        Self {
+            nodes: Vec::new(),
+            running,
+            last_instant: now,
+            last_snapshot: now,
+            scheduler_name: "SimulationScheduler".to_string(),
+            working_dir: std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/")),
+
+            // Intelligence layer - deterministic mode
+            profiler: RuntimeProfiler::new_default(),
+            dependency_graph: None,
+            classifier: None,
+            parallel_executor: ParallelExecutor::new(),
+            async_io_executor: None,
+            async_result_rx: None,
+            async_result_tx: None,
+            background_executor: None,
+            isolated_executor: None,
+            learning_complete: true, // Skip learning for deterministic behavior
+
+            // JIT compilation
+            jit_compiled_nodes: HashMap::new(),
+
+            // Configuration
+            config: None,
+
+            // Safety monitor (disabled for simulation - not needed)
+            safety_monitor: None,
+
+            // Runtime features
+            tick_period: Duration::from_micros(16667), // ~60Hz default
+            checkpoint_manager: None,
+            blackbox: Some(blackbox), // Enabled for debugging
+            telemetry: None,
+            redundancy: None,
+
+            // Deterministic topology tracking
+            topology_locked: false,
+            collected_publishers: Vec::new(),
+            collected_subscribers: Vec::new(),
+
+            // Record/Replay system (disabled by default, user can enable)
+            recording_config: None,
+            scheduler_recording: None,
+            replay_mode: None,
+            replay_nodes: HashMap::new(),
+            replay_overrides: HashMap::new(),
+            current_tick: 0,
+            replay_stop_tick: None,
+            replay_speed: 1.0,
+
+            // NO capability detection - this is intentional for simulation
+            // (RT features conflict with virtual time)
+            runtime_capabilities: None,
+            rt_degradations: Vec::new(), // Empty - RT wasn't attempted
+
+            // DETERMINISTIC EXECUTION (enabled for simulation)
+            deterministic_clock: Some(det_clock),
+            execution_trace: Some(exec_trace),
+            debug_assistant: Some(debug_assistant),
+            deterministic_config: Some(det_config),
+        }
+    }
+
+    /// Create a scheduler optimized for **rapid prototyping and development**.
+    ///
+    /// This constructor is designed for development workflows where you need
+    /// verbose feedback and fast iteration:
+    ///
+    /// - **No capability detection**: Fast startup without RT overhead
+    /// - **Verbose logging**: Detailed output about scheduler operations
+    /// - **Safety monitor**: Catches deadline misses during development
+    /// - **No RT features**: Development machines typically lack RT permissions
+    ///
+    /// # Use Cases
+    /// - Local development on developer workstations
+    /// - Quick testing of node implementations
+    /// - Prototyping new algorithms before moving to RT hardware
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// use horus_core::Scheduler;
+    ///
+    /// let mut scheduler = Scheduler::prototype();
+    /// scheduler.add(Box::new(my_node), 0, Some(true)); // Logging enabled
+    /// scheduler.run();
+    /// ```
+    ///
+    /// # Related Constructors
+    /// - `Scheduler::new()` - Auto-optimizes for production with RT features
+    /// - `Scheduler::simulation()` - Deterministic mode for research
+    /// - `Scheduler::builder()` - Full manual control
+    pub fn prototype() -> Self {
+        let running = Arc::new(Mutex::new(true));
+        let now = Instant::now();
+
+        print_line(&"[PROTOTYPE] Creating development scheduler".magenta().to_string());
+        print_line(&"  - No RT detection (dev machine)".white().to_string());
+        print_line(&"  - Safety monitor enabled".white().to_string());
+        print_line(&"  - Verbose logging recommended".white().to_string());
+
+        Self {
+            nodes: Vec::new(),
+            running,
+            last_instant: now,
+            last_snapshot: now,
+            scheduler_name: "PrototypeScheduler".to_string(),
+            working_dir: std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/")),
+
+            // Intelligence layer
+            profiler: RuntimeProfiler::new_default(),
+            dependency_graph: None,
+            classifier: None,
+            parallel_executor: ParallelExecutor::new(),
+            async_io_executor: None,
+            async_result_rx: None,
+            async_result_tx: None,
+            background_executor: None,
+            isolated_executor: None,
+            learning_complete: true, // Skip learning for quick startup
+
+            // JIT compilation
+            jit_compiled_nodes: HashMap::new(),
+
+            // Configuration
+            config: None,
+
+            // Safety monitor (enabled for dev feedback)
+            safety_monitor: Some(SafetyMonitor::new(10)), // Generous deadline miss limit
+
+            // Runtime features
+            tick_period: Duration::from_micros(16667), // ~60Hz default
+            checkpoint_manager: None,
+            blackbox: None, // Not needed for prototyping
+            telemetry: None,
+            redundancy: None,
+
+            // Deterministic topology tracking
+            topology_locked: false,
+            collected_publishers: Vec::new(),
+            collected_subscribers: Vec::new(),
+
+            // Record/Replay system
+            recording_config: None,
+            scheduler_recording: None,
+            replay_mode: None,
+            replay_nodes: HashMap::new(),
+            replay_overrides: HashMap::new(),
+            current_tick: 0,
+            replay_stop_tick: None,
+            replay_speed: 1.0,
+
+            // NO capability detection - fast startup for dev
+            runtime_capabilities: None,
+            rt_degradations: Vec::new(),
+
+            // Deterministic execution (disabled in prototype mode)
+            deterministic_clock: None,
+            execution_trace: None,
+            debug_assistant: None,
+            deterministic_config: None,
         }
     }
 
@@ -1303,22 +2488,37 @@ impl Scheduler {
     ///     Ok(())
     /// }
     /// ```
+    /// Create a hard real-time scheduler with strict mode.
+    ///
+    /// This constructor uses auto-optimization to detect and apply RT features:
+    /// - SCHED_FIFO priority 99
+    /// - Memory locking (mlockall)
+    /// - Safety monitor with watchdog
+    /// - WCET enforcement
+    ///
+    /// **Strict mode**: Returns an error if RT features are unavailable.
+    /// Use `Scheduler::new()` for graceful degradation on non-RT systems.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Running without root/CAP_SYS_NICE privileges
+    /// - RT scheduling is not available on the platform
+    /// - Memory locking fails
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use horus_core::Scheduler;
+    ///
+    /// // Requires root or CAP_SYS_NICE capability
+    /// let scheduler = Scheduler::new_realtime()?;
+    /// # Ok::<(), horus_core::error::HorusError>(())
+    /// ```
     pub fn new_realtime() -> crate::error::HorusResult<Self> {
-        let sched = Self::new()
-            .with_config(super::config::SchedulerConfig::hard_realtime())
-            .with_capacity(128)
-            .enable_determinism() // Use unified determinism API
-            .with_safety_monitor(3)
-            .with_name("RealtimeScheduler");
-
-        println!("[FAST] Real-time scheduler initialized");
-        println!("   - Config: hard_realtime() preset");
-        println!("   - Capacity: 128 nodes pre-allocated");
-        println!("   - Determinism: ENABLED");
-        println!("   - Safety monitor: ENABLED (max 3 misses)");
-        println!("   - Next: Call set_realtime_priority(99), pin_to_cpu(N), lock_memory()");
-
-        Ok(sched)
+        super::builder::SchedulerBuilder::hard_realtime()
+            .strict()
+            .build()
     }
 
     /// Create a deterministic scheduler (convenience constructor)
@@ -1691,7 +2891,7 @@ impl Scheduler {
             } else {
                 None
             },
-            circuit_breaker: CircuitBreaker::new(5, 3, 5000), // 5 failures to open, 3 successes to close, 5s timeout
+            circuit_breaker: CircuitBreaker::new(5, 3, 30000), // 5 failures to open, 3 successes to close, 30s timeout
             is_rt_node,
             wcet_budget,
             deadline,
@@ -1766,7 +2966,7 @@ impl Scheduler {
             } else {
                 None
             },
-            circuit_breaker: CircuitBreaker::new(5, 3, 5000),
+            circuit_breaker: CircuitBreaker::new(5, 3, 30000), // 5 failures, 3 successes, 30s timeout
             is_rt_node: true,
             wcet_budget: Some(wcet_budget),
             deadline: Some(deadline),
@@ -3230,7 +4430,7 @@ impl Scheduler {
                         jit_stats.exec_count,
                         avg_ns,
                         if jit_executed { "[NATIVE]" } else { "[TICK]" },
-                        if is_fast { "✓" } else { "SLOW" }
+                        if is_fast { "x" } else { "SLOW" }
                     );
                 }
             }
@@ -4129,5 +5329,73 @@ mod tests {
         // This is a static function that cleans up heartbeat files
         // Just verify it doesn't panic
         Scheduler::cleanup_heartbeats();
+    }
+
+    // ============================================================================
+    // Auto-Optimization Tests
+    // ============================================================================
+
+    #[test]
+    fn test_scheduler_auto_optimization() {
+        // Test that Scheduler::new() auto-detects capabilities
+        let scheduler = Scheduler::new();
+
+        // Should have detected capabilities
+        assert!(
+            scheduler.capabilities().is_some(),
+            "Scheduler should detect runtime capabilities"
+        );
+
+        let caps = scheduler.capabilities().unwrap();
+
+        // Verify capabilities structure
+        assert!(caps.cpu_count > 0, "Should detect at least 1 CPU");
+        assert!(!caps.kernel_version.is_empty(), "Should detect kernel version");
+
+        // Should have safety monitor enabled by default
+        assert!(scheduler.safety_monitor.is_some());
+    }
+
+    #[test]
+    fn test_scheduler_degradations() {
+        let scheduler = Scheduler::new();
+
+        // Degradations should be a non-empty list in most dev environments
+        // (typically no RT priority available without root/CAP_SYS_NICE)
+        let degradations = scheduler.degradations();
+
+        // On a development machine without RT permissions, we expect degradations
+        // On a properly configured RT machine, this list might be empty
+        // Either case is valid - we just verify the API works
+        for deg in degradations {
+            // Verify all fields are populated
+            assert!(!deg.reason.is_empty(), "Degradation should have a reason");
+            // Verify Display impl works
+            let _ = format!("{}", deg.feature);
+        }
+    }
+
+    #[test]
+    fn test_scheduler_has_full_rt() {
+        let scheduler = Scheduler::new();
+
+        // has_full_rt() should return false if there are high-severity degradations
+        let has_high = scheduler
+            .degradations()
+            .iter()
+            .any(|d| d.severity == DegradationSeverity::High);
+
+        assert_eq!(!has_high, scheduler.has_full_rt());
+    }
+
+    #[test]
+    fn test_rt_feature_display() {
+        // Test Display implementations for all RtFeature variants
+        assert_eq!(format!("{}", RtFeature::RtPriority), "RT Priority");
+        assert_eq!(format!("{}", RtFeature::MemoryLocking), "Memory Locking");
+        assert_eq!(format!("{}", RtFeature::CpuAffinity), "CPU Affinity");
+        assert_eq!(format!("{}", RtFeature::NumaPinning), "NUMA Pinning");
+        assert_eq!(format!("{}", RtFeature::Watchdog), "Watchdog");
+        assert_eq!(format!("{}", RtFeature::SafetyMonitor), "Safety Monitor");
     }
 }

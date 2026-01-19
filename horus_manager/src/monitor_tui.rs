@@ -789,7 +789,7 @@ impl TuiDashboard {
                     .fg(Color::Cyan)
                     .add_modifier(Modifier::BOLD),
             ),
-            Span::raw("v0.1.6 | "),
+            Span::raw("v0.1.7 | "),
             Span::styled(
                 status.to_string(),
                 Style::default().fg(if self.paused {

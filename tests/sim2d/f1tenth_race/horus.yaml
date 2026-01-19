@@ -1,6 +1,6 @@
 # F1Tenth Adaptive Racing - HORUS Project Configuration
 name: f1tenth_race
-version: "0.1.0"
+version: "0.1.7"
 description: "F1Tenth autonomous racing with adaptive learning"
 
 # Node configuration

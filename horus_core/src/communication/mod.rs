@@ -27,9 +27,28 @@
 //! let topic: Topic<CmdVel, Pod> = Topic::with_mode("motor_cmd").unwrap();
 //! ```
 //!
-//! ## PodMessage Trait
+//! ## Automatic POD Detection
 //!
-//! For ultra-low latency (~50ns), use POD types with the `PodMessage` trait:
+//! HORUS automatically detects POD types - no registration needed!
+//!
+//! ```rust,ignore
+//! // Just define your struct - HORUS auto-detects it as POD
+//! struct MotorCommand {
+//!     velocity: f32,
+//!     torque: f32,
+//! }
+//!
+//! // Use it directly - zero-copy path selected automatically
+//! let topic: Topic<MotorCommand> = Topic::new("motor")?;
+//! topic.send(MotorCommand { velocity: 1.0, torque: 0.5 })?;
+//! ```
+//!
+//! Types are POD if `!std::mem::needs_drop::<T>()` - this automatically
+//! excludes String, Vec, Box, and any type containing heap pointers.
+//!
+//! ## PodMessage Trait (Optional)
+//!
+//! For explicit POD types with bytemuck guarantees, you can still use `PodMessage`:
 //!
 //! ```rust,ignore
 //! use horus_core::communication::PodMessage;
@@ -46,6 +65,7 @@
 //! unsafe impl PodMessage for MotorCommand {}
 //! ```
 
+pub mod adaptive_topic;
 pub mod config;
 pub mod network;
 pub mod pod;
@@ -57,8 +77,9 @@ pub mod traits;
 
 // Re-export commonly used types for convenience
 pub use config::{EndpointConfig, HorusConfig};
-pub use pod::{PodMessage, is_registered_pod, registered_pod_count, registered_pod_types};
+pub use pod::{is_pod, PodMessage};
 pub use smart_detect::{SmartTopicHeader, DetectedPattern, RecommendedBackend, DetectionResult, smart_detect};
+pub use adaptive_topic::{AdaptiveTopic, AdaptiveBackendMode, TopicRole, AdaptiveMetrics, MigrationResult};
 pub use storage::AccessMode;
 pub use topic::{
     AccessPattern, Auto, BackendHint, ConnectionState, Mpmc, MpmcIntraBackend, MpscIntraBackend,
