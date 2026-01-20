@@ -129,16 +129,21 @@ pub fn prefetch(addr: *const u8, hint: PrefetchHint) {
 /// * `len` - Number of bytes to prefetch
 /// * `hint` - Cache level hint
 ///
+/// # Safety
+/// - `addr` must be valid for reads of `len` bytes
+/// - The memory range `[addr, addr + len)` must be within a single allocated object
+///
 /// # Example
 /// ```rust,no_run
 /// use horus_core::memory::simd::{prefetch_range, PrefetchHint};
 ///
 /// let buffer = vec![0u8; 4096];
 /// // Prefetch the first 1KB for immediate use
-/// prefetch_range(buffer.as_ptr(), 1024, PrefetchHint::T0);
+/// // SAFETY: buffer is valid for 4096 bytes, we're prefetching 1024
+/// unsafe { prefetch_range(buffer.as_ptr(), 1024, PrefetchHint::T0); }
 /// ```
 #[inline]
-pub fn prefetch_range(addr: *const u8, len: usize, hint: PrefetchHint) {
+pub unsafe fn prefetch_range(addr: *const u8, len: usize, hint: PrefetchHint) {
     const CACHE_LINE_SIZE: usize = 64;
 
     // Don't prefetch tiny ranges - not worth the instruction overhead
@@ -172,6 +177,10 @@ pub fn prefetch_range(addr: *const u8, len: usize, hint: PrefetchHint) {
 /// * `length` - Number of bytes to prefetch
 /// * `hint` - Cache level hint
 ///
+/// # Safety
+/// - `buffer_base` must be valid for reads of `buffer_size` bytes
+/// - The memory range `[buffer_base, buffer_base + buffer_size)` must be within a single allocated object
+///
 /// # Example
 /// ```rust,no_run
 /// use horus_core::memory::simd::{prefetch_ring_segment, PrefetchHint};
@@ -181,13 +190,16 @@ pub fn prefetch_range(addr: *const u8, len: usize, hint: PrefetchHint) {
 /// let current_pos = 60 * 1024; // Near the end
 /// let prefetch_len = 8 * 1024; // Need 8KB (will wrap around)
 ///
-/// prefetch_ring_segment(
-///     ring_buffer.as_ptr(),
-///     buffer_size,
-///     current_pos,
-///     prefetch_len,
-///     PrefetchHint::T0,
-/// );
+/// // SAFETY: ring_buffer is valid for buffer_size bytes
+/// unsafe {
+///     prefetch_ring_segment(
+///         ring_buffer.as_ptr(),
+///         buffer_size,
+///         current_pos,
+///         prefetch_len,
+///         PrefetchHint::T0,
+///     );
+/// }
 /// ```
 ///
 /// # Performance Notes
@@ -195,7 +207,7 @@ pub fn prefetch_range(addr: *const u8, len: usize, hint: PrefetchHint) {
 /// - The CPU's hardware prefetcher handles sequential ring buffer access well
 /// - Best for cases where you're jumping to a known position (e.g., after a sequence gap)
 #[inline]
-pub fn prefetch_ring_segment(
+pub unsafe fn prefetch_ring_segment(
     buffer_base: *const u8,
     buffer_size: usize,
     offset: usize,
@@ -212,9 +224,8 @@ pub fn prefetch_ring_segment(
     // Calculate how much data is in the contiguous part (before wrap)
     let contiguous_len = (buffer_size - offset).min(length);
 
-    // Prefetch the contiguous part
-    // SAFETY: offset is within buffer_size, so this is valid
-    let contiguous_addr = unsafe { buffer_base.add(offset) };
+    // Prefetch the contiguous part (offset is within buffer_size)
+    let contiguous_addr = buffer_base.add(offset);
     prefetch_range(contiguous_addr, contiguous_len, hint);
 
     // If we need to wrap around, prefetch from the beginning
@@ -272,6 +283,10 @@ pub fn prefetch_scatter(addresses: &[*const u8], hint: PrefetchHint) {
 /// * `count` - Number of elements to prefetch
 /// * `hint` - Cache level hint
 ///
+/// # Safety
+/// - `base` must be valid for reads up to `base + (count - 1) * stride` bytes
+/// - The entire memory range being prefetched must be within a single allocated object
+///
 /// # Example
 /// ```rust,no_run
 /// use horus_core::memory::simd::{prefetch_stride, PrefetchHint};
@@ -280,10 +295,11 @@ pub fn prefetch_scatter(addresses: &[*const u8], hint: PrefetchHint) {
 /// let row_stride = 1024; // Columns per row
 ///
 /// // Prefetch every row's first element (column access pattern)
-/// prefetch_stride(matrix.as_ptr(), row_stride, 16, PrefetchHint::T0);
+/// // SAFETY: matrix is valid for 1MB, we're prefetching 16 elements at 1024-byte intervals
+/// unsafe { prefetch_stride(matrix.as_ptr(), row_stride, 16, PrefetchHint::T0); }
 /// ```
 #[inline]
-pub fn prefetch_stride(base: *const u8, stride: usize, count: usize, hint: PrefetchHint) {
+pub unsafe fn prefetch_stride(base: *const u8, stride: usize, count: usize, hint: PrefetchHint) {
     if stride == 0 {
         return;
     }
@@ -293,8 +309,7 @@ pub fn prefetch_stride(base: *const u8, stride: usize, count: usize, hint: Prefe
     let actual_count = count.min(max_prefetches);
 
     for i in 0..actual_count {
-        // SAFETY: Caller is responsible for ensuring addresses are valid
-        let addr = unsafe { base.add(i * stride) };
+        let addr = base.add(i * stride);
         prefetch(addr, hint);
     }
 }

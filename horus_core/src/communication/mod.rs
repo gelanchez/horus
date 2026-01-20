@@ -69,7 +69,6 @@ pub mod adaptive_topic;
 pub mod config;
 pub mod network;
 pub mod pod;
-pub mod smart_backend;
 pub mod smart_detect;
 pub mod storage;
 pub mod topic;

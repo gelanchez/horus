@@ -326,6 +326,63 @@ pub mod prelude {
     };
 
     // ============================================
+    // Actions (Long-running tasks with feedback)
+    // ============================================
+    pub use horus_core::actions::{
+        Action, ActionClientBuilder, ActionClientNode, ActionError, ActionServerBuilder,
+        ActionServerNode, CancelResponse, ClientGoalHandle, GoalId, GoalOutcome, GoalPriority,
+        GoalResponse, GoalStatus, PreemptionPolicy, ServerGoalHandle, SyncActionClient,
+    };
+
+    // ============================================
+    // State Machines (Hierarchical FSM)
+    // ============================================
+    pub use horus_core::state_machines::{
+        Event, EventPriority, SharedStateMachine, State, StateId, StateMachine,
+        StateMachineBuilder, StateMachineError, Transition, TransitionResult,
+    };
+
+    // ============================================
+    // Behavior Trees (Reactive task orchestration)
+    // ============================================
+    pub use horus_core::behavior_trees::{
+        ActionNode, BTNode, BehaviorTree, BehaviorTreeBuilder, BehaviorTreeError, Blackboard,
+        BlackboardValue, ConditionNode, DecoratorNode, DecoratorType, NodeId, NodeStatus,
+        NodeType, ParallelNode, ParallelPolicy, ReactiveSelectorNode, ReactiveSequenceNode,
+        SelectorNode, SequenceNode, SharedBehaviorTree, TickContext, TreeVisualizer,
+    };
+
+    // ============================================
+    // Mission Planner (DAG-based goal sequencing)
+    // ============================================
+    pub use horus_core::mission_planner::{
+        ExecutionContext, ExecutionStatus, GoalFailurePolicy, GoalSpec, GoalState,
+        MissionEvent, MissionMetrics, MissionMode, MissionPlanner, MissionPlannerBuilder,
+        MissionPlannerConfig, MissionPlannerError, MissionSpec, MissionState, Priority,
+        RetryPolicy, SharedMissionPlanner, TaskCondition, TaskExecutor, TaskSpec, TaskState,
+        // ID types (aliased to avoid collision with actions::GoalId)
+        GoalId as MissionGoalId, MissionId, TaskId,
+    };
+
+    // ============================================
+    // Driver & Plugin System
+    // ============================================
+    pub use horus_core::driver::{
+        Actuator, Driver, DriverCategory, DriverStatus, DriversConfig, Sensor,
+        SingleDriverConfig,
+    };
+    pub use horus_core::plugin::{
+        AutoDetectable, BackendHealth, BackendId, BackendInfo, DriverPlugin, HotReloadable,
+        PluginEntryFn, PluginError, PluginFeature, PluginHealth, PluginId, PluginManifest,
+        PluginResult, ProbeResult, SystemDependency, PLUGIN_ENTRY_SYMBOL,
+    };
+
+    // ============================================
+    // Communication Traits (Backend-agnostic)
+    // ============================================
+    pub use horus_core::communication::traits::{Channel, Publisher, Subscriber};
+
+    // ============================================
     // Built-in Nodes
     // ============================================
     // Core node types (Node, NodeInfo, Topic) are re-exported from horus_core above.

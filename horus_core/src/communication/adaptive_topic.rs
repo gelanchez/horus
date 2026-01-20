@@ -1156,8 +1156,9 @@ impl<T: Clone + Send + Sync + Serialize + DeserializeOwned + 'static> AdaptiveTo
         unsafe { &*(self.storage.as_ptr() as *const AdaptiveTopicHeader) }
     }
 
-    /// Get the local state (interior mutability)
+    /// Get the local state (interior mutability via UnsafeCell)
     #[inline]
+    #[allow(clippy::mut_from_ref)] // Intentional interior mutability using UnsafeCell
     fn local(&self) -> &mut LocalState {
         unsafe { &mut *self.local.get() }
     }
