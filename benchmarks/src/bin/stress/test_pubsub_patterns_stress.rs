@@ -179,7 +179,7 @@ fn test_fanout(num_subs: usize) -> bool {
 
         let handle = thread::spawn(move || {
             while !stop.load(Ordering::Relaxed) {
-                if sub.recv(&mut None).is_some() {
+                if sub.recv().is_some() {
                     count.fetch_add(1, Ordering::Relaxed);
                 } else {
                     thread::sleep(Duration::from_micros(100));
@@ -198,7 +198,7 @@ fn test_fanout(num_subs: usize) -> bool {
             angular: 0.5,
             stamp_nanos: i as u64,
         };
-        if pub_hub.send(msg, &mut None).is_ok() {
+        if pub_hub.send(msg).is_ok() {
             sent += 1;
         }
         thread::sleep(Duration::from_millis(1)); // 1kHz
@@ -303,7 +303,7 @@ fn test_fanin(num_pubs: usize) -> bool {
     let values_sub = received_values.clone();
     let sub_handle = thread::spawn(move || {
         while !stop_sub.load(Ordering::Relaxed) {
-            if let Some(msg) = sub_hub.recv(&mut None) {
+            if let Some(msg) = sub_hub.recv() {
                 recv_sub.fetch_add(1, Ordering::Relaxed);
                 if let Ok(mut set) = values_sub.lock() {
                     set.insert(msg.stamp_nanos);
@@ -325,7 +325,7 @@ fn test_fanin(num_pubs: usize) -> bool {
                     angular: msg_id as f32,
                     stamp_nanos: (pub_id * 10000 + msg_id) as u64, // Unique ID
                 };
-                if pub_hub.send(msg, &mut None).is_ok() {
+                if pub_hub.send(msg).is_ok() {
                     sent += 1;
                 }
                 thread::sleep(Duration::from_micros(500)); // Stagger sends
@@ -420,7 +420,7 @@ fn test_mesh(num_pubs: usize, num_subs: usize) -> bool {
 
         let handle = thread::spawn(move || {
             while !stop.load(Ordering::Relaxed) {
-                if sub.recv(&mut None).is_some() {
+                if sub.recv().is_some() {
                     count.fetch_add(1, Ordering::Relaxed);
                 } else {
                     thread::sleep(Duration::from_micros(50));
@@ -441,7 +441,7 @@ fn test_mesh(num_pubs: usize, num_subs: usize) -> bool {
                     angular: msg_id as f32,
                     stamp_nanos: (pub_id * 10000 + msg_id) as u64,
                 };
-                if pub_hub.send(msg, &mut None).is_ok() {
+                if pub_hub.send(msg).is_ok() {
                     sent += 1;
                 }
                 thread::sleep(Duration::from_micros(200));
@@ -551,7 +551,7 @@ fn test_dynamic_join_leave() -> bool {
             let stop = stop_phase.clone();
             handles.push(thread::spawn(move || {
                 while !stop.load(Ordering::Relaxed) {
-                    if sub.recv(&mut None).is_some() {
+                    if sub.recv().is_some() {
                         recv.fetch_add(1, Ordering::Relaxed);
                     }
                 }
@@ -566,7 +566,7 @@ fn test_dynamic_join_leave() -> bool {
                 angular: i as f32,
                 stamp_nanos: (phase * 10000 + i) as u64,
             };
-            if pub_hub.send(msg, &mut None).is_ok() {
+            if pub_hub.send(msg).is_ok() {
                 sent += 1;
             }
             thread::sleep(Duration::from_millis(2));
@@ -658,7 +658,7 @@ fn test_link_fanout() -> bool {
 
         cons_handles.push(thread::spawn(move || {
             while !stop.load(Ordering::Relaxed) {
-                if consumer.recv(&mut None).is_some() {
+                if consumer.recv().is_some() {
                     count.fetch_add(1, Ordering::Relaxed);
                 } else {
                     thread::sleep(Duration::from_micros(50));
@@ -678,7 +678,7 @@ fn test_link_fanout() -> bool {
                 angular: msg_id as f32,
                 stamp_nanos: (topic_id * 1000 + msg_id) as u64,
             };
-            if producer.send(msg, &mut None).is_ok() {
+            if producer.send(msg).is_ok() {
                 total_sent += 1;
             }
         }
@@ -787,7 +787,7 @@ fn test_multi_topic_fanout() -> bool {
 
         let handle = thread::spawn(move || {
             while !stop.load(Ordering::Relaxed) {
-                if sub.recv(&mut None).is_some() {
+                if sub.recv().is_some() {
                     count.fetch_add(1, Ordering::Relaxed);
                 } else {
                     thread::sleep(Duration::from_micros(50));
@@ -810,7 +810,7 @@ fn test_multi_topic_fanout() -> bool {
 
         // Send to all topic publishers
         for pub_hub in &topic_pubs {
-            if pub_hub.send(msg, &mut None).is_ok() {
+            if pub_hub.send(msg).is_ok() {
                 total_sent += 1;
             }
         }

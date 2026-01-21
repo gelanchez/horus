@@ -183,8 +183,8 @@ fn bench_transport_comparison(c: &mut Criterion) {
 
         b.iter(|| {
             let msg = CmdVel::new(1.5, 0.8);
-            producer.send(black_box(msg), &mut None).unwrap();
-            black_box(consumer.recv(&mut None))
+            producer.send(black_box(msg)).unwrap();
+            black_box(consumer.recv())
         });
     });
 
@@ -214,8 +214,8 @@ fn bench_transport_comparison(c: &mut Criterion) {
 
         b.iter(|| {
             let msg = CmdVel::new(1.5, 0.8);
-            producer.send(black_box(msg), &mut None).unwrap();
-            black_box(consumer.recv(&mut None))
+            producer.send(black_box(msg)).unwrap();
+            black_box(consumer.recv())
         });
     });
 

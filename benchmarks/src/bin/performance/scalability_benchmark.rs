@@ -257,7 +257,7 @@ fn run_scalability_test(
                     padding2: [0; 16],
                 };
 
-                if producer.send(msg, &mut None).is_ok() {
+                if producer.send(msg).is_ok() {
                     local_sent += 1;
                     seq += 1;
                 }
@@ -289,13 +289,13 @@ fn run_scalability_test(
             let mut local_received = 0u64;
 
             while running.load(Ordering::Acquire) {
-                if consumer.recv(&mut None).is_some() {
+                if consumer.recv().is_some() {
                     local_received += 1;
                 }
             }
 
             // Drain remaining messages
-            while consumer.recv(&mut None).is_some() {
+            while consumer.recv().is_some() {
                 local_received += 1;
             }
 

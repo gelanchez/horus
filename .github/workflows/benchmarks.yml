@@ -98,11 +98,17 @@ jobs:
       id: regression-check
       run: |
         cd benchmarks
-        # Run regression check with threshold
+        # Run regression check with both percentage and absolute thresholds
+        # Absolute thresholds (nanoseconds):
+        #   - MpmcShm: 600ns (cross-process pub/sub, default backend)
+        #   - SpscShm: 200ns (cross-process point-to-point)
+        #   - MpmcIntra: 100ns (same-process pub/sub)
+        #   - SpscIntra: 50ns (same-process point-to-point)
         python3 scripts/check_regression.py \
           target/criterion \
           --threshold ${{ env.REGRESSION_THRESHOLD }} \
           --baseline-file baseline.json \
+          --absolute-thresholds \
           --output-markdown /tmp/benchmark-report.md
 
     - name: Save new baseline (on main branch)

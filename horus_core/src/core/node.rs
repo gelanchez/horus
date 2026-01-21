@@ -402,14 +402,6 @@ pub struct NodeInfo {
     error_history: Vec<(Instant, String)>,
     warning_history: Vec<(Instant, String)>,
 
-    // Communication tracking
-    published_topics: HashMap<String, u64>, // topic -> message count
-    subscribed_topics: HashMap<String, u64>, // topic -> message count
-
-    // Runtime-discovered pub/sub (for monitor)
-    registered_publishers: HashMap<String, String>, // topic_name -> type_name
-    registered_subscribers: HashMap<String, String>, // topic_name -> type_name
-
     // Debugging
     custom_data: HashMap<String, String>,
 
@@ -454,10 +446,6 @@ impl NodeInfo {
             restart_count: 0,
             error_history: Vec::new(),
             warning_history: Vec::new(),
-            published_topics: HashMap::new(),
-            subscribed_topics: HashMap::new(),
-            registered_publishers: HashMap::new(),
-            registered_subscribers: HashMap::new(),
             custom_data: HashMap::new(),
             metrics_lock: Arc::new(Mutex::new(())),
             params: RuntimeParams::default(),
@@ -655,145 +643,6 @@ impl NodeInfo {
         }
     }
 
-    // Runtime Pub/Sub Registration (for monitor discovery)
-    // Called by Topic::send()/recv() when ctx is provided
-
-    /// Register this node as a publisher to a topic (called automatically by Topic::send)
-    pub fn register_publisher(&mut self, topic_name: &str, type_name: &str) {
-        self.registered_publishers
-            .entry(topic_name.to_string())
-            .or_insert_with(|| type_name.to_string());
-    }
-
-    /// Register this node as a subscriber to a topic (called automatically by Topic::recv)
-    pub fn register_subscriber(&mut self, topic_name: &str, type_name: &str) {
-        self.registered_subscribers
-            .entry(topic_name.to_string())
-            .or_insert_with(|| type_name.to_string());
-    }
-
-    /// Get all registered publishers (topic_name -> type_name)
-    pub fn get_registered_publishers(&self) -> Vec<TopicMetadata> {
-        self.registered_publishers
-            .iter()
-            .map(|(topic, type_name)| TopicMetadata {
-                topic_name: topic.clone(),
-                type_name: type_name.clone(),
-            })
-            .collect()
-    }
-
-    /// Get all registered subscribers (topic_name -> type_name)
-    pub fn get_registered_subscribers(&self) -> Vec<TopicMetadata> {
-        self.registered_subscribers
-            .iter()
-            .map(|(topic, type_name)| TopicMetadata {
-                topic_name: topic.clone(),
-                type_name: type_name.clone(),
-            })
-            .collect()
-    }
-
-    // Logging Methods - Production-Ready with IPC Timing
-    // ALWAYS requires IPC timing measurement - no fallback
-    pub fn log_pub<T: LogSummary>(&mut self, topic: &str, data: &T, ipc_ns: u64) {
-        let summary = data.log_summary();
-        self.log_pub_summary(topic, &summary, ipc_ns);
-    }
-
-    pub fn log_sub<T: LogSummary>(&mut self, topic: &str, data: &T, ipc_ns: u64) {
-        let summary = data.log_summary();
-        self.log_sub_summary(topic, &summary, ipc_ns);
-    }
-
-    /// Internal logging method that accepts a pre-computed summary string
-    /// Used by Topic::send() to avoid needing message reference after move
-    pub fn log_pub_summary(&mut self, topic: &str, summary: &str, ipc_ns: u64) {
-        let now = chrono::Local::now();
-        let current_tick_us = if let Some(start_time) = self.tick_start_time {
-            start_time.elapsed().as_micros() as u64
-        } else {
-            0
-        };
-
-        if self.config.enable_logging {
-            // Color-coded logging for readability
-            // Cyan timestamp | Green metrics | Blue tick# | Yellow node | Bold Green PUB arrow | Magenta topic | White data
-            let line_ending = if is_raw_mode() { "\r\n" } else { "\n" };
-            let msg = format!("{}\x1b[36m[{}]\x1b[0m \x1b[32m[IPC: {}ns | Tick: {}μs]\x1b[0m \x1b[34m[#{}]\x1b[0m \x1b[33m{}\x1b[0m \x1b[1;32m--PUB-->\x1b[0m \x1b[35m'{}'\x1b[0m = {}{}",
-                   line_ending,
-                   now.format("%H:%M:%S%.3f"),
-                   ipc_ns,
-                   current_tick_us,
-                   self.metrics.total_ticks,
-                   self.name, topic, summary, line_ending);
-            use std::io::{self, Write};
-            let _ = io::stdout().write_all(msg.as_bytes());
-            let _ = io::stdout().flush();
-        }
-
-        // Write to global log buffer and publish to system/logs topic
-        use crate::core::log_buffer::{publish_log, LogEntry, LogType};
-        publish_log(LogEntry {
-            timestamp: now.format("%H:%M:%S%.3f").to_string(),
-            tick_number: self.metrics.total_ticks,
-            node_name: self.name.clone(),
-            log_type: LogType::Publish,
-            topic: Some(topic.to_string()),
-            message: summary.to_string(),
-            tick_us: current_tick_us,
-            ipc_ns,
-        });
-
-        *self.published_topics.entry(topic.to_string()).or_insert(0) += 1;
-        self.metrics.messages_sent += 1;
-    }
-
-    /// Internal logging method that accepts a pre-computed summary string
-    /// Used by Topic::recv() to avoid needing message reference after move
-    pub fn log_sub_summary(&mut self, topic: &str, summary: &str, ipc_ns: u64) {
-        let now = chrono::Local::now();
-        let current_tick_us = if let Some(start_time) = self.tick_start_time {
-            start_time.elapsed().as_micros() as u64
-        } else {
-            0
-        };
-
-        // Display tick count
-        let display_tick = self.metrics.total_ticks;
-
-        if self.config.enable_logging {
-            // Color-coded logging for readability
-            // Cyan timestamp | Green metrics | Blue tick# | Yellow node | Bold Blue SUB arrow | Magenta topic | White data
-            let line_ending = if is_raw_mode() { "\r\n" } else { "\n" };
-            let msg = format!("\x1b[36m[{}]\x1b[0m \x1b[32m[IPC: {}ns | Tick: {}μs]\x1b[0m \x1b[34m[#{}]\x1b[0m \x1b[33m{}\x1b[0m \x1b[1;34m<--SUB--\x1b[0m \x1b[35m'{}'\x1b[0m = {}{}",
-                   now.format("%H:%M:%S%.3f"),
-                   ipc_ns,
-                   current_tick_us,
-                   display_tick,
-                   self.name, topic, summary, line_ending);
-            use std::io::{self, Write};
-            let _ = io::stdout().write_all(msg.as_bytes());
-            let _ = io::stdout().flush();
-        }
-
-        // Write to global log buffer and publish to system/logs topic
-        use crate::core::log_buffer::{publish_log, LogEntry, LogType};
-        publish_log(LogEntry {
-            timestamp: now.format("%H:%M:%S%.3f").to_string(),
-            tick_number: display_tick,
-            node_name: self.name.clone(),
-            log_type: LogType::Subscribe,
-            topic: Some(topic.to_string()),
-            message: summary.to_string(),
-            tick_us: current_tick_us,
-            ipc_ns,
-        });
-
-        *self.subscribed_topics.entry(topic.to_string()).or_insert(0) += 1;
-        self.metrics.messages_received += 1;
-    }
-
     pub fn log_info(&self, message: &str) {
         let now = chrono::Local::now();
         let current_tick_us = if let Some(start_time) = self.tick_start_time {
@@ -989,12 +838,6 @@ impl NodeInfo {
     }
     pub fn metrics(&self) -> &NodeMetrics {
         &self.metrics
-    }
-    pub fn published_topics(&self) -> &HashMap<String, u64> {
-        &self.published_topics
-    }
-    pub fn subscribed_topics(&self) -> &HashMap<String, u64> {
-        &self.subscribed_topics
     }
     pub fn uptime(&self) -> Duration {
         self.creation_time.elapsed()

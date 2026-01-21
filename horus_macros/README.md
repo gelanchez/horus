@@ -56,11 +56,11 @@ node! {
         }
 
         // Main execution loop (REQUIRED)
-        tick(ctx) {
+        tick(_ctx) {
             // Process incoming messages
-            if let Some(data) = self.sensor_data.recv(ctx) {
+            if let Some(data) = self.sensor_data.recv() {
                 let cmd = self.process_sensor_data(data);
-                self.cmd_vel.send(cmd, ctx).ok();
+                self.cmd_vel.send(cmd).ok();
             }
         }
 

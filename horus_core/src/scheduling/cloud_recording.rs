@@ -52,6 +52,42 @@ fn simple_hash(data: &[u8]) -> u32 {
     hash
 }
 
+/// Base64 encoding table (standard alphabet)
+#[cfg(feature = "cloud-azure")]
+const BASE64_CHARS: &[u8; 64] =
+    b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+/// Simple base64 encoder for Azure block IDs
+/// Azure Block IDs must be base64-encoded and <= 64 bytes before encoding
+#[cfg(feature = "cloud-azure")]
+fn base64_encode(input: &str) -> String {
+    let bytes = input.as_bytes();
+    let mut result = Vec::with_capacity((bytes.len() + 2) / 3 * 4);
+
+    for chunk in bytes.chunks(3) {
+        let b0 = chunk[0] as usize;
+        let b1 = chunk.get(1).copied().unwrap_or(0) as usize;
+        let b2 = chunk.get(2).copied().unwrap_or(0) as usize;
+
+        result.push(BASE64_CHARS[b0 >> 2]);
+        result.push(BASE64_CHARS[((b0 & 0x03) << 4) | (b1 >> 4)]);
+
+        if chunk.len() > 1 {
+            result.push(BASE64_CHARS[((b1 & 0x0f) << 2) | (b2 >> 6)]);
+        } else {
+            result.push(b'=');
+        }
+
+        if chunk.len() > 2 {
+            result.push(BASE64_CHARS[b2 & 0x3f]);
+        } else {
+            result.push(b'=');
+        }
+    }
+
+    String::from_utf8(result).unwrap()
+}
+
 /// Errors that can occur during cloud operations
 #[derive(Error, Debug)]
 pub enum CloudError {
@@ -668,6 +704,21 @@ impl S3Backend {
             runtime,
         })
     }
+
+    /// Get the S3 bucket name
+    pub fn bucket(&self) -> &str {
+        &self.bucket
+    }
+
+    /// Get the AWS region
+    pub fn region(&self) -> &str {
+        &self.region
+    }
+
+    /// Get the custom endpoint URL (if any)
+    pub fn endpoint(&self) -> Option<&str> {
+        self.endpoint.as_deref()
+    }
 }
 
 #[cfg(feature = "cloud-s3")]
@@ -963,6 +1014,8 @@ pub struct GcsBackend {
     project_id: Option<String>,
     client: google_cloud_storage::client::Client,
     runtime: tokio::runtime::Runtime,
+    /// Tracks ongoing multipart uploads: upload_id -> (cloud_path, parts sorted by number)
+    uploads: Arc<RwLock<HashMap<String, (String, Vec<(u32, Vec<u8>)>)>>>,
 }
 
 #[cfg(feature = "cloud-gcs")]
@@ -975,9 +1028,13 @@ impl GcsBackend {
             .map_err(|e| CloudError::Storage(format!("Failed to create tokio runtime: {}", e)))?;
 
         let client = runtime.block_on(async {
-            google_cloud_storage::client::Client::default()
+            // Create client with default config (uses ADC - Application Default Credentials)
+            use google_cloud_storage::client::{Client, ClientConfig};
+            let config = ClientConfig::default()
+                .with_auth()
                 .await
-                .map_err(|e| CloudError::Auth(format!("GCS authentication failed: {}", e)))
+                .map_err(|e| CloudError::Auth(format!("GCS authentication failed: {}", e)))?;
+            Ok::<_, CloudError>(Client::new(config))
         })?;
 
         Ok(Self {
@@ -985,6 +1042,7 @@ impl GcsBackend {
             project_id: project_id.map(String::from),
             client,
             runtime,
+            uploads: Arc::new(RwLock::new(HashMap::new())),
         })
     }
 }
@@ -1032,30 +1090,94 @@ impl CloudBackend for GcsBackend {
     }
 
     fn start_multipart(&self, cloud_path: &str) -> Result<String> {
-        // GCS uses resumable uploads, but for simplicity we'll use simple uploads
-        // For very large files, implement resumable upload session
-        Ok(format!("gcs_upload_{}", cloud_path.replace('/', "_")))
+        let upload_id = format!(
+            "gcs_upload_{}_{}",
+            cloud_path.replace('/', "_"),
+            uuid::Uuid::new_v4()
+        );
+
+        // Initialize entry in uploads map
+        self.uploads
+            .write()
+            .insert(upload_id.clone(), (cloud_path.to_string(), Vec::new()));
+
+        Ok(upload_id)
     }
 
-    fn upload_part(&self, _upload_id: &str, part_number: u32, data: &[u8]) -> Result<CloudPart> {
+    fn upload_part(&self, upload_id: &str, part_number: u32, data: &[u8]) -> Result<CloudPart> {
+        let checksum = format!("{:x}", simple_hash(data));
+        let size = data.len() as u64;
+
+        // Store part data in memory
+        let mut uploads = self.uploads.write();
+        if let Some((_, parts)) = uploads.get_mut(upload_id) {
+            parts.push((part_number, data.to_vec()));
+        } else {
+            return Err(CloudError::UploadFailed(format!(
+                "Unknown upload ID: {}",
+                upload_id
+            )));
+        }
+
         Ok(CloudPart {
             part_number,
-            size: data.len() as u64,
+            size,
             etag: None,
-            checksum: Some(format!("{:x}", simple_hash(data))),
+            checksum: Some(checksum),
         })
     }
 
     fn complete_multipart(
         &self,
-        _upload_id: &str,
-        _cloud_path: &str,
+        upload_id: &str,
+        cloud_path: &str,
         _parts: &[CloudPart],
     ) -> Result<()> {
-        Ok(())
+        // Get and remove the upload data
+        let upload_data = self.uploads.write().remove(upload_id);
+
+        let (stored_path, mut parts) = upload_data.ok_or_else(|| {
+            CloudError::UploadFailed(format!("Unknown upload ID: {}", upload_id))
+        })?;
+
+        // Verify cloud_path matches
+        if stored_path != cloud_path {
+            return Err(CloudError::UploadFailed(format!(
+                "Path mismatch: expected {}, got {}",
+                stored_path, cloud_path
+            )));
+        }
+
+        // Sort parts by part number and concatenate
+        parts.sort_by_key(|(num, _)| *num);
+        let combined_data: Vec<u8> = parts.into_iter().flat_map(|(_, data)| data).collect();
+
+        // Upload the combined data to GCS
+        let bucket = self.bucket.clone();
+        let name = cloud_path.to_string();
+
+        self.runtime.block_on(async {
+            use google_cloud_storage::http::objects::upload::{
+                Media, UploadObjectRequest, UploadType,
+            };
+            self.client
+                .upload_object(
+                    &UploadObjectRequest {
+                        bucket,
+                        ..Default::default()
+                    },
+                    combined_data,
+                    &UploadType::Simple(Media::new(name)),
+                )
+                .await
+                .map_err(|e| CloudError::UploadFailed(format!("GCS multipart complete failed: {}", e)))?;
+            Ok(())
+        })
     }
 
-    fn abort_multipart(&self, _upload_id: &str, _cloud_path: &str) -> Result<()> {
+    fn abort_multipart(&self, upload_id: &str, _cloud_path: &str) -> Result<()> {
+        // Simply remove the upload data from memory
+        self.uploads.write().remove(upload_id);
         Ok(())
     }
 
@@ -1093,6 +1215,7 @@ impl CloudBackend for GcsBackend {
         self.runtime.block_on(async {
             use google_cloud_storage::http::objects::download::Range;
             use google_cloud_storage::http::objects::get::GetObjectRequest;
+            // Range expects (Option<u64>, Option<u64>) for start and end
             self.client
                 .download_object(
                     &GetObjectRequest {
@@ -1100,7 +1223,7 @@ impl CloudBackend for GcsBackend {
                         object,
                         ..Default::default()
                     },
-                    &Range(Some(start as i64), Some(end as i64)),
+                    &Range(Some(start), Some(end)),
                 )
                 .await
                 .map_err(|e| {
@@ -1163,7 +1286,9 @@ impl CloudBackend for GcsBackend {
                 })
                 .await
                 .map_err(|e| CloudError::Storage(format!("GCS list failed: {}", e)))?;
-            Ok(resp.items.into_iter().map(|obj| obj.name).collect())
+            // items is Option<Vec<Object>>, each Object has a name field
+            let items = resp.items.unwrap_or_default();
+            Ok(items.into_iter().map(|obj| obj.name.clone()).collect())
         })
     }
 
@@ -1185,8 +1310,9 @@ impl CloudBackend for GcsBackend {
 
             let mut result = HashMap::new();
             result.insert("size".to_string(), obj.size.to_string());
-            if let Some(etag) = obj.etag {
-                result.insert("etag".to_string(), etag);
+            // GCS SDK returns etag as String directly (not Option)
+            if !obj.etag.is_empty() {
+                result.insert("etag".to_string(), obj.etag.clone());
             }
             Ok(result)
         })
@@ -1209,6 +1335,8 @@ pub struct AzureBackend {
     container: String,
     client: azure_storage_blobs::prelude::ContainerClient,
     runtime: tokio::runtime::Runtime,
+    /// Tracks ongoing multipart uploads: upload_id -> (cloud_path, block_ids)
+    uploads: Arc<RwLock<HashMap<String, (String, Vec<String>)>>>,
 }
 
 #[cfg(feature = "cloud-azure")]
@@ -1221,29 +1349,65 @@ impl AzureBackend {
             .map_err(|e| CloudError::Storage(format!("Failed to create tokio runtime: {}", e)))?;
 
         // Try connection string first, then account/key
-        let storage_credentials = if let Ok(conn_str) =
-            std::env::var("AZURE_STORAGE_CONNECTION_STRING")
-        {
-            azure_storage::StorageCredentials::connection_string(&conn_str)
-                .map_err(|e| CloudError::Auth(format!("Invalid Azure connection string: {}", e)))?
-        } else if let Ok(key) = std::env::var("AZURE_STORAGE_KEY") {
-            azure_storage::StorageCredentials::access_key(account, key)
-        } else {
-            return Err(CloudError::Auth(
-                "Azure credentials not found. Set AZURE_STORAGE_CONNECTION_STRING or AZURE_STORAGE_KEY".into()
-            ));
-        };
+        let (effective_account, storage_credentials) =
+            if let Ok(conn_str) = std::env::var("AZURE_STORAGE_CONNECTION_STRING") {
+                // Parse connection string format:
+                // DefaultEndpointsProtocol=https;AccountName=xxx;AccountKey=yyy;EndpointSuffix=...
+                let mut parsed_account = None;
+                let mut parsed_key = None;
 
-        let blob_service_client =
-            azure_storage_blobs::prelude::BlobServiceClient::new(account, storage_credentials);
+                for part in conn_str.split(';') {
+                    let part = part.trim();
+                    if let Some(value) = part.strip_prefix("AccountName=") {
+                        parsed_account = Some(value.to_string());
+                    } else if let Some(value) = part.strip_prefix("AccountKey=") {
+                        parsed_key = Some(value.to_string());
+                    }
+                }
+
+                let acct = parsed_account.ok_or_else(|| {
+                    CloudError::Auth("AccountName not found in connection string".to_string())
+                })?;
+                let key = parsed_key.ok_or_else(|| {
+                    CloudError::Auth("AccountKey not found in connection string".to_string())
+                })?;
+
+                (acct.clone(), azure_storage::StorageCredentials::access_key(acct, key))
+            } else if let Ok(key) = std::env::var("AZURE_STORAGE_KEY") {
+                (
+                    account.to_string(),
+                    azure_storage::StorageCredentials::access_key(account, key),
+                )
+            } else {
+                return Err(CloudError::Auth(
+                    "Azure credentials not found. Set AZURE_STORAGE_CONNECTION_STRING or AZURE_STORAGE_KEY"
+                        .into(),
+                ));
+            };
+
+        let blob_service_client = azure_storage_blobs::prelude::BlobServiceClient::new(
+            &effective_account,
+            storage_credentials,
+        );
         let client = blob_service_client.container_client(container);
 
         Ok(Self {
-            account: account.to_string(),
+            account: effective_account,
             container: container.to_string(),
             client,
             runtime,
+            uploads: Arc::new(RwLock::new(HashMap::new())),
         })
+    }
+
+    /// Get the Azure storage account name
+    pub fn account(&self) -> &str {
+        &self.account
+    }
+
+    /// Get the Azure container name
+    pub fn container(&self) -> &str {
+        &self.container
     }
 }
 
@@ -1274,29 +1438,109 @@ impl CloudBackend for AzureBackend {
     }
 
     fn start_multipart(&self, cloud_path: &str) -> Result<String> {
-        // Azure uses block blobs with block IDs
-        Ok(format!("azure_upload_{}", cloud_path.replace('/', "_")))
+        let upload_id = format!(
+            "azure_upload_{}_{}",
+            cloud_path.replace('/', "_"),
+            uuid::Uuid::new_v4()
+        );
+
+        // Initialize entry in uploads map with cloud_path and empty block_ids
+        self.uploads
+            .write()
+            .insert(upload_id.clone(), (cloud_path.to_string(), Vec::new()));
+
+        Ok(upload_id)
     }
 
-    fn upload_part(&self, _upload_id: &str, part_number: u32, data: &[u8]) -> Result<CloudPart> {
+    fn upload_part(&self, upload_id: &str, part_number: u32, data: &[u8]) -> Result<CloudPart> {
+        // Generate a block ID (must be base64 encoded and <= 64 bytes before encoding)
+        let block_id = base64_encode(&format!("block-{:08}", part_number));
+        let checksum = format!("{:x}", simple_hash(data));
+        let size = data.len() as u64;
+
+        // Get the cloud_path for this upload
+        let cloud_path = {
+            let uploads = self.uploads.read();
+            uploads
+                .get(upload_id)
+                .map(|(path, _)| path.clone())
+                .ok_or_else(|| CloudError::UploadFailed(format!("Unknown upload ID: {}", upload_id)))?
+        };
+
+        // Upload the block to Azure
+        let blob_name = cloud_path.clone();
+        let block_id_clone = block_id.clone();
+        let data_vec = data.to_vec();
+
+        self.runtime.block_on(async {
+            use azure_storage_blobs::prelude::BlockId;
+            self.client
+                .blob_client(&blob_name)
+                .put_block(BlockId::new(block_id_clone), data_vec)
+                .await
+                .map_err(|e| CloudError::UploadFailed(format!("Azure put_block failed: {}", e)))?;
+            Ok::<_, CloudError>(())
+        })?;
+
+        // Store the block_id in our tracking map
+        let mut uploads = self.uploads.write();
+        if let Some((_, block_ids)) = uploads.get_mut(upload_id) {
+            block_ids.push(block_id);
+        }
+
         Ok(CloudPart {
             part_number,
-            size: data.len() as u64,
+            size,
             etag: None,
-            checksum: Some(format!("{:x}", simple_hash(data))),
+            checksum: Some(checksum),
         })
     }
 
     fn complete_multipart(
         &self,
-        _upload_id: &str,
-        _cloud_path: &str,
+        upload_id: &str,
+        cloud_path: &str,
         _parts: &[CloudPart],
     ) -> Result<()> {
-        Ok(())
+        // Get and remove the upload data
+        let upload_data = self.uploads.write().remove(upload_id);
+
+        let (stored_path, block_ids) = upload_data.ok_or_else(|| {
+            CloudError::UploadFailed(format!("Unknown upload ID: {}", upload_id))
+        })?;
+
+        // Verify cloud_path matches
+        if stored_path != cloud_path {
+            return Err(CloudError::UploadFailed(format!(
+                "Path mismatch: expected {}, got {}",
+                stored_path, cloud_path
+            )));
+        }
+
+        // Commit all blocks using put_block_list
+        let blob_name = cloud_path.to_string();
+
+        self.runtime.block_on(async {
+            use azure_storage_blobs::prelude::{BlockId, BlockList, BlobBlockType};
+            let block_list = BlockList {
+                blocks: block_ids
+                    .into_iter()
+                    .map(|id| BlobBlockType::new_uncommitted(BlockId::new(id)))
+                    .collect(),
+            };
+
+            self.client
+                .blob_client(&blob_name)
+                .put_block_list(block_list)
+                .await
+                .map_err(|e| CloudError::UploadFailed(format!("Azure put_block_list failed: {}", e)))?;
+            Ok(())
+        })
     }
 
-    fn abort_multipart(&self, _upload_id: &str, _cloud_path: &str) -> Result<()> {
+    fn abort_multipart(&self, upload_id: &str, _cloud_path: &str) -> Result<()> {
+        // Remove from tracking map - Azure automatically cleans up uncommitted blocks
+        self.uploads.write().remove(upload_id);
         Ok(())
     }
 
@@ -1324,17 +1568,32 @@ impl CloudBackend for AzureBackend {
         let blob_name = cloud_path.to_string();
 
         self.runtime.block_on(async {
-            use azure_storage_blobs::prelude::BA512Range;
-            let resp = self
+            // Use Rust's Range<u64> which Azure SDK accepts
+            let range: std::ops::Range<u64> = start..end;
+            let mut stream = self
                 .client
                 .blob_client(&blob_name)
                 .get()
-                .range(BA512Range::new(start, end - start)?)
-                .await
-                .map_err(|e| {
+                .range(range)
+                .into_stream();
+
+            // Collect all chunks from the stream
+            let mut data = Vec::new();
+            while let Some(result) = futures::StreamExt::next(&mut stream).await {
+                let chunk = result.map_err(|e| {
                     CloudError::DownloadFailed(format!("Azure range download failed: {}", e))
                 })?;
-            Ok(resp.data.to_vec())
+                // ResponseBody needs to be collected into bytes
+                let bytes = chunk
+                    .data
+                    .collect()
+                    .await
+                    .map_err(|e| {
+                        CloudError::DownloadFailed(format!("Failed to collect Azure response: {}", e))
+                    })?;
+                data.extend_from_slice(&bytes);
+            }
+            Ok(data)
         })
     }
 
@@ -1396,9 +1655,8 @@ impl CloudBackend for AzureBackend {
                 "size".to_string(),
                 props.blob.properties.content_length.to_string(),
             );
-            if let Some(etag) = props.blob.properties.etag {
-                result.insert("etag".to_string(), etag.to_string());
-            }
+            // Azure SDK 0.20+ returns etag directly (not Option)
+            result.insert("etag".to_string(), props.blob.properties.etag.to_string());
             Ok(result)
         })
     }

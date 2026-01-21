@@ -441,17 +441,8 @@ impl SchedulerBuilder {
             Some(RuntimeCapabilities::detect())
         };
 
-        // Determine if we're building simulation mode
-        let is_simulation = self.virtual_time || (self.deterministic && self.seed.is_some());
-
-        // Build base scheduler based on mode
-        let mut scheduler = if is_simulation {
-            let seed = self.seed.unwrap_or(42);
-            Scheduler::simulation_with_seed(seed)
-        } else {
-            // Start with prototype (no auto-optimization) so we control everything
-            Scheduler::prototype()
-        };
+        // Build base scheduler
+        let mut scheduler = Scheduler::new();
 
         // Apply name
         if let Some(name) = &self.name {
@@ -464,7 +455,7 @@ impl SchedulerBuilder {
         }
 
         // === Apply RT Features ===
-        if !is_simulation {
+        {
             // RT priority
             if let Some(priority) = self.rt_priority {
                 match scheduler.set_realtime_priority(priority) {
@@ -562,7 +553,7 @@ impl SchedulerBuilder {
         }
 
         // === Apply Determinism ===
-        if self.deterministic && !is_simulation {
+        if self.deterministic {
             scheduler = scheduler.enable_determinism();
             print_line(&"[BUILDER] Deterministic mode enabled".cyan().to_string());
         }

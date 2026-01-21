@@ -360,7 +360,7 @@ where
         let goal_id = request.goal_id;
 
         if let Some(ref link) = *self.goal_link.read() {
-            link.send(request, &mut None)
+            link.send(request)
                 .map_err(|_| ActionError::CommunicationError("Failed to send goal".to_string()))?;
 
             log::debug!("ActionClient '{}': Sent goal {}", A::name(), goal_id);
@@ -374,7 +374,7 @@ where
     fn cancel_goal(&self, goal_id: GoalId) {
         if let Some(ref link) = *self.cancel_link.read() {
             let request = CancelRequest::new(goal_id);
-            let _ = link.send(request, &mut None);
+            let _ = link.send(request);
             log::debug!("ActionClient '{}': Sent cancel for {}", A::name(), goal_id);
         }
     }
@@ -383,21 +383,21 @@ where
     fn process_messages(&self) {
         // Process status updates
         if let Some(ref link) = *self.status_link.read() {
-            while let Some(update) = link.recv(&mut None) {
+            while let Some(update) = link.recv() {
                 self.handle_status_update(update);
             }
         }
 
         // Process feedback
         if let Some(ref link) = *self.feedback_link.read() {
-            while let Some(feedback_msg) = link.recv(&mut None) {
+            while let Some(feedback_msg) = link.recv() {
                 self.handle_feedback(feedback_msg);
             }
         }
 
         // Process results
         if let Some(ref link) = *self.result_link.read() {
-            while let Some(result_msg) = link.recv(&mut None) {
+            while let Some(result_msg) = link.recv() {
                 self.handle_result(result_msg);
             }
         }

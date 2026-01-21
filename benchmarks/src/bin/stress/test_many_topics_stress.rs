@@ -160,7 +160,7 @@ fn test_hub_topics(topic_count: usize) -> bool {
             stamp_nanos: i as u64,
         };
 
-        if pub_ref.send(msg, &mut None).is_ok() {
+        if pub_ref.send(msg).is_ok() {
             send_success += 1;
         }
     }
@@ -170,7 +170,7 @@ fn test_hub_topics(topic_count: usize) -> bool {
 
     // Receive from all topics
     for (i, sub_ref) in subscribers.iter().enumerate() {
-        if let Some(msg) = sub_ref.recv(&mut None) {
+        if let Some(msg) = sub_ref.recv() {
             if msg.stamp_nanos as usize == i {
                 recv_success += 1;
             }
@@ -257,13 +257,13 @@ fn test_link_topics() -> bool {
                 angular: 0.0,
                 stamp_nanos: i as u64,
             };
-            let _ = producers[i].send(msg, &mut None);
+            let _ = producers[i].send(msg);
         }
 
         thread::sleep(Duration::from_millis(20));
 
         for i in 0..topic_count {
-            if consumers[i].recv(&mut None).is_some() {
+            if consumers[i].recv().is_some() {
                 recv_count += 1;
             }
         }
@@ -322,7 +322,7 @@ fn test_topic_churn() -> bool {
                 angular: 0.5,
                 stamp_nanos: i as u64,
             };
-            if hub.send(msg, &mut None).is_ok() {
+            if hub.send(msg).is_ok() {
                 total_communicated += 1;
             }
         }
@@ -395,7 +395,7 @@ fn test_discovery_performance() -> bool {
                 angular: 0.5,
                 stamp_nanos: 0,
             };
-            if hub.send(msg, &mut None).is_ok() {
+            if hub.send(msg).is_ok() {
                 accessed += 1;
             }
         }

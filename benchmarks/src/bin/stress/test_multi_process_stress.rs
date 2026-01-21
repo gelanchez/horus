@@ -149,7 +149,7 @@ fn child_link_producer(topic: &str, child_id: u32, msg_count: u32) {
             angular: i as f32,
             stamp_nanos: ((child_id as u64) << 32) | (i as u64),
         };
-        if producer.send(msg, &mut None).is_err() {
+        if producer.send(msg).is_err() {
             // Link may overwrite - that's OK
         }
         // Small delay to avoid flooding
@@ -177,7 +177,7 @@ fn child_link_consumer(topic: &str, child_id: u32) {
     let mut last_stamp = 0u64;
 
     while start.elapsed() < timeout {
-        if let Some(msg) = consumer.recv(&mut None) {
+        if let Some(msg) = consumer.recv() {
             received += 1;
             last_stamp = msg.stamp_nanos;
         }
@@ -222,7 +222,7 @@ fn child_hub_producer(topic: &str, child_id: u32, msg_count: u32) {
             angular: i as f32,
             stamp_nanos: ((child_id as u64) << 32) | (i as u64),
         };
-        if hub.send(msg, &mut None).is_ok() {
+        if hub.send(msg).is_ok() {
             sent += 1;
         }
         // Small delay to avoid ring buffer overflow and give receiver time
@@ -249,7 +249,7 @@ fn child_hub_consumer(topic: &str, child_id: u32, expected_total: u32) {
 
     // Receive messages until timeout or we have enough
     while start.elapsed() < timeout && received < expected_total {
-        if hub.recv(&mut None).is_some() {
+        if hub.recv().is_some() {
             received += 1;
         }
         thread::sleep(Duration::from_micros(10));
@@ -293,7 +293,7 @@ fn child_ping_pong(topic: &str, child_id: u32, rounds: u32) {
             angular: round as f32,
             stamp_nanos: round as u64,
         };
-        if sender.send(ping, &mut None).is_err() {
+        if sender.send(ping).is_err() {
             continue;
         }
 
@@ -301,7 +301,7 @@ fn child_ping_pong(topic: &str, child_id: u32, rounds: u32) {
         let round_start = Instant::now();
         let round_timeout = Duration::from_millis(500);
         while round_start.elapsed() < round_timeout {
-            if let Some(pong) = receiver.recv(&mut None) {
+            if let Some(pong) = receiver.recv() {
                 if pong.stamp_nanos == round as u64 {
                     completed_rounds += 1;
                     break;
@@ -400,7 +400,7 @@ fn test_concurrent_processes(num_processes: usize) -> bool {
     while recv_start.elapsed() < recv_timeout {
         // Poll all Hubs
         for (_topic, hub) in &hubs {
-            if let Some(msg) = hub.recv(&mut None) {
+            if let Some(msg) = hub.recv() {
                 received += 1;
                 let sender_id = (msg.stamp_nanos >> 32) as u32;
                 unique_senders.insert(sender_id);
@@ -422,7 +422,7 @@ fn test_concurrent_processes(num_processes: usize) -> bool {
             // Drain remaining messages from all Hubs
             thread::sleep(Duration::from_millis(200));
             for (_topic, hub) in &hubs {
-                while let Some(msg) = hub.recv(&mut None) {
+                while let Some(msg) = hub.recv() {
                     received += 1;
                     let sender_id = (msg.stamp_nanos >> 32) as u32;
                     unique_senders.insert(sender_id);
@@ -633,7 +633,7 @@ fn test_hub_many_producers() -> bool {
     let mut senders_seen = std::collections::HashSet::new();
 
     while start.elapsed() < timeout {
-        if let Some(msg) = hub.recv(&mut None) {
+        if let Some(msg) = hub.recv() {
             received += 1;
             let sender_id = (msg.stamp_nanos >> 32) as u32;
             senders_seen.insert(sender_id);
@@ -649,7 +649,7 @@ fn test_hub_many_producers() -> bool {
         if all_done {
             // Drain remaining messages
             thread::sleep(Duration::from_millis(200));
-            while let Some(msg) = hub.recv(&mut None) {
+            while let Some(msg) = hub.recv() {
                 received += 1;
                 let sender_id = (msg.stamp_nanos >> 32) as u32;
                 senders_seen.insert(sender_id);
@@ -742,14 +742,14 @@ fn test_cleanup_verification() -> bool {
         stamp_nanos: 12345,
     };
 
-    if producer.send(msg, &mut None).is_err() {
+    if producer.send(msg).is_err() {
         eprintln!("  Failed to send after cleanup test");
         return false;
     }
 
     thread::sleep(Duration::from_millis(10));
 
-    if let Some(received) = consumer.recv(&mut None) {
+    if let Some(received) = consumer.recv() {
         if received.stamp_nanos == 12345 {
             println!("  ✓ System resources clean - communication works");
             println!("  ✓ Test PASSED");

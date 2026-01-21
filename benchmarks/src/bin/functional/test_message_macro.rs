@@ -77,35 +77,30 @@ fn main() {
         Topic::<RobotStatus>::new("test/status").expect("Failed to create Topic<RobotStatus>");
     println!(" Created Topic<RobotStatus>");
 
-    // Test 7: Send without logging (ctx = None)
+    // Test 7: Send without logging
     topic_pos
-        .send(Position(3.0, 4.0), &mut None)
+        .send(Position(3.0, 4.0))
         .expect("Failed to send Position");
-    println!(" Sent Position message (no logging)");
+    println!(" Sent Position message");
 
     topic_status
-        .send(
-            RobotStatus {
-                x: 5.0,
-                y: 6.0,
-                battery: 90,
-                is_moving: false,
-            },
-            &mut None,
-        )
+        .send(RobotStatus {
+            x: 5.0,
+            y: 6.0,
+            battery: 90,
+            is_moving: false,
+        })
         .expect("Failed to send RobotStatus");
-    println!(" Sent RobotStatus message (no logging)");
+    println!(" Sent RobotStatus message");
 
-    // Test 8: Send with logging (ctx = Some)
-    let mut ctx_info = NodeInfo::new("test_node".to_string(), true);
-    let mut ctx = Some(&mut ctx_info);
+    // Test 8: Send another message
     topic_pos
-        .send(Position(7.0, 8.0), &mut ctx)
-        .expect("Failed to send with logging");
-    println!(" Sent Position message WITH logging");
+        .send(Position(7.0, 8.0))
+        .expect("Failed to send");
+    println!(" Sent Position message");
 
     // Test 9: Receive messages
-    if let Some(received) = topic_pos.recv(&mut None) {
+    if let Some(received) = topic_pos.recv() {
         println!(" Received Position: ({}, {})", received.0, received.1);
     }
 

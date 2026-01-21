@@ -1,27 +1,59 @@
-//! Hardware drivers for HORUS
+//! Hardware Drivers for HORUS
 //!
-//! All hardware drivers have been extracted to dedicated crates for modularity:
+//! This module provides the foundation for building hardware drivers.
 //!
-//! | Crate | Drivers |
-//! |-------|---------|
-//! | `horus-sensors` | IMU, Camera, Lidar, GPS, Encoder, Ultrasonic, Battery, Force/Torque |
-//! | `horus-actuators` | DC Motor, BLDC, Stepper, Servo |
-//! | `horus-industrial` | CAN, I2C, SPI, Serial, Modbus, DigitalIO |
-//! | `horus-dynamixel` | Dynamixel smart servos |
-//! | `horus-roboclaw` | RoboClaw motor controller |
+//! # Current Status
 //!
-//! # Usage
-//!
-//! ```rust,ignore
-//! // Import drivers from dedicated crates
-//! use horus_sensors::{ImuDriver, CameraDriver, LidarDriver};
-//! use horus_actuators::{MotorDriver, ServoDriver};
-//! use horus_industrial::{SerialDriver, CanDriver};
-//! ```
+//! Built-in driver implementations are not currently included in the base
+//! horus_library crate. Users implement their own drivers using the traits
+//! provided by horus_core.
 //!
 //! # Driver Traits
 //!
 //! Driver traits are defined in `horus_core::driver`:
-//! - `Driver` - Base driver trait
-//! - `Sensor<Output=T>` - Sensor driver trait
-//! - `Actuator<Command=T>` - Actuator driver trait
+//!
+//! - **`Driver`** - Base driver trait with lifecycle methods
+//! - **`Sensor<Output=T>`** - Sensor driver trait for reading data
+//! - **`Actuator<Command=T>`** - Actuator driver trait for sending commands
+//!
+//! # Building Custom Drivers
+//!
+//! ```rust,ignore
+//! use horus_core::driver::{Driver, Sensor, Actuator};
+//! use horus_library::messages::ImuData;
+//!
+//! pub struct MyImuDriver {
+//!     // Driver state
+//! }
+//!
+//! impl Driver for MyImuDriver {
+//!     fn init(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+//!         // Initialize hardware
+//!         Ok(())
+//!     }
+//!
+//!     fn shutdown(&mut self) {
+//!         // Cleanup
+//!     }
+//! }
+//!
+//! impl Sensor for MyImuDriver {
+//!     type Output = ImuData;
+//!
+//!     fn read(&mut self) -> Option<Self::Output> {
+//!         // Read from hardware
+//!         None
+//!     }
+//! }
+//! ```
+//!
+//! # Message Types for Drivers
+//!
+//! Standard message types from `horus_library::messages` for driver I/O:
+//!
+//! | Category | Types |
+//! |----------|-------|
+//! | Sensors | `ImuData`, `LaserScan`, `PointCloud`, `BatteryState` |
+//! | Vision | `Image`, `CameraInfo`, `CompressedImage` |
+//! | Control | `MotorCommand`, `JointState`, `ServoCommand` |
+//! | I/O | `DigitalIO`, `AnalogIO`, `CanFrame`, `ModbusData`, `I2CData` |

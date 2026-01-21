@@ -2,46 +2,49 @@
 //!
 //! This module provides access to HORUS node infrastructure.
 //!
-//! # Node Organization
+//! # Current Status
 //!
-//! ## Core Nodes (horus-nodes-core crate)
-//! 8 hardware-independent nodes have been moved to `horus-nodes-core`:
-//! - `EmergencyStopNode`, `SafetyMonitorNode` - Safety & monitoring
-//! - `DifferentialDriveNode`, `OdometryNode`, `PidControllerNode` - Motion control
-//! - `PathPlannerNode`, `LocalizationNode`, `CollisionDetectorNode` - Navigation
+//! Built-in node implementations are not currently included in the base horus_library
+//! crate. Users implement their own nodes using the HORUS core infrastructure.
 //!
-//! Import them directly: `use horus_nodes_core::*;`
+//! # Available Infrastructure
 //!
-//! ## Optional Nodes (Feature-Gated)
-//! Additional nodes require hardware features to be enabled:
-//! - Sensors: Camera, Lidar, IMU, GPS, etc. (use `horus-sensors` crate)
-//! - Actuators: DC/BLDC/Stepper motors, servos (use `horus-actuators` crate)
-//! - Industrial: CAN, Modbus, I2C, SPI, Serial (use `horus-industrial` crate)
-//! - Machine Learning: ONNX, TFLite, LLM (use `horus-nodes-ml` crate)
-//! - Computer Vision: YOLO, Pose, Segmentation (use `horus-nodes-cv` crate)
-//! - Dynamixel servos: (use `horus-dynamixel` crate)
-//! - Roboclaw motors: (use `horus-roboclaw` crate)
+//! ## From horus_core
+//! - `Node` trait - Base trait all nodes must implement
+//! - `NodeInfo` - Node metadata and identification
+//! - `Topic<T>` - Type-safe pub/sub communication
+//! - `Scheduler` - Real-time node execution
 //!
-//! # Usage Examples
+//! ## From horus_library::messages
+//! Standard robotics message types for node communication:
+//! - Geometry: `Pose2D`, `Pose3D`, `Twist`, `Transform`
+//! - Sensors: `ImuData`, `LaserScan`, `PointCloud`
+//! - Navigation: `Odometry`, `Path`, `OccupancyGrid`
+//! - Vision: `Image`, `CameraInfo`
+//! - Control: `MotorCommand`, `JointState`
+//! - I/O: `DigitalIO`, `AnalogIO`, `CanFrame`
+//!
+//! # Building Custom Nodes
 //!
 //! ```rust,ignore
-//! // Core nodes - from horus-nodes-core crate
-//! use horus_nodes_core::{
-//!     DifferentialDriveNode, PidControllerNode,
-//!     EmergencyStopNode, SafetyMonitorNode,
-//! };
+//! use horus_core::{Node, NodeInfo, Topic};
+//! use horus_library::messages::{Twist, Odometry};
 //!
-//! let drive = DifferentialDriveNode::new()?;
-//! let pid = PidControllerNode::new()?;
-//! let emergency = EmergencyStopNode::new()?;
+//! pub struct MyRobotNode {
+//!     cmd_vel: Topic<Twist>,
+//!     odom: Topic<Odometry>,
+//! }
+//!
+//! impl Node for MyRobotNode {
+//!     fn info(&self) -> NodeInfo {
+//!         NodeInfo::new("my_robot_node")
+//!     }
+//!
+//!     fn tick(&mut self) {
+//!         // Node logic here
+//!     }
+//! }
 //! ```
 
 // Re-export core HORUS types for convenience
 pub use horus_core::{Node, NodeInfo, Topic};
-
-// Processor trait for custom node processing pipelines
-// Re-export from horus-nodes-core once available, or define locally
-// For now, users can import from horus_nodes_core::processor
-
-// Processor trait for hybrid node pattern - now in horus_nodes_core
-// Import from: use horus_nodes_core::{Processor, PassThrough, Pipeline, ClosureProcessor, FilterProcessor};

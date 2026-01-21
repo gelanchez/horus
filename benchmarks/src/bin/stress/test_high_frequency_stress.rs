@@ -181,7 +181,7 @@ fn test_1khz_sustained() -> bool {
                 payload: [0u8; 48],
             };
 
-            if pub_hub.send(msg, &mut None).is_ok() {
+            if pub_hub.send(msg).is_ok() {
                 sent_pub.fetch_add(1, Ordering::Relaxed);
                 seq += 1;
             }
@@ -204,7 +204,7 @@ fn test_1khz_sustained() -> bool {
         let mut last_received_seq: Option<u64> = None;
 
         while !stop_sub.load(Ordering::Relaxed) && start.elapsed().as_secs() < (duration_secs + 1) as u64 {
-            if let Some(msg) = sub_hub.recv(&mut None) {
+            if let Some(msg) = sub_hub.recv() {
                 recv_sub.fetch_add(1, Ordering::Relaxed);
                 last_seq_sub.store(msg.seq, Ordering::Relaxed);
 
@@ -305,7 +305,7 @@ fn test_10khz_sustained() -> bool {
                 payload: [0u8; 48],
             };
 
-            if pub_hub.send(msg, &mut None).is_ok() {
+            if pub_hub.send(msg).is_ok() {
                 sent_pub.fetch_add(1, Ordering::Relaxed);
                 seq += 1;
             }
@@ -325,7 +325,7 @@ fn test_10khz_sustained() -> bool {
         let start = Instant::now();
 
         while !stop_sub.load(Ordering::Relaxed) && start.elapsed().as_secs() < (duration_secs + 1) as u64 {
-            if sub_hub.recv(&mut None).is_some() {
+            if sub_hub.recv().is_some() {
                 recv_sub.fetch_add(1, Ordering::Relaxed);
             } else {
                 std::hint::spin_loop();
@@ -399,7 +399,7 @@ fn test_100khz_burst() -> bool {
     let stop_sub = stop_flag.clone();
     let sub_handle = thread::spawn(move || {
         while !stop_sub.load(Ordering::Relaxed) {
-            if sub_hub.recv(&mut None).is_some() {
+            if sub_hub.recv().is_some() {
                 recv_sub.fetch_add(1, Ordering::Relaxed);
             }
         }
@@ -416,7 +416,7 @@ fn test_100khz_burst() -> bool {
             payload: [0u8; 48],
         };
 
-        if pub_hub.send(msg, &mut None).is_ok() {
+        if pub_hub.send(msg).is_ok() {
             sent += 1;
         }
     }
@@ -496,12 +496,12 @@ fn test_latency_stability() -> bool {
                 payload: [0u8; 48],
             };
 
-            if pub_hub.send(msg, &mut None).is_ok() {
+            if pub_hub.send(msg).is_ok() {
                 // Immediate receive attempt
                 let recv_start = Instant::now();
                 let mut received = false;
                 while recv_start.elapsed().as_micros() < 1000 {
-                    if sub_hub.recv(&mut None).is_some() {
+                    if sub_hub.recv().is_some() {
                         let latency = send_time.elapsed().as_nanos() as u64;
                         latencies_ns.push(latency);
                         received = true;
@@ -604,7 +604,7 @@ fn test_message_loss_detection() -> bool {
     let stop_sub = stop_flag.clone();
     let cons_handle = thread::spawn(move || {
         while !stop_sub.load(Ordering::Relaxed) {
-            if let Some(msg) = consumer.recv(&mut None) {
+            if let Some(msg) = consumer.recv() {
                 recv_sub.fetch_add(1, Ordering::Relaxed);
                 let current_max = max_seq_sub.load(Ordering::Relaxed);
                 if msg.seq > current_max {
@@ -628,7 +628,7 @@ fn test_message_loss_detection() -> bool {
             payload: [0u8; 48],
         };
 
-        if producer.send(msg, &mut None).is_ok() {
+        if producer.send(msg).is_ok() {
             sent += 1;
         }
 
@@ -719,7 +719,7 @@ fn test_link_high_frequency() -> bool {
                 payload: [0u8; 48],
             };
 
-            if producer.send(msg, &mut None).is_ok() {
+            if producer.send(msg).is_ok() {
                 sent_prod.fetch_add(1, Ordering::Relaxed);
                 seq += 1;
             }
@@ -740,7 +740,7 @@ fn test_link_high_frequency() -> bool {
         let start = Instant::now();
 
         while !stop_cons.load(Ordering::Relaxed) && start.elapsed().as_secs() < (duration_secs + 1) as u64 {
-            if let Some(msg) = consumer.recv(&mut None) {
+            if let Some(msg) = consumer.recv() {
                 recv_cons.fetch_add(1, Ordering::Relaxed);
                 let now_ns = start.elapsed().as_nanos() as u64;
                 if now_ns > msg.timestamp_ns {

@@ -289,7 +289,7 @@ fn run_chaos_test(duration: Duration) -> bool {
                             value: seq as f64,
                             flags: sender_id as u64,
                         };
-                        if hub.send(msg, &mut None).is_ok() {
+                        if hub.send(msg).is_ok() {
                             stats_clone.messages_sent.fetch_add(1, Ordering::Relaxed);
                         }
                         seq += 1;
@@ -327,7 +327,7 @@ fn run_chaos_test(duration: Duration) -> bool {
                     stats_clone.connections_created.fetch_add(1, Ordering::Relaxed);
 
                     while !stop.load(Ordering::Relaxed) {
-                        if hub.recv(&mut None).is_some() {
+                        if hub.recv().is_some() {
                             stats_clone.messages_received.fetch_add(1, Ordering::Relaxed);
                         } else {
                             thread::sleep(Duration::from_micros(50));
@@ -382,7 +382,7 @@ fn run_chaos_test(duration: Duration) -> bool {
                                 .as_nanos() as u64,
                             data: [seq as f32; 28],
                         };
-                        if hub.send(msg, &mut None).is_ok() {
+                        if hub.send(msg).is_ok() {
                             stats_clone.messages_sent.fetch_add(1, Ordering::Relaxed);
                         }
                         seq += 1;
@@ -420,7 +420,7 @@ fn run_chaos_test(duration: Duration) -> bool {
                     stats_clone.connections_created.fetch_add(1, Ordering::Relaxed);
 
                     while !stop.load(Ordering::Relaxed) {
-                        if hub.recv(&mut None).is_some() {
+                        if hub.recv().is_some() {
                             stats_clone.messages_received.fetch_add(1, Ordering::Relaxed);
                         } else {
                             thread::sleep(Duration::from_micros(100));
@@ -475,7 +475,7 @@ fn run_chaos_test(duration: Duration) -> bool {
                                 .as_nanos() as u64,
                             payload: [seq as u8; 1008],
                         };
-                        if hub.send(msg, &mut None).is_ok() {
+                        if hub.send(msg).is_ok() {
                             stats_clone.messages_sent.fetch_add(1, Ordering::Relaxed);
                         }
                         seq += 1;
@@ -513,7 +513,7 @@ fn run_chaos_test(duration: Duration) -> bool {
                     stats_clone.connections_created.fetch_add(1, Ordering::Relaxed);
 
                     while !stop.load(Ordering::Relaxed) {
-                        if hub.recv(&mut None).is_some() {
+                        if hub.recv().is_some() {
                             stats_clone.messages_received.fetch_add(1, Ordering::Relaxed);
                         } else {
                             thread::sleep(Duration::from_micros(500));
@@ -570,7 +570,7 @@ fn run_chaos_test(duration: Duration) -> bool {
                             value: seq as f64,
                             flags: topic_id as u64,
                         };
-                        if link.send(msg, &mut None).is_ok() {
+                        if link.send(msg).is_ok() {
                             stats_clone.messages_sent.fetch_add(1, Ordering::Relaxed);
                         }
                         seq += 1;
@@ -608,7 +608,7 @@ fn run_chaos_test(duration: Duration) -> bool {
                     stats_clone.connections_created.fetch_add(1, Ordering::Relaxed);
 
                     while !stop.load(Ordering::Relaxed) {
-                        if link.recv(&mut None).is_some() {
+                        if link.recv().is_some() {
                             stats_clone.messages_received.fetch_add(1, Ordering::Relaxed);
                         } else {
                             thread::sleep(Duration::from_micros(50));
@@ -655,7 +655,7 @@ fn run_chaos_test(duration: Duration) -> bool {
                                 value: 0.0,
                                 flags: 0,
                             };
-                            if hub.send(msg, &mut None).is_ok() {
+                            if hub.send(msg).is_ok() {
                                 stats_clone.messages_sent.fetch_add(1, Ordering::Relaxed);
                             }
                         }

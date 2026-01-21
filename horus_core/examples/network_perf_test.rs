@@ -34,8 +34,8 @@ fn bench_local_shm() {
             id: i,
             data: vec![0u8; 1024],
         };
-        hub.send(msg, &mut None).unwrap();
-        let _ = hub.recv(&mut None);
+        hub.send(msg).unwrap();
+        let _ = hub.recv();
     }
 
     // Measure send + recv latency
@@ -45,8 +45,8 @@ fn bench_local_shm() {
             id: i,
             data: vec![0u8; 1024],
         };
-        hub.send(msg, &mut None).unwrap();
-        let _ = hub.recv(&mut None).unwrap();
+        hub.send(msg).unwrap();
+        let _ = hub.recv().unwrap();
     }
     let elapsed = start.elapsed();
 

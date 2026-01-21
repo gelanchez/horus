@@ -230,12 +230,12 @@ fn test_link_rapid_cycles(config: &TestConfig) -> TestResult {
                 angular: 0.5,
                 stamp_nanos: j,
             };
-            let _ = producer.send(msg, &mut None);
+            let _ = producer.send(msg);
         }
 
         // Receive messages
         for _ in 0..5 {
-            let _ = consumer.recv(&mut None);
+            let _ = consumer.recv();
         }
 
         // Drop (cleanup)
@@ -350,12 +350,12 @@ fn test_hub_rapid_cycles(config: &TestConfig) -> TestResult {
                 angular: 0.5,
                 stamp_nanos: j,
             };
-            let _ = pub1.send(msg, &mut None);
+            let _ = pub1.send(msg);
         }
 
         for _ in 0..3 {
-            let _ = sub1.recv(&mut None);
-            let _ = sub2.recv(&mut None);
+            let _ = sub1.recv();
+            let _ = sub2.recv();
         }
 
         // Drop in various orders to test cleanup
@@ -471,15 +471,15 @@ fn test_mixed_rapid_cycles(config: &TestConfig) -> TestResult {
         // Use them briefly
         if let (Ok(ref prod), Ok(ref cons)) = (&link_prod, &link_cons) {
             let msg = CmdVel { linear: 1.0, angular: 0.5, stamp_nanos: i as u64 };
-            let _ = prod.send(msg, &mut None);
-            let _ = cons.recv(&mut None);
+            let _ = prod.send(msg);
+            let _ = cons.recv();
         }
 
         if let (Ok(ref h1), Ok(ref h2)) = (&hub1, &hub2) {
             let mut imu = Imu::new();
             imu.timestamp = i as u64;
-            let _ = h1.send(imu.clone(), &mut None);
-            let _ = h2.recv(&mut None);
+            let _ = h1.send(imu.clone());
+            let _ = h2.recv();
         }
 
         // Everything drops here
@@ -558,8 +558,8 @@ fn test_topic_reuse(config: &TestConfig) -> TestResult {
             Ok(prod) => {
                 let _ = Topic::<CmdVel>::new(&topic).map(|cons| {
                     let msg = CmdVel { linear: 1.0, angular: 0.5, stamp_nanos: i as u64 };
-                    let _ = prod.send(msg, &mut None);
-                    let _ = cons.recv(&mut None);
+                    let _ = prod.send(msg);
+                    let _ = cons.recv();
                 });
             }
             Err(e) => {
@@ -647,8 +647,8 @@ fn test_concurrent_cycles(config: &TestConfig) -> TestResult {
                         Ok(prod) => {
                             let _ = Topic::<CmdVel>::new(&topic).map(|cons| {
                                 let msg = CmdVel { linear: 1.0, angular: 0.5, stamp_nanos: i as u64 };
-                                let _ = prod.send(msg, &mut None);
-                                let _ = cons.recv(&mut None);
+                                let _ = prod.send(msg);
+                                let _ = cons.recv();
                             });
                         }
                         Err(_) => {
@@ -660,8 +660,8 @@ fn test_concurrent_cycles(config: &TestConfig) -> TestResult {
                         Ok(hub1) => {
                             let _ = Topic::<CmdVel>::new(&topic).map(|hub2| {
                                 let msg = CmdVel { linear: 1.0, angular: 0.5, stamp_nanos: i as u64 };
-                                let _ = hub1.send(msg, &mut None);
-                                let _ = hub2.recv(&mut None);
+                                let _ = hub1.send(msg);
+                                let _ = hub2.recv();
                             });
                         }
                         Err(_) => {
@@ -771,7 +771,7 @@ fn test_race_condition_stress(config: &TestConfig) -> TestResult {
                 match Topic::<CmdVel>::new(&topic) {
                     Ok(prod) => {
                         let msg = CmdVel { linear: thread_id as f32, angular: 0.5, stamp_nanos: i as u64 };
-                        let _ = prod.send(msg, &mut None);
+                        let _ = prod.send(msg);
                         // Let it live briefly
                         thread::sleep(Duration::from_micros(10));
                     }

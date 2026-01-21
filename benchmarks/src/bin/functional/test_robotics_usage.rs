@@ -116,13 +116,13 @@ fn test_sensor_flow() -> bool {
         let mut processed = 0;
         let start = Instant::now();
         while processed < 100 && start.elapsed() < Duration::from_secs(5) {
-            if let Some(sensor) = sensor_sub.recv(&mut None) {
+            if let Some(sensor) = sensor_sub.recv() {
                 let processed_msg = CmdVel::with_timestamp(
                     sensor.linear * 0.8,
                     sensor.angular * 0.9,
                     sensor.stamp_nanos,
                 );
-                if processed_pub.send(processed_msg, &mut None).is_ok() {
+                if processed_pub.send(processed_msg).is_ok() {
                     processed += 1;
                 }
             } else {
@@ -137,10 +137,10 @@ fn test_sensor_flow() -> bool {
         let mut processed = 0;
         let start = Instant::now();
         while processed < 100 && start.elapsed() < Duration::from_secs(5) {
-            if let Some(msg) = processed_sub.recv(&mut None) {
+            if let Some(msg) = processed_sub.recv() {
                 let cmd =
                     CmdVel::with_timestamp(msg.linear * 0.5, msg.angular * 0.3, msg.stamp_nanos);
-                if cmd_pub.send(cmd, &mut None).is_ok() {
+                if cmd_pub.send(cmd).is_ok() {
                     processed += 1;
                 }
             } else {
@@ -155,12 +155,12 @@ fn test_sensor_flow() -> bool {
     for i in 0..100 {
         let sensor = CmdVel::with_timestamp(1.0 + (i as f32 * 0.01), 0.5, i);
 
-        if let Err(e) = sensor_pub.send(sensor, &mut None) {
+        if let Err(e) = sensor_pub.send(sensor) {
             eprintln!("Failed to publish sensor data {}: {:?}", i, e);
             return false;
         }
 
-        if let Some(_cmd) = cmd_sub.recv(&mut None) {
+        if let Some(_cmd) = cmd_sub.recv() {
             received_cmds += 1;
         }
 
@@ -170,7 +170,7 @@ fn test_sensor_flow() -> bool {
     // Wait for remaining commands
     let start = Instant::now();
     while received_cmds < 100 && start.elapsed() < Duration::from_secs(2) {
-        if cmd_sub.recv(&mut None).is_some() {
+        if cmd_sub.recv().is_some() {
             received_cmds += 1;
         } else {
             thread::sleep(Duration::from_micros(100));
@@ -226,7 +226,7 @@ fn test_actuator_commands() -> bool {
         let start = Instant::now();
 
         while received < 500 && start.elapsed() < Duration::from_secs(5) {
-            if let Some(cmd) = cmd_receiver.recv(&mut None) {
+            if let Some(cmd) = cmd_receiver.recv() {
                 // Verify commands are in order
                 if cmd.stamp_nanos < last_timestamp {
                     eprintln!(
@@ -253,7 +253,7 @@ fn test_actuator_commands() -> bool {
             stamp_nanos: i,
         };
 
-        if let Err(e) = cmd_sender.send(cmd, &mut None) {
+        if let Err(e) = cmd_sender.send(cmd) {
             eprintln!("Failed to send command {}: {:?}", i, e);
             return false;
         }
@@ -306,7 +306,7 @@ fn test_control_loop_1khz() -> bool {
         let start = Instant::now();
 
         while received < 1000 && start.elapsed() < Duration::from_secs(2) {
-            if receiver.recv(&mut None).is_some() {
+            if receiver.recv().is_some() {
                 received += 1;
             }
         }
@@ -324,7 +324,7 @@ fn test_control_loop_1khz() -> bool {
             stamp_nanos: i,
         };
 
-        if sender.send(msg, &mut None).is_err() {
+        if sender.send(msg).is_err() {
             thread::sleep(Duration::from_micros(10)); // Back off slightly if buffer full
         }
 
@@ -380,7 +380,7 @@ fn test_transforms() -> bool {
     for i in 0..200 {
         let msg = CmdVel::with_timestamp((i as f32) * 0.01, (i as f32) * 0.02, i);
 
-        if let Err(e) = broadcaster.send(msg, &mut None) {
+        if let Err(e) = broadcaster.send(msg) {
             eprintln!("Failed to broadcast message {}: {:?}", i, e);
             return false;
         }
@@ -393,7 +393,7 @@ fn test_transforms() -> bool {
     let mut received = 0;
     let start = Instant::now();
     while received < 200 && start.elapsed() < Duration::from_secs(5) {
-        if listener.recv(&mut None).is_some() {
+        if listener.recv().is_some() {
             received += 1;
         } else {
             thread::sleep(Duration::from_micros(100));
@@ -463,7 +463,7 @@ fn test_state_machine() -> bool {
                 stamp_nanos: i,
             };
 
-            if state_pub.send(msg, &mut None).is_ok() {
+            if state_pub.send(msg).is_ok() {
                 // Transition to next state
                 state = match state {
                     RobotState::Idle => RobotState::Moving,
@@ -483,7 +483,7 @@ fn test_state_machine() -> bool {
     let mut received_transitions = 0;
     let start = Instant::now();
     while received_transitions < 50 && start.elapsed() < Duration::from_secs(2) {
-        if state_sub.recv(&mut None).is_some() {
+        if state_sub.recv().is_some() {
             received_transitions += 1;
         } else {
             thread::sleep(Duration::from_micros(100));

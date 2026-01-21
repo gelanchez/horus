@@ -261,8 +261,8 @@ fn benchmark_cmdvel(
     // Warmup
     for _ in 0..DEFAULT_WARMUP {
         let msg = CmdVel::new(1.0, 0.5);
-        tx.send(msg, &mut None).unwrap();
-        let _ = rx.recv(&mut None);
+        tx.send(msg).unwrap();
+        let _ = rx.recv();
     }
 
     // Measurement
@@ -270,8 +270,8 @@ fn benchmark_cmdvel(
     for i in 0..iterations {
         let msg = CmdVel::new(1.0 + (i as f32 * 0.001), 0.5);
         let start = timer.start();
-        tx.send(msg, &mut None).unwrap();
-        let _ = rx.recv(&mut None);
+        tx.send(msg).unwrap();
+        let _ = rx.recv();
         latencies.push(timer.elapsed_ns(start));
     }
 
@@ -308,8 +308,8 @@ fn benchmark_imu(
     // Warmup
     for _ in 0..DEFAULT_WARMUP {
         let msg = Imu::new();
-        tx.send(msg, &mut None).unwrap();
-        let _ = rx.recv(&mut None);
+        tx.send(msg).unwrap();
+        let _ = rx.recv();
     }
 
     // Measurement
@@ -319,8 +319,8 @@ fn benchmark_imu(
         msg.linear_acceleration = [0.0, 0.0, 9.81];
         msg.angular_velocity = [0.01, 0.02, 0.0];
         let start = timer.start();
-        tx.send(msg, &mut None).unwrap();
-        let _ = rx.recv(&mut None);
+        tx.send(msg).unwrap();
+        let _ = rx.recv();
         latencies.push(timer.elapsed_ns(start));
     }
 
@@ -360,8 +360,8 @@ fn benchmark_laserscan(
         for i in 0..360 {
             msg.ranges[i] = 5.0 + (i as f32 * 0.01);
         }
-        tx.send(msg, &mut None).unwrap();
-        let _ = rx.recv(&mut None);
+        tx.send(msg).unwrap();
+        let _ = rx.recv();
     }
 
     // Measurement
@@ -372,8 +372,8 @@ fn benchmark_laserscan(
             msg.ranges[i] = 5.0 + ((i + seq) as f32 * 0.01);
         }
         let start = timer.start();
-        tx.send(msg, &mut None).unwrap();
-        let _ = rx.recv(&mut None);
+        tx.send(msg).unwrap();
+        let _ = rx.recv();
         latencies.push(timer.elapsed_ns(start));
     }
 
@@ -416,8 +416,8 @@ fn benchmark_jointcmd(
         msg.add_position("wrist_1", 0.0).ok();
         msg.add_position("wrist_2", -0.5).ok();
         msg.add_position("wrist_3", 0.1).ok();
-        tx.send(msg, &mut None).unwrap();
-        let _ = rx.recv(&mut None);
+        tx.send(msg).unwrap();
+        let _ = rx.recv();
     }
 
     // Measurement
@@ -432,8 +432,8 @@ fn benchmark_jointcmd(
         msg.add_position("wrist_2", -0.5 + offset).ok();
         msg.add_position("wrist_3", 0.1 + offset).ok();
         let start = timer.start();
-        tx.send(msg, &mut None).unwrap();
-        let _ = rx.recv(&mut None);
+        tx.send(msg).unwrap();
+        let _ = rx.recv();
         latencies.push(timer.elapsed_ns(start));
     }
 
@@ -481,8 +481,8 @@ fn benchmark_pointcloud(
     // Warmup
     for _ in 0..iterations.min(100) {
         let msg = PointCloud::xyz(&points);
-        tx.send(msg, &mut None).unwrap();
-        let _ = rx.recv(&mut None);
+        tx.send(msg).unwrap();
+        let _ = rx.recv();
     }
 
     // Measurement
@@ -491,8 +491,8 @@ fn benchmark_pointcloud(
         let msg = PointCloud::xyz(&points);
         let _msg_size = msg.data.len();
         let start = timer.start();
-        tx.send(msg, &mut None).unwrap();
-        let _ = rx.recv(&mut None);
+        tx.send(msg).unwrap();
+        let _ = rx.recv();
         latencies.push(timer.elapsed_ns(start));
     }
 

@@ -383,12 +383,11 @@ pub mod prelude {
     pub use horus_core::communication::traits::{Channel, Publisher, Subscriber};
 
     // ============================================
-    // Built-in Nodes
+    // Node Infrastructure
     // ============================================
     // Core node types (Node, NodeInfo, Topic) are re-exported from horus_core above.
-    // Additional standard nodes (DifferentialDriveNode, PidControllerNode, etc.)
-    // will be available via the horus-nodes-core crate once created.
-    // See horus_library::nodes module documentation for usage.
+    // Users implement their own nodes using these building blocks.
+    // See horus_library::nodes module documentation for usage patterns.
 }
 
 /// Version information

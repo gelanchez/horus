@@ -48,14 +48,14 @@ mod zero_copy;
 ///             buffer: Vec<u8> = Vec::new(),
 ///         }
 ///
-///         tick(ctx) {
+///         tick(_ctx) {
 ///             // Process one message per tick (bounded execution time)
-///             if let Some(cmd) = self.command.recv(ctx) {
+///             if let Some(cmd) = self.command.recv() {
 ///                 // Process command
 ///             }
 ///             self.frame_count += 1;
 ///             let img = self.capture_frame();
-///             self.image.send(img, ctx).ok();
+///             self.image.send(img).ok();
 ///         }
 ///     }
 /// }
@@ -138,8 +138,8 @@ pub fn node(input: TokenStream) -> TokenStream {
 /// ```rust,ignore
 /// message!(Position = (f32, f32));
 ///
-/// let hub = Hub::<Position>::new("robot.position")?;
-/// hub.send(Position(1.0, 2.0), ctx)?;  // Works automatically!
+/// let topic = Topic::<Position>::new("robot.position")?;
+/// topic.send(Position(1.0, 2.0))?;  // Works automatically!
 /// ```
 ///
 /// # Benefits

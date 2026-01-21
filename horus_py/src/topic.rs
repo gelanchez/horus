@@ -389,7 +389,7 @@ impl PyTopic {
                 let topic_ref = topic.clone();
                 let success = py.allow_threads(|| {
                     let topic = topic_ref.write().unwrap();
-                    topic.send(cmd, &mut None).is_ok()
+                    topic.send(cmd).is_ok()
                 });
 
                 if let Some(node_obj) = &node {
@@ -417,7 +417,7 @@ impl PyTopic {
                 let topic_ref = topic.clone();
                 let success = py.allow_threads(|| {
                     let topic = topic_ref.write().unwrap();
-                    topic.send(pose, &mut None).is_ok()
+                    topic.send(pose).is_ok()
                 });
 
                 if let Some(node_obj) = &node {
@@ -445,7 +445,7 @@ impl PyTopic {
                 let topic_ref = topic.clone();
                 let success = py.allow_threads(|| {
                     let topic = topic_ref.write().unwrap();
-                    topic.send(imu, &mut None).is_ok()
+                    topic.send(imu).is_ok()
                 });
 
                 if let Some(node_obj) = &node {
@@ -470,7 +470,7 @@ impl PyTopic {
                 let topic_ref = topic.clone();
                 let success = py.allow_threads(|| {
                     let topic = topic_ref.write().unwrap();
-                    topic.send(odom, &mut None).is_ok()
+                    topic.send(odom).is_ok()
                 });
 
                 if let Some(node_obj) = &node {
@@ -501,7 +501,7 @@ impl PyTopic {
                 let topic_ref = topic.clone();
                 let success = py.allow_threads(|| {
                     let topic = topic_ref.write().unwrap();
-                    topic.send(scan, &mut None).is_ok()
+                    topic.send(scan).is_ok()
                 });
 
                 if let Some(node_obj) = &node {
@@ -548,7 +548,7 @@ impl PyTopic {
                 let topic_ref = topic.clone();
                 let success = py.allow_threads(|| {
                     let topic = topic_ref.write().unwrap();
-                    topic.send(msg, &mut None).is_ok()
+                    topic.send(msg).is_ok()
                 });
 
                 if let Some(node_obj) = &node {
@@ -596,7 +596,7 @@ impl PyTopic {
                 let topic_ref = topic.clone();
                 let msg_opt = py.allow_threads(|| {
                     let topic = topic_ref.read().unwrap();
-                    topic.recv(&mut None)
+                    topic.recv()
                 });
                 if let Some(cmd) = msg_opt {
                     let ipc_ns = start.elapsed().as_nanos() as u64;
@@ -626,7 +626,7 @@ impl PyTopic {
                 let topic_ref = topic.clone();
                 let msg_opt = py.allow_threads(|| {
                     let topic = topic_ref.read().unwrap();
-                    topic.recv(&mut None)
+                    topic.recv()
                 });
                 if let Some(pose) = msg_opt {
                     let ipc_ns = start.elapsed().as_nanos() as u64;
@@ -656,7 +656,7 @@ impl PyTopic {
                 let topic_ref = topic.clone();
                 let msg_opt = py.allow_threads(|| {
                     let topic = topic_ref.read().unwrap();
-                    topic.recv(&mut None)
+                    topic.recv()
                 });
                 if let Some(imu) = msg_opt {
                     let ipc_ns = start.elapsed().as_nanos() as u64;
@@ -686,7 +686,7 @@ impl PyTopic {
                 let topic_ref = topic.clone();
                 let msg_opt = py.allow_threads(|| {
                     let topic = topic_ref.read().unwrap();
-                    topic.recv(&mut None)
+                    topic.recv()
                 });
                 if let Some(odom) = msg_opt {
                     let ipc_ns = start.elapsed().as_nanos() as u64;
@@ -716,7 +716,7 @@ impl PyTopic {
                 let topic_ref = topic.clone();
                 let msg_opt = py.allow_threads(|| {
                     let topic = topic_ref.read().unwrap();
-                    topic.recv(&mut None)
+                    topic.recv()
                 });
                 if let Some(scan) = msg_opt {
                     let ipc_ns = start.elapsed().as_nanos() as u64;
@@ -746,7 +746,7 @@ impl PyTopic {
                 let topic_ref = topic.clone();
                 let msg_opt = py.allow_threads(|| {
                     let topic = topic_ref.read().unwrap();
-                    topic.recv(&mut None)
+                    topic.recv()
                 });
                 if let Some(msg) = msg_opt {
                     let ipc_ns = start.elapsed().as_nanos() as u64;

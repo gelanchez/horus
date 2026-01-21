@@ -368,22 +368,16 @@ impl PyNodeInfo {
     }
 
     /// Register a publisher topic for runtime discovery
-    fn register_publisher(&self, topic: String, msg_type: String) -> PyResult<()> {
-        let mut info = self
-            .inner
-            .lock()
-            .map_err(|e| PyRuntimeError::new_err(format!("Failed to lock NodeInfo: {}", e)))?;
-        info.register_publisher(&topic, &msg_type);
+    /// Note: Topic registration is now handled by TopicRegistry. This method is a no-op kept for API compatibility.
+    fn register_publisher(&self, _topic: String, _msg_type: String) -> PyResult<()> {
+        // Topic registration is now handled by TopicRegistry when Topics are created
         Ok(())
     }
 
     /// Register a subscriber topic for runtime discovery
-    fn register_subscriber(&self, topic: String, msg_type: String) -> PyResult<()> {
-        let mut info = self
-            .inner
-            .lock()
-            .map_err(|e| PyRuntimeError::new_err(format!("Failed to lock NodeInfo: {}", e)))?;
-        info.register_subscriber(&topic, &msg_type);
+    /// Note: Topic registration is now handled by TopicRegistry. This method is a no-op kept for API compatibility.
+    fn register_subscriber(&self, _topic: String, _msg_type: String) -> PyResult<()> {
+        // Topic registration is now handled by TopicRegistry when Topics are created
         Ok(())
     }
 

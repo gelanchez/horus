@@ -467,7 +467,7 @@ impl Node for F1TenthRacer {
         let time = self.tick_count as f64 * 0.01;  // Assuming 100Hz
 
         // Update odometry
-        if let Some(odom) = self.odom_sub.recv(&mut ctx) {
+        if let Some(odom) = self.odom_sub.recv() {
             let prev_pose = self.current_pose;
             self.current_pose = (odom.pose.x, odom.pose.y, odom.pose.theta);
             self.current_speed = (odom.twist.linear[0].powi(2) +
@@ -486,7 +486,7 @@ impl Node for F1TenthRacer {
         }
 
         // Get LIDAR data
-        let ranges = self.lidar_sub.recv(&mut ctx)
+        let ranges = self.lidar_sub.recv()
             .map(|scan| scan.ranges.clone())
             .unwrap_or_default();
 
@@ -527,7 +527,7 @@ impl Node for F1TenthRacer {
 
         // Send command
         let cmd = CmdVel::new(speed as f32, steering as f32);
-        self.cmd_vel.send(cmd, &mut ctx).ok();
+        self.cmd_vel.send(cmd).ok();
 
         // Update lap tracking
         self.update_lap(time);

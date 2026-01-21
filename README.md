@@ -368,12 +368,12 @@ impl Node for SensorNode {
     }
 
     // tick() is required - this is your main logic that runs every cycle
-    fn tick(&mut self, ctx: Option<&mut NodeInfo>) {
+    fn tick(&mut self, _ctx: Option<&mut NodeInfo>) {
         // Simple sensor reading
         let reading = SensorReading(self.counter as f64 * 0.1, self.counter);
 
-        // Send message (use None for ctx to disable logging overhead)
-        let _ = self.publisher.send(reading, ctx);
+        // Send message - zero overhead on the hot path
+        let _ = self.publisher.send(reading);
         self.counter += 1;
     }
 
@@ -608,12 +608,12 @@ node! {
             Ok(())
         }
 
-        tick(ctx) {
-            // ctx is Option<&mut NodeInfo> here
-            if let Some(value) = self.input.recv(None) {
+        tick(_ctx) {
+            // Process incoming messages
+            if let Some(value) = self.input.recv() {
                 self.counter += 1;
                 let processed = SensorData(value.0 * 2.0, value.1);
-                self.output.send(processed, ctx).ok();
+                self.output.send(processed).ok();
             }
         }
 

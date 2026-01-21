@@ -1120,263 +1120,6 @@ impl Scheduler {
         self.deterministic_clock.as_ref().map(|c| c.tick())
     }
 
-    /// Create a scheduler optimized for **simulation and research**.
-    ///
-    /// This constructor is designed for lab environments where reproducibility
-    /// and debugging are more important than real-time performance:
-    ///
-    /// - **No capability detection**: Skips RT feature detection entirely
-    /// - **No RT features applied**: No SCHED_FIFO, mlockall, or CPU pinning
-    /// - **Deterministic execution**: Reproducible results across runs
-    /// - **BlackBox enabled**: Flight recorder for post-mortem debugging
-    /// - **Fast startup**: No detection overhead (~10μs vs ~100μs)
-    ///
-    /// # Use Cases
-    /// - Simulation environments (Gazebo, MuJoCo, PyBullet)
-    /// - Research and algorithm development
-    /// - CI/CD pipeline testing
-    /// - Reproducible debugging of node behavior
-    ///
-    /// # Example
-    /// ```rust,ignore
-    /// use horus_core::Scheduler;
-    ///
-    /// let scheduler = Scheduler::simulation();  // Fast, deterministic
-    ///
-    /// // No capabilities detected (intentionally)
-    /// assert!(scheduler.capabilities().is_none());
-    ///
-    /// // No degradations (RT wasn't attempted)
-    /// assert!(scheduler.degradations().is_empty());
-    /// ```
-    ///
-    /// # Related Constructors
-    /// - `Scheduler::new()` - Auto-optimizes for production with RT features
-    /// - `Scheduler::prototype()` - Development mode with verbose logging
-    /// - `Scheduler::builder()` - Full manual control
-    pub fn simulation() -> Self {
-        Self::simulation_with_seed(42)
-    }
-
-    /// Create a **simulation scheduler with a specific seed** for reproducibility.
-    ///
-    /// Same as `simulation()` but allows specifying the RNG seed for
-    /// reproducible randomness across runs.
-    ///
-    /// # Arguments
-    /// - `seed` - The seed for deterministic RNG (same seed = same random sequence)
-    ///
-    /// # Example
-    /// ```rust,ignore
-    /// use horus_core::Scheduler;
-    ///
-    /// // Run 1: seed 12345
-    /// let scheduler1 = Scheduler::simulation_with_seed(12345);
-    ///
-    /// // Run 2: same seed = identical random behavior
-    /// let scheduler2 = Scheduler::simulation_with_seed(12345);
-    /// ```
-    pub fn simulation_with_seed(seed: u64) -> Self {
-        let running = Arc::new(Mutex::new(true));
-        let now = Instant::now();
-
-        // Create deterministic configuration
-        let det_config = DeterministicConfig {
-            seed,
-            virtual_time: true,
-            tick_duration_ns: 16_667_000, // ~60Hz = 16.667ms per tick
-            record_trace: true,
-        };
-
-        // Create deterministic clock (virtual time + seeded RNG)
-        let det_clock = Arc::new(DeterministicClock::new(&det_config));
-
-        // Create execution trace for replay/verification
-        let exec_trace = Arc::new(ParkingMutex::new(ExecutionTrace::new(det_config.clone())));
-
-        // Create debug assistant for issue detection
-        let debug_assistant = DebugAssistant::new();
-
-        print_line(&"[SIMULATION] Creating deterministic scheduler".cyan().to_string());
-        print_line(&format!("  - Seed: {}", seed).white().to_string());
-        print_line(&"  - Virtual time enabled (DeterministicClock)".white().to_string());
-        print_line(&"  - Execution trace enabled (replay/verification)".white().to_string());
-        print_line(&"  - Debug assistant enabled (AI issue detection)".white().to_string());
-        print_line(&"  - BlackBox flight recorder enabled".white().to_string());
-        print_line(&"  - No RT features (conflicts with virtual time)".white().to_string());
-
-        // Create BlackBox for debugging (8MB buffer)
-        let mut blackbox = super::blackbox::BlackBox::new(8);
-        blackbox.record(super::blackbox::BlackBoxEvent::SchedulerStart {
-            name: "SimulationScheduler".to_string(),
-            node_count: 0,
-            config: format!("simulation_mode, seed={}", seed),
-        });
-
-        Self {
-            nodes: Vec::new(),
-            running,
-            last_instant: now,
-            last_snapshot: now,
-            scheduler_name: "SimulationScheduler".to_string(),
-            working_dir: std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/")),
-
-            // Intelligence layer - deterministic mode
-            profiler: RuntimeProfiler::new_default(),
-            dependency_graph: None,
-            classifier: None,
-            parallel_executor: ParallelExecutor::new(),
-            async_io_executor: None,
-            async_result_rx: None,
-            async_result_tx: None,
-            background_executor: None,
-            isolated_executor: None,
-            learning_complete: true, // Skip learning for deterministic behavior
-
-            // JIT compilation
-            jit_compiled_nodes: HashMap::new(),
-
-            // Configuration
-            config: None,
-
-            // Safety monitor (disabled for simulation - not needed)
-            safety_monitor: None,
-
-            // Runtime features
-            tick_period: Duration::from_micros(16667), // ~60Hz default
-            checkpoint_manager: None,
-            blackbox: Some(blackbox), // Enabled for debugging
-            telemetry: None,
-            redundancy: None,
-
-            // Deterministic topology tracking
-            topology_locked: false,
-            collected_publishers: Vec::new(),
-            collected_subscribers: Vec::new(),
-
-            // Record/Replay system (disabled by default, user can enable)
-            recording_config: None,
-            scheduler_recording: None,
-            replay_mode: None,
-            replay_nodes: HashMap::new(),
-            replay_overrides: HashMap::new(),
-            current_tick: 0,
-            replay_stop_tick: None,
-            replay_speed: 1.0,
-
-            // NO capability detection - this is intentional for simulation
-            // (RT features conflict with virtual time)
-            runtime_capabilities: None,
-            rt_degradations: Vec::new(), // Empty - RT wasn't attempted
-
-            // DETERMINISTIC EXECUTION (enabled for simulation)
-            deterministic_clock: Some(det_clock),
-            execution_trace: Some(exec_trace),
-            debug_assistant: Some(debug_assistant),
-            deterministic_config: Some(det_config),
-        }
-    }
-
-    /// Create a scheduler optimized for **rapid prototyping and development**.
-    ///
-    /// This constructor is designed for development workflows where you need
-    /// verbose feedback and fast iteration:
-    ///
-    /// - **No capability detection**: Fast startup without RT overhead
-    /// - **Verbose logging**: Detailed output about scheduler operations
-    /// - **Safety monitor**: Catches deadline misses during development
-    /// - **No RT features**: Development machines typically lack RT permissions
-    ///
-    /// # Use Cases
-    /// - Local development on developer workstations
-    /// - Quick testing of node implementations
-    /// - Prototyping new algorithms before moving to RT hardware
-    ///
-    /// # Example
-    /// ```rust,ignore
-    /// use horus_core::Scheduler;
-    ///
-    /// let mut scheduler = Scheduler::prototype();
-    /// scheduler.add(Box::new(my_node), 0, Some(true)); // Logging enabled
-    /// scheduler.run();
-    /// ```
-    ///
-    /// # Related Constructors
-    /// - `Scheduler::new()` - Auto-optimizes for production with RT features
-    /// - `Scheduler::simulation()` - Deterministic mode for research
-    /// - `Scheduler::builder()` - Full manual control
-    pub fn prototype() -> Self {
-        let running = Arc::new(Mutex::new(true));
-        let now = Instant::now();
-
-        print_line(&"[PROTOTYPE] Creating development scheduler".magenta().to_string());
-        print_line(&"  - No RT detection (dev machine)".white().to_string());
-        print_line(&"  - Safety monitor enabled".white().to_string());
-        print_line(&"  - Verbose logging recommended".white().to_string());
-
-        Self {
-            nodes: Vec::new(),
-            running,
-            last_instant: now,
-            last_snapshot: now,
-            scheduler_name: "PrototypeScheduler".to_string(),
-            working_dir: std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/")),
-
-            // Intelligence layer
-            profiler: RuntimeProfiler::new_default(),
-            dependency_graph: None,
-            classifier: None,
-            parallel_executor: ParallelExecutor::new(),
-            async_io_executor: None,
-            async_result_rx: None,
-            async_result_tx: None,
-            background_executor: None,
-            isolated_executor: None,
-            learning_complete: true, // Skip learning for quick startup
-
-            // JIT compilation
-            jit_compiled_nodes: HashMap::new(),
-
-            // Configuration
-            config: None,
-
-            // Safety monitor (enabled for dev feedback)
-            safety_monitor: Some(SafetyMonitor::new(10)), // Generous deadline miss limit
-
-            // Runtime features
-            tick_period: Duration::from_micros(16667), // ~60Hz default
-            checkpoint_manager: None,
-            blackbox: None, // Not needed for prototyping
-            telemetry: None,
-            redundancy: None,
-
-            // Deterministic topology tracking
-            topology_locked: false,
-            collected_publishers: Vec::new(),
-            collected_subscribers: Vec::new(),
-
-            // Record/Replay system
-            recording_config: None,
-            scheduler_recording: None,
-            replay_mode: None,
-            replay_nodes: HashMap::new(),
-            replay_overrides: HashMap::new(),
-            current_tick: 0,
-            replay_stop_tick: None,
-            replay_speed: 1.0,
-
-            // NO capability detection - fast startup for dev
-            runtime_capabilities: None,
-            rt_degradations: Vec::new(),
-
-            // Deterministic execution (disabled in prototype mode)
-            deterministic_clock: None,
-            execution_trace: None,
-            debug_assistant: None,
-            deterministic_config: None,
-        }
-    }
-
     /// Apply a configuration preset to this scheduler (builder pattern)
     ///
     /// # Example
@@ -2301,61 +2044,6 @@ impl Scheduler {
     // Profile-Based Optimization (Deterministic Alternative to Learning)
     // ============================================================================
 
-    /// Load a pre-computed profile for deterministic, optimized execution.
-    ///
-    /// This is the recommended way to get both determinism AND optimization:
-    /// 1. Profile once: `horus profile my_robot.rs --output robot.profile`
-    /// 2. Use profile: `Scheduler::with_profile("robot.profile")`
-    ///
-    /// The scheduler will use the pre-computed tier classifications without
-    /// any runtime learning phase, ensuring deterministic execution from tick 0.
-    ///
-    /// # Example
-    /// ```ignore
-    /// use horus_core::Scheduler;
-    ///
-    /// let scheduler = Scheduler::with_profile("robot.profile")?;
-    /// // Deterministic AND optimized - best of both worlds
-    /// ```
-    pub fn with_profile<P: AsRef<std::path::Path>>(
-        path: P,
-    ) -> Result<Self, super::intelligence::ProfileError> {
-        let profile = super::intelligence::ProfileData::load(&path)?;
-
-        // Print warnings if hardware differs
-        let warnings = profile.check_compatibility();
-        for warning in &warnings {
-            print_line(&format!("[PROFILE] Warning: {}", warning));
-        }
-
-        let mut scheduler = Self::new();
-        scheduler.scheduler_name = format!("ProfiledScheduler({})", profile.name);
-
-        // Store profile for use when adding nodes
-        // The classifier will be populated from the profile
-        let mut classifier = super::intelligence::TierClassifier {
-            assignments: std::collections::HashMap::new(),
-        };
-
-        for (name, node_profile) in &profile.nodes {
-            classifier
-                .assignments
-                .insert(name.clone(), node_profile.tier.to_execution_tier());
-        }
-
-        scheduler.classifier = Some(classifier);
-
-        print_line(&format!(
-            "[OK] Loaded profile '{}' ({} nodes)",
-            profile.name,
-            profile.nodes.len()
-        ));
-        print_line("   - Determinism: ENABLED (from profile)");
-        print_line("   - Execution: Optimized per-node tiers");
-
-        Ok(scheduler)
-    }
-
     /// Enable the learning phase (opt-in for adaptive optimization).
     ///
     /// **Warning**: This makes execution non-deterministic!
@@ -2428,93 +2116,6 @@ impl Scheduler {
         println!("Added node '{}' with explicit tier: {:?}", node_name, tier);
 
         self
-    }
-
-    // ============================================================================
-    // Convenience Constructors (thin wrappers for common patterns)
-    // ============================================================================
-
-    /// Create a hard real-time scheduler (convenience constructor)
-    ///
-    /// This is equivalent to:
-    /// ```no_run
-    /// use horus_core::Scheduler;
-    /// use horus_core::scheduling::SchedulerConfig;
-    /// Scheduler::new()
-    ///     .with_config(SchedulerConfig::hard_realtime())
-    ///     .with_capacity(128)
-    ///     .enable_determinism()
-    ///     .with_safety_monitor(3);
-    /// ```
-    ///
-    /// After construction, call OS integration methods:
-    /// - `set_realtime_priority(99)` - SCHED_FIFO scheduling
-    /// - `pin_to_cpu(7)` - Pin to isolated core
-    /// - `lock_memory()` - Prevent page faults
-    ///
-    /// # Example
-    /// ```no_run
-    /// use horus_core::Scheduler;
-    /// fn main() -> Result<(), Box<dyn std::error::Error>> {
-    ///     let mut scheduler = Scheduler::new_realtime()?;
-    ///     scheduler.set_realtime_priority(99)?;
-    ///     scheduler.pin_to_cpu(7)?;
-    ///     scheduler.lock_memory()?;
-    ///     Ok(())
-    /// }
-    /// ```
-    /// Create a hard real-time scheduler with strict mode.
-    ///
-    /// This constructor uses auto-optimization to detect and apply RT features:
-    /// - SCHED_FIFO priority 99
-    /// - Memory locking (mlockall)
-    /// - Safety monitor with watchdog
-    /// - WCET enforcement
-    ///
-    /// **Strict mode**: Returns an error if RT features are unavailable.
-    /// Use `Scheduler::new()` for graceful degradation on non-RT systems.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - Running without root/CAP_SYS_NICE privileges
-    /// - RT scheduling is not available on the platform
-    /// - Memory locking fails
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// use horus_core::Scheduler;
-    ///
-    /// // Requires root or CAP_SYS_NICE capability
-    /// let scheduler = Scheduler::new_realtime()?;
-    /// # Ok::<(), horus_core::error::HorusError>(())
-    /// ```
-    pub fn new_realtime() -> crate::error::HorusResult<Self> {
-        super::builder::SchedulerBuilder::hard_realtime()
-            .strict()
-            .build()
-    }
-
-    /// Create a deterministic scheduler (convenience constructor)
-    ///
-    /// This is equivalent to:
-    /// ```no_run
-    /// use horus_core::Scheduler;
-    /// Scheduler::new()
-    ///     .enable_determinism();
-    /// ```
-    ///
-    /// Provides reproducible, bit-exact execution for simulation and testing.
-    pub fn new_deterministic() -> Self {
-        let sched = Self::new().enable_determinism();
-
-        print_line("[OK] Deterministic scheduler initialized");
-        print_line("   - Determinism: ENABLED");
-        print_line("   - Execution: Reproducible, bit-exact");
-        print_line("   - Use for: Simulation, testing, certification");
-
-        sched
     }
 
     // ============================================================================
@@ -2795,24 +2396,10 @@ impl Scheduler {
 
         let context = NodeInfo::new(node_name.clone(), logging_enabled);
 
-        // Check if this might be an RT node based on naming patterns or other heuristics
-        // In production, you'd want a more robust detection mechanism
-        let is_rt_node = node_name.contains("motor")
-            || node_name.contains("control")
-            || node_name.contains("sensor")
-            || node_name.contains("critical");
-
-        // For RT nodes, extract WCET and deadline if available
-        // This would normally come from the RtNode trait methods
-        let (wcet_budget, deadline) = if is_rt_node {
-            // Default RT constraints for demonstration
-            (
-                Some(Duration::from_micros(100)), // 100μs WCET
-                Some(Duration::from_millis(1)),   // 1ms deadline
-            )
-        } else {
-            (None, None)
-        };
+        // Node starts as non-RT with no deadline
+        let is_rt_node = false;
+        let wcet_budget = None;
+        let deadline = None;
 
         // Store JIT compiled function in the global map for fast lookup
         if let Some(ref compiled) = jit_compiled {
@@ -3652,22 +3239,9 @@ impl Scheduler {
                 let priority = registered.priority;
 
                 // Get pub/sub from Node trait (macro-declared)
-                let mut publishers = registered.node.get_publishers();
-                let mut subscribers = registered.node.get_subscribers();
-
-                // Merge runtime-discovered pub/sub from context (if available)
-                if let Some(ref ctx) = registered.context {
-                    for runtime_pub in ctx.get_registered_publishers() {
-                        if !publishers.iter().any(|p| p.topic_name == runtime_pub.topic_name) {
-                            publishers.push(runtime_pub);
-                        }
-                    }
-                    for runtime_sub in ctx.get_registered_subscribers() {
-                        if !subscribers.iter().any(|s| s.topic_name == runtime_sub.topic_name) {
-                            subscribers.push(runtime_sub);
-                        }
-                    }
-                }
+                // Runtime-discovered pub/sub is now tracked by TopicRegistry, not NodeInfo
+                let publishers = registered.node.get_publishers();
+                let subscribers = registered.node.get_subscribers();
 
                 // Format publishers
                 let pubs_json = publishers.iter()
@@ -3865,30 +3439,16 @@ impl Scheduler {
                 let priority = registered.priority;
 
                 // Get pub/sub from Node trait (macro-declared)
-                let mut publishers = registered.node.get_publishers();
-                let mut subscribers = registered.node.get_subscribers();
+                // Runtime-discovered pub/sub is now tracked by TopicRegistry, not NodeInfo
+                let publishers = registered.node.get_publishers();
+                let subscribers = registered.node.get_subscribers();
 
-                // Get state, health, and runtime-discovered pub/sub from context
+                // Get state and health from context
                 let (state_str, health_str, error_count, tick_count) = if let Some(ref ctx) = registered.context {
                     let heartbeat = NodeHeartbeat::from_metrics(
                         ctx.state().clone(),
                         ctx.metrics()
                     );
-
-                    // Merge runtime-discovered pub/sub (from Hub::send/recv with ctx)
-                    // These are discovered at runtime when ctx is provided
-                    let runtime_pubs = ctx.get_registered_publishers();
-                    let runtime_subs = ctx.get_registered_subscribers();
-                    for runtime_pub in runtime_pubs {
-                        if !publishers.iter().any(|p| p.topic_name == runtime_pub.topic_name) {
-                            publishers.push(runtime_pub);
-                        }
-                    }
-                    for runtime_sub in runtime_subs {
-                        if !subscribers.iter().any(|s| s.topic_name == runtime_sub.topic_name) {
-                            subscribers.push(runtime_sub);
-                        }
-                    }
 
                     (
                         ctx.state().to_string(),

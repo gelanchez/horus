@@ -218,13 +218,13 @@ impl Node for MotorControllerNode {
 
     fn tick(&mut self, _ctx: Option<&mut NodeInfo>) {
         // Get velocity command
-        if let Some(cmd) = self.cmd_vel_sub.recv(&mut None) {
+        if let Some(cmd) = self.cmd_vel_sub.recv() {
             self.target_linear = cmd.linear_x;
             self.target_angular = cmd.angular_z;
         }
 
         // Get current odometry
-        if let Some(odom) = self.odometry_sub.recv(&mut None) {
+        if let Some(odom) = self.odometry_sub.recv() {
             self.current_linear = odom.vx;
             self.current_angular = odom.vtheta;
         }
@@ -338,7 +338,7 @@ impl Node for CameraPerceptionNode {
             data: image_data[..100].to_vec(), // Fake compression
         };
 
-        let _ = self.image_pub.send(compressed, &mut ctx);
+        let _ = self.image_pub.send(compressed);
     }
 
     fn shutdown(&mut self, _ctx: &mut NodeInfo) -> HorusResult<()> {
@@ -425,7 +425,7 @@ impl Node for LidarProcessingNode {
             *map = obstacles;
         }
 
-        let _ = self.scan_pub.send(scan, &mut ctx);
+        let _ = self.scan_pub.send(scan);
     }
 
     fn shutdown(&mut self, _ctx: &mut NodeInfo) -> HorusResult<()> {
@@ -522,7 +522,7 @@ impl Node for SensorFusionNode {
         self.kalman_predict(dt);
 
         // Update with IMU
-        if let Some(imu) = self.imu_sub.recv(&mut None) {
+        if let Some(imu) = self.imu_sub.recv() {
             self.kalman_update(&[imu.angular_velocity[2]], "imu");
         }
 
@@ -539,7 +539,7 @@ impl Node for SensorFusionNode {
             vtheta: self.state[5],
         };
 
-        let _ = self.odometry_pub.send(odom, &mut ctx);
+        let _ = self.odometry_pub.send(odom);
     }
 
     fn shutdown(&mut self, _ctx: &mut NodeInfo) -> HorusResult<()> {
@@ -638,12 +638,12 @@ impl Node for PathPlannerNode {
 
     fn tick(&mut self, mut ctx: Option<&mut NodeInfo>) {
         // Update current position
-        if let Some(odom) = self.odometry_sub.recv(&mut None) {
+        if let Some(odom) = self.odometry_sub.recv() {
             self.current_position = (odom.x, odom.y);
         }
 
         // Update obstacles from lidar
-        if let Some(scan) = self.scan_sub.recv(&mut None) {
+        if let Some(scan) = self.scan_sub.recv() {
             self.obstacles.clear();
             for (i, &range) in scan.ranges.iter().enumerate() {
                 if range < 5.0 && range > 0.1 {
@@ -659,7 +659,7 @@ impl Node for PathPlannerNode {
         self.plan_path();
 
         // Publish path
-        let _ = self.path_pub.send(self.path.clone(), &mut ctx);
+        let _ = self.path_pub.send(self.path.clone());
     }
 
     fn shutdown(&mut self, _ctx: &mut NodeInfo) -> HorusResult<()> {
@@ -775,14 +775,14 @@ impl Node for NavigationControllerNode {
 
     fn tick(&mut self, mut ctx: Option<&mut NodeInfo>) {
         // Update position
-        if let Some(odom) = self.odometry_sub.recv(&mut None) {
+        if let Some(odom) = self.odometry_sub.recv() {
             self.current_position = (odom.x, odom.y, odom.theta);
         }
 
         // Get path and compute velocity command
-        if let Some(path) = self.path_sub.recv(&mut None) {
+        if let Some(path) = self.path_sub.recv() {
             let cmd_vel = self.compute_cmd_vel(&path);
-            let _ = self.cmd_vel_pub.send(cmd_vel, &mut ctx);
+            let _ = self.cmd_vel_pub.send(cmd_vel);
         }
     }
 
@@ -792,7 +792,7 @@ impl Node for NavigationControllerNode {
             linear_x: 0.0,
             angular_z: 0.0,
         };
-        let _ = self.cmd_vel_pub.send(stop, &mut None);
+        let _ = self.cmd_vel_pub.send(stop);
         println!("Navigation controller shutdown");
         Ok(())
     }
@@ -884,7 +884,7 @@ impl Node for BatteryMonitorNode {
                     eprintln!("WARNING: Battery overheating! {}°C", status.temperature);
                 }
 
-                let _ = self.battery_pub.send(status, &mut ctx);
+                let _ = self.battery_pub.send(status);
             }
             Err(e) => {
                 // This will trigger circuit breaker after 5 failures
@@ -950,7 +950,7 @@ impl Node for IMUSensorNode {
             ],
         };
 
-        let _ = self.imu_pub.send(imu_data, &mut ctx);
+        let _ = self.imu_pub.send(imu_data);
     }
 
     fn shutdown(&mut self, _ctx: &mut NodeInfo) -> HorusResult<()> {

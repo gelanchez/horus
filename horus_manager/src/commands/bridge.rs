@@ -3058,7 +3058,7 @@ async fn bridge_ros2_service(
                 log::trace!("Request payload: {} bytes", request_data.len());
 
                 // Forward request to HORUS service via shared memory
-                if let Err(e) = horus_request_pub.send(request_data.clone(), &mut None) {
+                if let Err(e) = horus_request_pub.send(request_data.clone()) {
                     log::warn!("Failed to forward request to HORUS: {:?}", e);
                     stats.errors.fetch_add(1, Ordering::Relaxed);
                     continue;
@@ -3071,7 +3071,7 @@ async fn bridge_ros2_service(
                 let mut response_received = false;
 
                 while start.elapsed() < response_timeout && running.load(Ordering::SeqCst) {
-                    if let Some(response_data) = horus_response_sub.recv(&mut None) {
+                    if let Some(response_data) = horus_response_sub.recv() {
                         log::trace!("Got response: {} bytes", response_data.len());
 
                         // Send response back via Zenoh
@@ -3162,7 +3162,7 @@ async fn bridge_horus_service_client(
     // Client request loop
     while running.load(Ordering::SeqCst) {
         // Check for outgoing service requests from HORUS
-        if let Some(request_data) = horus_request_sub.recv(&mut None) {
+        if let Some(request_data) = horus_request_sub.recv() {
             stats.requests.fetch_add(1, Ordering::Relaxed);
             log::debug!(
                 "Forwarding service request to ROS2: {} ({} bytes)",
@@ -3185,7 +3185,7 @@ async fn bridge_horus_service_client(
                             if let Ok(sample) = reply.into_result() {
                                 let response_data = sample.payload().to_bytes().to_vec();
                                 // Forward response to HORUS
-                                if let Err(e) = horus_response_pub.send(response_data, &mut None) {
+                                if let Err(e) = horus_response_pub.send(response_data) {
                                     log::warn!("Failed to forward response to HORUS: {:?}", e);
                                     stats.errors.fetch_add(1, Ordering::Relaxed);
                                 } else {
@@ -3351,7 +3351,7 @@ pub async fn bridge_ros2_action(
                 .unwrap_or_default();
 
             // Forward to HORUS
-            if let Err(e) = goal_pub.send(request_data, &mut None) {
+            if let Err(e) = goal_pub.send(request_data) {
                 log::warn!("Failed to forward goal to HORUS: {:?}", e);
                 stats.record_error();
                 continue;
@@ -3361,7 +3361,7 @@ pub async fn bridge_ros2_action(
             let response_timeout = Duration::from_secs(5);
             let start = Instant::now();
             while start.elapsed() < response_timeout && running.load(Ordering::SeqCst) {
-                if let Some(response_data) = goal_response_sub.recv(&mut None) {
+                if let Some(response_data) = goal_response_sub.recv() {
                     if let Err(e) = query.reply(query.key_expr().clone(), response_data).await {
                         log::warn!("Failed to send goal response: {}", e);
                         stats.record_error();
@@ -3389,7 +3389,7 @@ pub async fn bridge_ros2_action(
                 .map(|p| p.to_bytes().to_vec())
                 .unwrap_or_default();
 
-            if let Err(e) = cancel_pub.send(request_data, &mut None) {
+            if let Err(e) = cancel_pub.send(request_data) {
                 log::warn!("Failed to forward cancel to HORUS: {:?}", e);
                 stats.record_error();
                 continue;
@@ -3399,7 +3399,7 @@ pub async fn bridge_ros2_action(
             let response_timeout = Duration::from_secs(2);
             let start = Instant::now();
             while start.elapsed() < response_timeout && running.load(Ordering::SeqCst) {
-                if let Some(response_data) = cancel_response_sub.recv(&mut None) {
+                if let Some(response_data) = cancel_response_sub.recv() {
                     if let Err(e) = query.reply(query.key_expr().clone(), response_data).await {
                         log::warn!("Failed to send cancel response: {}", e);
                         stats.record_error();
@@ -3424,7 +3424,7 @@ pub async fn bridge_ros2_action(
                 .map(|p| p.to_bytes().to_vec())
                 .unwrap_or_default();
 
-            if let Err(e) = result_request_pub.send(request_data, &mut None) {
+            if let Err(e) = result_request_pub.send(request_data) {
                 log::warn!("Failed to forward result request to HORUS: {:?}", e);
                 stats.record_error();
                 continue;
@@ -3434,7 +3434,7 @@ pub async fn bridge_ros2_action(
             let response_timeout = Duration::from_secs(30); // Results may take longer
             let start = Instant::now();
             while start.elapsed() < response_timeout && running.load(Ordering::SeqCst) {
-                if let Some(response_data) = result_sub.recv(&mut None) {
+                if let Some(response_data) = result_sub.recv() {
                     if let Err(e) = query.reply(query.key_expr().clone(), response_data).await {
                         log::warn!("Failed to send result response: {}", e);
                         stats.record_failed();
@@ -3454,7 +3454,7 @@ pub async fn bridge_ros2_action(
         {
             stats.record_feedback();
             let feedback_data = sample.payload().to_bytes().to_vec();
-            if let Err(e) = feedback_pub.send(feedback_data, &mut None) {
+            if let Err(e) = feedback_pub.send(feedback_data) {
                 log::warn!("Failed to forward feedback to HORUS: {:?}", e);
                 stats.record_error();
             }
@@ -3465,7 +3465,7 @@ pub async fn bridge_ros2_action(
             tokio::time::timeout(Duration::from_millis(10), status_subscriber.recv_async()).await
         {
             let status_data = sample.payload().to_bytes().to_vec();
-            if let Err(e) = status_pub.send(status_data, &mut None) {
+            if let Err(e) = status_pub.send(status_data) {
                 log::warn!("Failed to forward status to HORUS: {:?}", e);
             }
         }
@@ -3992,7 +3992,7 @@ pub async fn bridge_ros2_parameters(
                     // Forward to HORUS
                     if let Some(payload) = query.payload() {
                         let request_bytes = payload.to_bytes().to_vec();
-                        if let Err(_) = horus_req_get.send(request_bytes, &mut None) {
+                        if let Err(_) = horus_req_get.send(request_bytes) {
                             log::warn!("Failed to forward get_parameters to HORUS");
                             stats_get.record_error();
                             continue;
@@ -4003,7 +4003,7 @@ pub async fn bridge_ros2_parameters(
                             std::time::Duration::from_secs(5),
                             tokio::task::spawn_blocking({
                                 let resp_link = horus_resp_get.clone();
-                                move || resp_link.recv(&mut None)
+                                move || resp_link.recv()
                             })
                         ).await {
                             Ok(Ok(Some(response))) => {
@@ -4032,7 +4032,7 @@ pub async fn bridge_ros2_parameters(
 
                     if let Some(payload) = query.payload() {
                         let request_bytes = payload.to_bytes().to_vec();
-                        if let Err(_) = horus_req_set.send(request_bytes, &mut None) {
+                        if let Err(_) = horus_req_set.send(request_bytes) {
                             log::warn!("Failed to forward set_parameters to HORUS");
                             stats_set.record_error();
                             continue;
@@ -4042,7 +4042,7 @@ pub async fn bridge_ros2_parameters(
                             std::time::Duration::from_secs(5),
                             tokio::task::spawn_blocking({
                                 let resp_link = horus_resp_set.clone();
-                                move || resp_link.recv(&mut None)
+                                move || resp_link.recv()
                             })
                         ).await {
                             Ok(Ok(Some(response))) => {
@@ -4071,7 +4071,7 @@ pub async fn bridge_ros2_parameters(
 
                     if let Some(payload) = query.payload() {
                         let request_bytes = payload.to_bytes().to_vec();
-                        if let Err(_) = horus_req_list.send(request_bytes, &mut None) {
+                        if let Err(_) = horus_req_list.send(request_bytes) {
                             log::warn!("Failed to forward list_parameters to HORUS");
                             stats_list.record_error();
                             continue;
@@ -4081,7 +4081,7 @@ pub async fn bridge_ros2_parameters(
                             std::time::Duration::from_secs(5),
                             tokio::task::spawn_blocking({
                                 let resp_link = horus_resp_list.clone();
-                                move || resp_link.recv(&mut None)
+                                move || resp_link.recv()
                             })
                         ).await {
                             Ok(Ok(Some(response))) => {
@@ -4110,7 +4110,7 @@ pub async fn bridge_ros2_parameters(
 
                     if let Some(payload) = query.payload() {
                         let request_bytes = payload.to_bytes().to_vec();
-                        if let Err(_) = horus_req_desc.send(request_bytes, &mut None) {
+                        if let Err(_) = horus_req_desc.send(request_bytes) {
                             log::warn!("Failed to forward describe_parameters to HORUS");
                             stats_desc.record_error();
                             continue;
@@ -4120,7 +4120,7 @@ pub async fn bridge_ros2_parameters(
                             std::time::Duration::from_secs(5),
                             tokio::task::spawn_blocking({
                                 let resp_link = horus_resp_desc.clone();
-                                move || resp_link.recv(&mut None)
+                                move || resp_link.recv()
                             })
                         ).await {
                             Ok(Ok(Some(response))) => {
@@ -4312,7 +4312,7 @@ async fn bridge_ros2_to_horus(
             let bytes_len = data.len() as u64;
 
             // Forward to HORUS shared memory
-            match horus_pub.send(data, &mut None) {
+            match horus_pub.send(data) {
                 Ok(()) => {
                     stats.record_in(bytes_len);
                     log::trace!(
@@ -4368,7 +4368,7 @@ async fn bridge_horus_to_ros2(
     // Bridge loop: forward messages from HORUS to ROS2
     while running.load(Ordering::SeqCst) {
         // Try to receive from HORUS shared memory (non-blocking)
-        if let Some(data) = horus_sub.recv(&mut None) {
+        if let Some(data) = horus_sub.recv() {
             let bytes_len = data.len() as u64;
 
             // Forward to ROS2 via Zenoh

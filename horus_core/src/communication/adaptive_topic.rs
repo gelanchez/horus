@@ -982,7 +982,13 @@ struct LocalState {
     is_pod: bool,
     /// Slot size for serialized messages (non-POD)
     slot_size: usize,
+    /// Message counter for sampling lease refresh (avoid syscall on every send)
+    msg_counter: u32,
 }
+
+/// Lease refresh interval - refresh every N messages instead of every message
+/// This avoids calling SystemTime::now() syscall on the hot path
+const LEASE_REFRESH_INTERVAL: u32 = 1024;
 
 impl Default for LocalState {
     fn default() -> Self {
@@ -992,6 +998,7 @@ impl Default for LocalState {
             cached_epoch: 0,
             is_pod: false,
             slot_size: DEFAULT_SLOT_SIZE,
+            msg_counter: 0,
         }
     }
 }
@@ -1187,6 +1194,9 @@ impl<T: Clone + Send + Sync + Serialize + DeserializeOwned + 'static> AdaptiveTo
             Ordering::Relaxed,
         );
 
+        // Force migration check after topology change
+        self.check_migration();
+
         Ok(())
     }
 
@@ -1213,6 +1223,9 @@ impl<T: Clone + Send + Sync + Serialize + DeserializeOwned + 'static> AdaptiveTo
             header.mode().expected_latency_ns() as u32,
             Ordering::Relaxed,
         );
+
+        // Force migration check after topology change
+        self.check_migration();
 
         Ok(())
     }
@@ -1269,11 +1282,25 @@ impl<T: Clone + Send + Sync + Serialize + DeserializeOwned + 'static> AdaptiveTo
             return Err(msg);
         }
 
-        // Refresh lease
-        self.refresh_lease();
-
-        // Check if migration needed
-        self.check_migration();
+        // Sample-based maintenance: only refresh lease and check migration periodically
+        // This avoids SystemTime::now() syscall and expensive detect_optimal_backend() on hot path
+        let local = self.local();
+        local.msg_counter = local.msg_counter.wrapping_add(1);
+        if local.msg_counter % LEASE_REFRESH_INTERVAL == 0 {
+            self.refresh_lease();
+            self.check_migration();
+        } else {
+            // Cheap epoch check only - detect if someone else triggered migration
+            let header = self.header();
+            let current_epoch = header.migration_epoch.load(Ordering::Acquire);
+            if current_epoch != local.cached_epoch {
+                local.cached_epoch = current_epoch;
+                self.metrics.estimated_latency_ns.store(
+                    header.mode().expected_latency_ns() as u32,
+                    Ordering::Relaxed,
+                );
+            }
+        }
 
         // Get current backend mode
         let header = self.header();
@@ -1371,11 +1398,25 @@ impl<T: Clone + Send + Sync + Serialize + DeserializeOwned + 'static> AdaptiveTo
             return None;
         }
 
-        // Refresh lease
-        self.refresh_lease();
-
-        // Check if migration needed
-        self.check_migration();
+        // Sample-based maintenance: only refresh lease and check migration periodically
+        // This avoids SystemTime::now() syscall and expensive detect_optimal_backend() on hot path
+        let local = self.local();
+        local.msg_counter = local.msg_counter.wrapping_add(1);
+        if local.msg_counter % LEASE_REFRESH_INTERVAL == 0 {
+            self.refresh_lease();
+            self.check_migration();
+        } else {
+            // Cheap epoch check only - detect if someone else triggered migration
+            let header = self.header();
+            let current_epoch = header.migration_epoch.load(Ordering::Acquire);
+            if current_epoch != local.cached_epoch {
+                local.cached_epoch = current_epoch;
+                self.metrics.estimated_latency_ns.store(
+                    header.mode().expected_latency_ns() as u32,
+                    Ordering::Relaxed,
+                );
+            }
+        }
 
         let header = self.header();
         let mode = header.mode();

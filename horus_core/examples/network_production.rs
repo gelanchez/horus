@@ -82,7 +82,7 @@ fn run_publisher() -> Result<(), Box<dyn std::error::Error>> {
             timestamp: counter,
         };
 
-        match hub.send(data.clone(), &mut None) {
+        match hub.send(data.clone()) {
             Ok(_) => {
                 println!("Sent: {}", data.log_summary());
             }
@@ -139,7 +139,7 @@ fn run_subscriber() -> Result<(), Box<dyn std::error::Error>> {
     println!("Waiting for sensor data...\n");
 
     loop {
-        match hub.recv(&mut None) {
+        match hub.recv() {
             Some(data) => {
                 message_count += 1;
 

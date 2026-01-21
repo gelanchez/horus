@@ -813,22 +813,31 @@ mod tests {
     fn test_prefetch_range_normal() {
         let buffer = vec![0u8; 4096];
         // Should not panic
-        prefetch_range(buffer.as_ptr(), 1024, PrefetchHint::T0);
-        prefetch_range(buffer.as_ptr(), 4096, PrefetchHint::T1);
+        // SAFETY: buffer is valid and large enough for the specified length
+        unsafe {
+            prefetch_range(buffer.as_ptr(), 1024, PrefetchHint::T0);
+            prefetch_range(buffer.as_ptr(), 4096, PrefetchHint::T1);
+        }
     }
 
     #[test]
     fn test_prefetch_range_small() {
         // Small range (< cache line) should be a no-op but not panic
         let buffer = vec![0u8; 32];
-        prefetch_range(buffer.as_ptr(), 32, PrefetchHint::T0);
+        // SAFETY: buffer is valid for the specified length
+        unsafe {
+            prefetch_range(buffer.as_ptr(), 32, PrefetchHint::T0);
+        }
     }
 
     #[test]
     fn test_prefetch_range_large() {
         // Large range should be limited to max prefetches
         let buffer = vec![0u8; 1024 * 1024]; // 1MB
-        prefetch_range(buffer.as_ptr(), 1024 * 1024, PrefetchHint::T0);
+        // SAFETY: buffer is valid for the specified length
+        unsafe {
+            prefetch_range(buffer.as_ptr(), 1024 * 1024, PrefetchHint::T0);
+        }
     }
 
     #[test]
@@ -836,23 +845,26 @@ mod tests {
         let buffer = vec![0u8; 64 * 1024]; // 64KB ring buffer
         let buffer_size = buffer.len();
 
-        // Access at beginning - no wrap
-        prefetch_ring_segment(
-            buffer.as_ptr(),
-            buffer_size,
-            0,
-            4096,
-            PrefetchHint::T0,
-        );
+        // SAFETY: buffer is valid for buffer_size bytes
+        unsafe {
+            // Access at beginning - no wrap
+            prefetch_ring_segment(
+                buffer.as_ptr(),
+                buffer_size,
+                0,
+                4096,
+                PrefetchHint::T0,
+            );
 
-        // Access in middle - no wrap
-        prefetch_ring_segment(
-            buffer.as_ptr(),
-            buffer_size,
-            32 * 1024,
-            8192,
-            PrefetchHint::T0,
-        );
+            // Access in middle - no wrap
+            prefetch_ring_segment(
+                buffer.as_ptr(),
+                buffer_size,
+                32 * 1024,
+                8192,
+                PrefetchHint::T0,
+            );
+        }
     }
 
     #[test]
@@ -860,28 +872,34 @@ mod tests {
         let buffer = vec![0u8; 64 * 1024]; // 64KB ring buffer
         let buffer_size = buffer.len();
 
-        // Access near end that wraps around
-        prefetch_ring_segment(
-            buffer.as_ptr(),
-            buffer_size,
-            60 * 1024, // Start near end
-            8192,      // Need 8KB, which wraps around
-            PrefetchHint::T0,
-        );
+        // SAFETY: buffer is valid for buffer_size bytes
+        unsafe {
+            // Access near end that wraps around
+            prefetch_ring_segment(
+                buffer.as_ptr(),
+                buffer_size,
+                60 * 1024, // Start near end
+                8192,      // Need 8KB, which wraps around
+                PrefetchHint::T0,
+            );
+        }
     }
 
     #[test]
     fn test_prefetch_ring_segment_edge_cases() {
         let buffer = vec![0u8; 1024];
 
-        // Zero length
-        prefetch_ring_segment(buffer.as_ptr(), 1024, 0, 0, PrefetchHint::T0);
+        // SAFETY: buffer is valid for 1024 bytes
+        unsafe {
+            // Zero length
+            prefetch_ring_segment(buffer.as_ptr(), 1024, 0, 0, PrefetchHint::T0);
 
-        // Zero buffer size
-        prefetch_ring_segment(buffer.as_ptr(), 0, 0, 100, PrefetchHint::T0);
+            // Zero buffer size
+            prefetch_ring_segment(buffer.as_ptr(), 0, 0, 100, PrefetchHint::T0);
 
-        // Offset larger than buffer (should wrap)
-        prefetch_ring_segment(buffer.as_ptr(), 1024, 2048, 100, PrefetchHint::T0);
+            // Offset larger than buffer (should wrap)
+            prefetch_ring_segment(buffer.as_ptr(), 1024, 2048, 100, PrefetchHint::T0);
+        }
     }
 
     #[test]
@@ -910,23 +928,32 @@ mod tests {
     fn test_prefetch_stride() {
         let buffer = vec![0u8; 1024 * 1024]; // 1MB buffer
 
-        // Stride access (like column access in a matrix)
-        prefetch_stride(buffer.as_ptr(), 1024, 16, PrefetchHint::T0);
+        // SAFETY: buffer is large enough for stride * count accesses
+        unsafe {
+            // Stride access (like column access in a matrix)
+            prefetch_stride(buffer.as_ptr(), 1024, 16, PrefetchHint::T0);
+        }
     }
 
     #[test]
     fn test_prefetch_stride_zero() {
         let buffer = vec![0u8; 1024];
 
-        // Zero stride should be a no-op
-        prefetch_stride(buffer.as_ptr(), 0, 16, PrefetchHint::T0);
+        // SAFETY: buffer is valid, zero stride is handled gracefully
+        unsafe {
+            // Zero stride should be a no-op
+            prefetch_stride(buffer.as_ptr(), 0, 16, PrefetchHint::T0);
+        }
     }
 
     #[test]
     fn test_prefetch_stride_large_count() {
         let buffer = vec![0u8; 64 * 1024];
 
-        // Large count should be limited to max prefetches
-        prefetch_stride(buffer.as_ptr(), 64, 1000, PrefetchHint::T0);
+        // SAFETY: buffer is large enough for stride * (limited) count
+        unsafe {
+            // Large count should be limited to max prefetches
+            prefetch_stride(buffer.as_ptr(), 64, 1000, PrefetchHint::T0);
+        }
     }
 }

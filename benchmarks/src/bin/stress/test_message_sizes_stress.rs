@@ -296,7 +296,7 @@ fn test_size_16b() -> bool {
             timestamp: i as u64,
             value: i as u64 * 2,
         };
-        if pub_hub.send(msg, &mut None).is_ok() {
+        if pub_hub.send(msg).is_ok() {
             send_success += 1;
         }
     }
@@ -304,7 +304,7 @@ fn test_size_16b() -> bool {
     thread::sleep(Duration::from_millis(50));
 
     for _ in 0..ITERATIONS {
-        if sub_hub.recv(&mut None).is_some() {
+        if sub_hub.recv().is_some() {
             recv_success += 1;
         }
     }
@@ -369,7 +369,7 @@ fn test_size_64b() -> bool {
             timestamp: i as u64,
             data,
         };
-        if pub_hub.send(msg, &mut None).is_ok() {
+        if pub_hub.send(msg).is_ok() {
             send_success += 1;
         }
     }
@@ -377,7 +377,7 @@ fn test_size_64b() -> bool {
     thread::sleep(Duration::from_millis(50));
 
     for _ in 0..ITERATIONS {
-        if sub_hub.recv(&mut None).is_some() {
+        if sub_hub.recv().is_some() {
             recv_success += 1;
         }
     }
@@ -443,7 +443,7 @@ fn test_size_1kb() -> bool {
             seq: i as u64,
             data,
         };
-        if pub_hub.send(msg, &mut None).is_ok() {
+        if pub_hub.send(msg).is_ok() {
             send_success += 1;
         }
     }
@@ -451,7 +451,7 @@ fn test_size_1kb() -> bool {
     thread::sleep(Duration::from_millis(50));
 
     for _ in 0..ITERATIONS {
-        if sub_hub.recv(&mut None).is_some() {
+        if sub_hub.recv().is_some() {
             recv_success += 1;
         }
     }
@@ -517,7 +517,7 @@ fn test_size_4kb() -> bool {
             seq: i as u64,
             data,
         };
-        if pub_hub.send(msg, &mut None).is_ok() {
+        if pub_hub.send(msg).is_ok() {
             send_success += 1;
         }
     }
@@ -525,7 +525,7 @@ fn test_size_4kb() -> bool {
     thread::sleep(Duration::from_millis(50));
 
     for _ in 0..ITERATIONS {
-        if sub_hub.recv(&mut None).is_some() {
+        if sub_hub.recv().is_some() {
             recv_success += 1;
         }
     }
@@ -591,7 +591,7 @@ fn test_size_64kb() -> bool {
             seq: i as u64,
             data,
         };
-        if pub_hub.send(msg, &mut None).is_ok() {
+        if pub_hub.send(msg).is_ok() {
             send_success += 1;
         }
     }
@@ -599,7 +599,7 @@ fn test_size_64kb() -> bool {
     thread::sleep(Duration::from_millis(100));
 
     for _ in 0..ITERATIONS {
-        if sub_hub.recv(&mut None).is_some() {
+        if sub_hub.recv().is_some() {
             recv_success += 1;
         }
     }
@@ -667,7 +667,7 @@ fn test_chunked_1mb() -> bool {
             seq: i as u64,
             data,
         };
-        if pub_hub.send(msg, &mut None).is_ok() {
+        if pub_hub.send(msg).is_ok() {
             send_success += 1;
         }
     }
@@ -676,7 +676,7 @@ fn test_chunked_1mb() -> bool {
 
     // Receive all chunks
     for _ in 0..CHUNKS_PER_TRANSFER {
-        if sub_hub.recv(&mut None).is_some() {
+        if sub_hub.recv().is_some() {
             recv_success += 1;
         }
     }
@@ -742,7 +742,7 @@ fn test_chunked_10mb() -> bool {
             seq: i as u64,
             data,
         };
-        if pub_hub.send(msg, &mut None).is_ok() {
+        if pub_hub.send(msg).is_ok() {
             send_success += 1;
         }
 
@@ -754,7 +754,7 @@ fn test_chunked_10mb() -> bool {
     thread::sleep(Duration::from_millis(200));
 
     for _ in 0..CHUNKS_PER_TRANSFER {
-        if sub_hub.recv(&mut None).is_some() {
+        if sub_hub.recv().is_some() {
             recv_success += 1;
         }
     }
@@ -821,7 +821,7 @@ fn test_chunked_100mb() -> bool {
             seq: i as u64,
             data,
         };
-        if pub_hub.send(msg, &mut None).is_ok() {
+        if pub_hub.send(msg).is_ok() {
             send_success += 1;
         }
 
@@ -834,7 +834,7 @@ fn test_chunked_100mb() -> bool {
     thread::sleep(Duration::from_millis(500));
 
     for _ in 0..CHUNKS_PER_TRANSFER {
-        if sub_hub.recv(&mut None).is_some() {
+        if sub_hub.recv().is_some() {
             recv_success += 1;
         }
     }
@@ -877,7 +877,7 @@ fn test_latency_scaling() -> bool {
         let start = Instant::now();
         for i in 0..ITERATIONS {
             let msg = Msg16B { timestamp: i as u64, value: 0 };
-            let _ = pub_hub.send(msg, &mut None);
+            let _ = pub_hub.send(msg);
         }
         let duration = start.elapsed();
         let avg_ns = duration.as_nanos() / ITERATIONS as u128;
@@ -897,7 +897,7 @@ fn test_latency_scaling() -> bool {
         let start = Instant::now();
         for i in 0..ITERATIONS {
             let msg = Msg64B { timestamp: i as u64, data: [0u8; 56] };
-            let _ = pub_hub.send(msg, &mut None);
+            let _ = pub_hub.send(msg);
         }
         let duration = start.elapsed();
         let avg_ns = duration.as_nanos() / ITERATIONS as u128;
@@ -917,7 +917,7 @@ fn test_latency_scaling() -> bool {
         let start = Instant::now();
         for i in 0..ITERATIONS {
             let msg = Msg1KB { header: 0, seq: i as u64, data: [0u8; 1024 - 16] };
-            let _ = pub_hub.send(msg, &mut None);
+            let _ = pub_hub.send(msg);
         }
         let duration = start.elapsed();
         let avg_ns = duration.as_nanos() / ITERATIONS as u128;
@@ -937,7 +937,7 @@ fn test_latency_scaling() -> bool {
         let start = Instant::now();
         for i in 0..ITERATIONS {
             let msg = Msg64KB { header: 0, seq: i as u64, data: [0u8; 65536 - 16] };
-            let _ = pub_hub.send(msg, &mut None);
+            let _ = pub_hub.send(msg);
         }
         let duration = start.elapsed();
         let avg_ns = duration.as_nanos() / ITERATIONS as u128;

@@ -94,7 +94,7 @@ fn test_hub_multiprocess() -> bool {
         let mut received = 0;
         let start = Instant::now();
         while received < 100 && start.elapsed() < Duration::from_secs(5) {
-            if let Some(msg) = subscriber.recv(&mut None) {
+            if let Some(msg) = subscriber.recv() {
                 if msg.stamp_nanos as usize != received {
                     eprintln!(
                         "Message order error: expected {}, got {}",
@@ -139,7 +139,7 @@ fn test_hub_multiprocess() -> bool {
                 angular: 0.5,
                 stamp_nanos: i,
             };
-            if let Err(e) = publisher.send(msg, &mut None) {
+            if let Err(e) = publisher.send(msg) {
                 eprintln!("Child: Failed to publish message {}: {:?}", i, e);
                 return false;
             }
@@ -188,11 +188,11 @@ fn test_link_singleprocess() -> bool {
         angular: 0.5,
         stamp_nanos: 42,
     };
-    if sender.send(msg1, &mut None).is_err() {
+    if sender.send(msg1).is_err() {
         eprintln!("Failed to send initial message");
         return false;
     }
-    match receiver.recv(&mut None) {
+    match receiver.recv() {
         Some(recv_msg) if recv_msg.stamp_nanos == 42 => {
             println!("   Basic send/receive: OK");
         }
@@ -217,12 +217,12 @@ fn test_link_singleprocess() -> bool {
             angular: 0.5,
             stamp_nanos: i,
         };
-        if sender.send(msg, &mut None).is_err() {
+        if sender.send(msg).is_err() {
             eprintln!("Failed to send message {}", i);
             return false;
         }
     }
-    match receiver.recv(&mut None) {
+    match receiver.recv() {
         Some(recv_msg) if recv_msg.stamp_nanos == 102 => {
             println!("   Single-slot overwrite semantics: OK (got latest: {})", recv_msg.stamp_nanos);
         }
@@ -257,7 +257,7 @@ fn test_link_singleprocess() -> bool {
                 angular: 1.0,
                 stamp_nanos: i,
             };
-            if sender.send(msg, &mut None).is_err() {
+            if sender.send(msg).is_err() {
                 eprintln!("Failed to send message {}", i);
                 return (false, sent);
             }
@@ -278,7 +278,7 @@ fn test_link_singleprocess() -> bool {
     let mut last_stamp = 0i64;
     let start = Instant::now();
     while start.elapsed() < Duration::from_secs(2) {
-        if let Some(msg) = receiver.recv(&mut None) {
+        if let Some(msg) = receiver.recv() {
             // Validate message is in expected range
             if msg.stamp_nanos > 999 {
                 eprintln!("Invalid stamp_nanos: {} (expected 0-999)", msg.stamp_nanos);
@@ -372,7 +372,7 @@ fn test_cross_process() -> bool {
         let mut last_stamp: i64 = -1;
         let start = Instant::now();
         while start.elapsed() < Duration::from_secs(5) {
-            if let Some(msg) = receiver.recv(&mut None) {
+            if let Some(msg) = receiver.recv() {
                 // Validate message is in expected range
                 if msg.stamp_nanos > 499 {
                     eprintln!(
@@ -434,7 +434,7 @@ fn test_cross_process() -> bool {
                 angular: 0.75,
                 stamp_nanos: i,
             };
-            if let Err(e) = sender.send(msg, &mut None) {
+            if let Err(e) = sender.send(msg) {
                 eprintln!("Child: Failed to send message {}: {:?}", i, e);
                 return false;
             }
@@ -492,7 +492,7 @@ fn test_large_messages() -> bool {
             stamp_nanos: i,
         };
 
-        if let Err(e) = publisher.send(msg, &mut None) {
+        if let Err(e) = publisher.send(msg) {
             eprintln!("Failed to publish message {}: {:?}", i, e);
             return false;
         }
@@ -506,7 +506,7 @@ fn test_large_messages() -> bool {
     let mut received = 0;
     let start = Instant::now();
     while received < 1000 && start.elapsed() < Duration::from_secs(5) {
-        if let Some(msg) = subscriber.recv(&mut None) {
+        if let Some(msg) = subscriber.recv() {
             // Verify message ordering
             if msg.stamp_nanos != received {
                 eprintln!(
@@ -578,7 +578,7 @@ fn test_high_frequency() -> bool {
             };
 
             // Link send should not fail (single-slot always overwrites)
-            if let Err(e) = sender.send(msg, &mut None) {
+            if let Err(e) = sender.send(msg) {
                 eprintln!("Send failed at message {}: {:?}", i, e);
                 return (false, 0, 0);
             }
@@ -599,7 +599,7 @@ fn test_high_frequency() -> bool {
 
     // Receive for a limited time
     while start.elapsed() < Duration::from_secs(3) {
-        if let Some(msg) = receiver.recv(&mut None) {
+        if let Some(msg) = receiver.recv() {
             // Validate message is in expected range
             if msg.stamp_nanos > 9999 {
                 eprintln!("Invalid stamp_nanos: {}", msg.stamp_nanos);

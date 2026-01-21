@@ -260,7 +260,7 @@ fn run_cross_process_test(
     let mut latencies = Vec::new();
     let timeout = Instant::now();
     while timeout.elapsed() < Duration::from_secs(5) {
-        if let Some(result) = result_rx.recv(&mut None) {
+        if let Some(result) = result_rx.recv() {
             latencies = result.latencies_ns;
             break;
         }
@@ -350,7 +350,7 @@ fn run_producer(args: &[String]) {
             send_time_ns: current_time_ns(),
             payload: [0u8; 48],
         };
-        let _ = producer.send(msg, &mut None);
+        let _ = producer.send(msg);
         std::thread::sleep(Duration::from_micros(10));
     }
 
@@ -364,7 +364,7 @@ fn run_producer(args: &[String]) {
             send_time_ns: current_time_ns(),
             payload: [0u8; 48],
         };
-        producer.send(msg, &mut None).expect("Send failed");
+        producer.send(msg).expect("Send failed");
 
         // Small delay to prevent queue overflow
         if i % 1000 == 0 {
@@ -378,7 +378,7 @@ fn run_producer(args: &[String]) {
         send_time_ns: 0,
         payload: [0xFFu8; 48],
     };
-    producer.send(done_msg, &mut None).ok();
+    producer.send(done_msg).ok();
 }
 
 fn run_consumer(args: &[String]) {
@@ -410,7 +410,7 @@ fn run_consumer(args: &[String]) {
 
     // Receive messages and measure latency
     while timeout.elapsed() < Duration::from_secs(60) {
-        if let Some(msg) = consumer.recv(&mut None) {
+        if let Some(msg) = consumer.recv() {
             // Check for completion signal
             if msg.seq == u64::MAX {
                 break;
@@ -441,7 +441,7 @@ fn run_consumer(args: &[String]) {
 
     // Try multiple times to ensure delivery
     for _ in 0..10 {
-        if result_tx.send(result.clone(), &mut None).is_ok() {
+        if result_tx.send(result.clone()).is_ok() {
             break;
         }
         std::thread::sleep(Duration::from_millis(10));

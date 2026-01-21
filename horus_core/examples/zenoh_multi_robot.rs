@@ -109,7 +109,7 @@ fn run_robot(robot_id: &str, start_x: f64, start_y: f64) -> Result<(), Box<dyn s
 
         // Send our pose
         let mut send_ctx: Option<&mut horus_core::NodeInfo> = None;
-        let _ = pose_hub.send(pose.clone(), &mut send_ctx);
+        let _ = pose_hub.send(pose.clone());
         println!(
             "[{}] Published: x={:.2}, y={:.2}, theta={:.2}",
             robot_id, x, y, theta
@@ -117,7 +117,7 @@ fn run_robot(robot_id: &str, start_x: f64, start_y: f64) -> Result<(), Box<dyn s
 
         // Check for peer poses (non-blocking recv with no context)
         let mut ctx: Option<&mut horus_core::NodeInfo> = None;
-        while let Some(peer_pose) = peer_hub.recv(&mut ctx) {
+        while let Some(peer_pose) = peer_hub.recv() {
             if peer_pose.robot_id != robot_id {
                 println!(
                     "  -> Received from {}: x={:.2}, y={:.2}",
@@ -147,7 +147,7 @@ fn run_monitor() -> Result<(), Box<dyn std::error::Error>> {
     loop {
         // Receive all available poses (non-blocking recv with no context)
         let mut ctx: Option<&mut horus_core::NodeInfo> = None;
-        while let Some(pose) = pose_hub.recv(&mut ctx) {
+        while let Some(pose) = pose_hub.recv() {
             let robot_id = pose.robot_id.clone();
             robot_positions.insert(robot_id.clone(), pose.clone());
 

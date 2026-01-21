@@ -28,7 +28,7 @@
 //!     fn name(&self) -> &'static str { "example" }
 //!
 //!     fn tick(&mut self, mut ctx: Option<&mut NodeInfo>) {
-//!         let _ = self.output.send("Hello HORUS!".into(), &mut ctx);
+//!         let _ = self.output.send("Hello HORUS!".into());
 //!     }
 //! }
 //! ```

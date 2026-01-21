@@ -187,7 +187,7 @@ fn test_buffer_exhaustion(config: &TestConfig) -> TestResult {
             stamp_nanos: i as u64,
         };
 
-        match producer.send(msg, &mut None) {
+        match producer.send(msg) {
             Ok(_) => sent_count += 1,
             Err(_) => send_failed += 1,
         }
@@ -200,7 +200,7 @@ fn test_buffer_exhaustion(config: &TestConfig) -> TestResult {
 
     // Read what's in the buffer - should be recent messages due to overwriting
     let mut received: Vec<CmdVel> = Vec::new();
-    while let Some(msg) = consumer.recv(&mut None) {
+    while let Some(msg) = consumer.recv() {
         received.push(msg);
     }
 
@@ -227,7 +227,7 @@ fn test_buffer_exhaustion(config: &TestConfig) -> TestResult {
         stamp_nanos: 999,
     };
 
-    let can_send_after = producer.send(msg, &mut None).is_ok();
+    let can_send_after = producer.send(msg).is_ok();
     if !can_send_after {
         errors.push("Cannot send after reading buffer".to_string());
     }
@@ -314,7 +314,7 @@ fn test_backpressure(config: &TestConfig) -> TestResult {
             };
 
             // Non-blocking send - should always succeed (overwrites old data)
-            if producer.send(msg, &mut None).is_ok() {
+            if producer.send(msg).is_ok() {
                 sent_clone.fetch_add(1, Ordering::Relaxed);
             }
 
@@ -332,7 +332,7 @@ fn test_backpressure(config: &TestConfig) -> TestResult {
 
     let consumer_handle = thread::spawn(move || {
         while !stop_clone.load(Ordering::Relaxed) {
-            if let Some(msg) = consumer.recv(&mut None) {
+            if let Some(msg) = consumer.recv() {
                 received_clone.fetch_add(1, Ordering::Relaxed);
                 last_stamp_clone.store(msg.stamp_nanos, Ordering::Relaxed);
             }
@@ -447,14 +447,14 @@ fn test_recovery_after_drain(config: &TestConfig) -> TestResult {
                 stamp_nanos: (cycle * 100 + i) as u64,
             };
 
-            if producer.send(msg, &mut None).is_ok() {
+            if producer.send(msg).is_ok() {
                 sent += 1;
             }
         }
 
         // Drain buffer
         let mut received = 0;
-        while consumer.recv(&mut None).is_some() {
+        while consumer.recv().is_some() {
             received += 1;
         }
 
@@ -465,12 +465,12 @@ fn test_recovery_after_drain(config: &TestConfig) -> TestResult {
             stamp_nanos: 9999,
         };
 
-        if producer.send(msg, &mut None).is_err() {
+        if producer.send(msg).is_err() {
             errors.push(format!("Cycle {}: Cannot send after drain", cycle));
         }
 
         // Receive the test message
-        if consumer.recv(&mut None).is_none() {
+        if consumer.recv().is_none() {
             errors.push(format!("Cycle {}: Cannot receive after drain", cycle));
         }
 
@@ -542,7 +542,7 @@ fn test_data_integrity_under_pressure(config: &TestConfig) -> TestResult {
                 stamp_nanos: seq,
             };
 
-            let _ = producer.send(msg, &mut None);
+            let _ = producer.send(msg);
 
             // Occasionally overwhelm buffer
             if seq % 100 == 0 {
@@ -552,7 +552,7 @@ fn test_data_integrity_under_pressure(config: &TestConfig) -> TestResult {
                         angular: 0.0,
                         stamp_nanos: seq,
                     };
-                    let _ = producer.send(overflow_msg, &mut None);
+                    let _ = producer.send(overflow_msg);
                 }
             }
         }
@@ -566,7 +566,7 @@ fn test_data_integrity_under_pressure(config: &TestConfig) -> TestResult {
 
     let consumer_handle = thread::spawn(move || {
         while !stop_clone.load(Ordering::Relaxed) {
-            if let Some(msg) = consumer.recv(&mut None) {
+            if let Some(msg) = consumer.recv() {
                 // Verify message integrity
                 let expected_angular = (msg.stamp_nanos % 100) as f32 / 100.0;
                 let expected_linear = msg.stamp_nanos as f32;
@@ -585,7 +585,7 @@ fn test_data_integrity_under_pressure(config: &TestConfig) -> TestResult {
         }
 
         // Drain remaining
-        while let Some(msg) = consumer.recv(&mut None) {
+        while let Some(msg) = consumer.recv() {
             let expected_angular = (msg.stamp_nanos % 100) as f32 / 100.0;
             let expected_linear = msg.stamp_nanos as f32;
 
@@ -689,7 +689,7 @@ fn test_multiple_topics_competition(config: &TestConfig) -> TestResult {
                 stamp_nanos: (i * 1000 + seq) as u64,
             };
 
-            match prod.send(msg, &mut None) {
+            match prod.send(msg) {
                 Ok(_) => total_sent += 1,
                 Err(_) => total_failed += 1,
             }
@@ -701,7 +701,7 @@ fn test_multiple_topics_competition(config: &TestConfig) -> TestResult {
     // Receive from all topics
     let mut total_received = 0;
     for (_, cons) in links.iter() {
-        while cons.recv(&mut None).is_some() {
+        while cons.recv().is_some() {
             total_received += 1;
         }
     }
@@ -776,7 +776,7 @@ fn test_burst_and_recovery(config: &TestConfig) -> TestResult {
                 stamp_nanos: (burst * burst_size + i) as u64,
             };
 
-            if producer.send(msg, &mut None).is_ok() {
+            if producer.send(msg).is_ok() {
                 burst_sent += 1;
             }
         }
@@ -787,7 +787,7 @@ fn test_burst_and_recovery(config: &TestConfig) -> TestResult {
 
         // Receive burst
         let mut burst_received = 0;
-        while let Some(_) = consumer.recv(&mut None) {
+        while let Some(_) = consumer.recv() {
             burst_received += 1;
         }
         total_received += burst_received;
@@ -799,11 +799,11 @@ fn test_burst_and_recovery(config: &TestConfig) -> TestResult {
             stamp_nanos: 0,
         };
 
-        if producer.send(msg, &mut None).is_err() {
+        if producer.send(msg).is_err() {
             errors.push(format!("Burst {}: Cannot send after burst", burst));
         } else {
             // Consume the test message
-            consumer.recv(&mut None);
+            consumer.recv();
         }
 
         if (burst + 1) % (bursts / 5).max(1) == 0 {
@@ -892,7 +892,7 @@ fn test_rate_mismatch(config: &TestConfig) -> TestResult {
             imu.timestamp = seq;
             imu.angular_velocity = [0.01, 0.02, 0.03];
 
-            let _ = hub_pub.send(imu, &mut None);
+            let _ = hub_pub.send(imu);
             sent_clone.fetch_add(1, Ordering::Relaxed);
             seq += 1;
 
@@ -905,7 +905,7 @@ fn test_rate_mismatch(config: &TestConfig) -> TestResult {
     let recv1_clone = Arc::clone(&recv1);
     let sub1_handle = thread::spawn(move || {
         while !stop_clone.load(Ordering::Relaxed) {
-            if hub_sub1.recv(&mut None).is_some() {
+            if hub_sub1.recv().is_some() {
                 recv1_clone.fetch_add(1, Ordering::Relaxed);
             }
             thread::sleep(Duration::from_millis(10)); // 100Hz
@@ -917,7 +917,7 @@ fn test_rate_mismatch(config: &TestConfig) -> TestResult {
     let recv2_clone = Arc::clone(&recv2);
     let sub2_handle = thread::spawn(move || {
         while !stop_clone.load(Ordering::Relaxed) {
-            if hub_sub2.recv(&mut None).is_some() {
+            if hub_sub2.recv().is_some() {
                 recv2_clone.fetch_add(1, Ordering::Relaxed);
             }
             thread::sleep(Duration::from_millis(100)); // 10Hz

@@ -104,7 +104,7 @@ fn test_many_topics() -> bool {
             stamp_nanos: i as u64,
         };
 
-        if let Err(e) = pub_ref.send(msg, &mut None) {
+        if let Err(e) = pub_ref.send(msg) {
             eprintln!("Failed to publish to topic {}: {:?}", i, e);
             return false;
         }
@@ -117,7 +117,7 @@ fn test_many_topics() -> bool {
     // Receive from all topics
     let mut received_count = 0;
     for (i, sub_ref) in subscribers.iter().enumerate() {
-        if let Some(msg) = sub_ref.recv(&mut None) {
+        if let Some(msg) = sub_ref.recv() {
             if msg.stamp_nanos as usize != i {
                 eprintln!(
                     "Message mismatch on topic {}: expected {}, got {}",
@@ -191,7 +191,7 @@ fn test_many_nodes() -> bool {
             stamp_nanos: i as u64,
         };
 
-        if senders[i].send(msg, &mut None).is_ok() {
+        if senders[i].send(msg).is_ok() {
             total_sent += 1;
         }
     }
@@ -201,7 +201,7 @@ fn test_many_nodes() -> bool {
     thread::sleep(Duration::from_millis(100));
 
     for i in 0..channel_count {
-        if receivers[i].recv(&mut None).is_some() {
+        if receivers[i].recv().is_some() {
             total_received += 1;
         }
     }
@@ -265,7 +265,7 @@ fn test_sustained_high_freq() -> bool {
                 stamp_nanos: count,
             };
 
-            match sender.send(msg, &mut None) {
+            match sender.send(msg) {
                 Ok(_) => count += 1,
                 Err(_) => {
                     let mut errs = errors_clone.lock().unwrap();
@@ -288,7 +288,7 @@ fn test_sustained_high_freq() -> bool {
         let mut count = 0u64;
 
         while start.elapsed() < test_duration {
-            if receiver.recv(&mut None).is_some() {
+            if receiver.recv().is_some() {
                 count += 1;
             }
         }
@@ -371,7 +371,7 @@ fn test_memory_pressure() -> bool {
                 angular: 0.5,
                 stamp_nanos: j,
             };
-            let _ = publisher.send(msg, &mut None);
+            let _ = publisher.send(msg);
         }
 
         // Keep some topics alive, drop others
@@ -439,7 +439,7 @@ fn test_long_running() -> bool {
                 stamp_nanos: count,
             };
 
-            match sender.send(msg, &mut None) {
+            match sender.send(msg) {
                 Ok(_) => count += 1,
                 Err(_) => {
                     // Log errors but don't fail immediately
@@ -468,7 +468,7 @@ fn test_long_running() -> bool {
         let mut order_errors = 0u64;
 
         while start.elapsed() < test_duration {
-            if let Some(msg) = receiver.recv(&mut None) {
+            if let Some(msg) = receiver.recv() {
                 // Check message order
                 if msg.stamp_nanos < expected_timestamp {
                     order_errors += 1;

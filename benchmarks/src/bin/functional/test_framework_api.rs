@@ -96,7 +96,7 @@ impl Node for SensorNode {
             stamp_nanos: self.tick_count as u64,
         };
 
-        if let Err(e) = self.publisher.send(msg, &mut ctx) {
+        if let Err(e) = self.publisher.send(msg) {
             eprintln!("  SensorNode: Failed to publish: {:?}", e);
         }
 
@@ -141,7 +141,7 @@ impl Node for ControllerNode {
 
     fn tick(&mut self, _ctx: Option<&mut NodeInfo>) {
         // Receive and process messages without using ctx
-        if let Some(msg) = self.subscriber.recv(&mut None) {
+        if let Some(msg) = self.subscriber.recv() {
             // Process message
             let output = CmdVel {
                 linear: msg.linear * 0.8,
@@ -149,7 +149,7 @@ impl Node for ControllerNode {
                 stamp_nanos: msg.stamp_nanos,
             };
 
-            let _ = self.publisher.send(output, &mut None);
+            let _ = self.publisher.send(output);
             *self.counter.lock().unwrap() += 1;
         }
     }
@@ -186,7 +186,7 @@ impl Node for ActuatorNode {
     }
 
     fn tick(&mut self, mut ctx: Option<&mut NodeInfo>) {
-        if let Some(_msg) = self.receiver.recv(&mut ctx) {
+        if let Some(_msg) = self.receiver.recv() {
             *self.counter.lock().unwrap() += 1;
         }
     }

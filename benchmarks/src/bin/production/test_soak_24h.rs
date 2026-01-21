@@ -354,7 +354,7 @@ fn run_soak_test(duration_secs: u64, report_interval_secs: u64) -> bool {
                     .as_nanos() as u64,
             };
 
-            if link_cmdvel_tx.send(msg, &mut None).is_ok() {
+            if link_cmdvel_tx.send(msg).is_ok() {
                 sent_clone.fetch_add(1, Ordering::Relaxed);
             } else {
                 errors_clone.fetch_add(1, Ordering::Relaxed);
@@ -367,7 +367,7 @@ fn run_soak_test(duration_secs: u64, report_interval_secs: u64) -> bool {
                 imu.linear_acceleration = [0.0, 0.0, 9.81];
                 imu.timestamp = seq;
 
-                if link_imu_tx.send(imu, &mut None).is_ok() {
+                if link_imu_tx.send(imu).is_ok() {
                     sent_clone.fetch_add(1, Ordering::Relaxed);
                 } else {
                     errors_clone.fetch_add(1, Ordering::Relaxed);
@@ -382,7 +382,7 @@ fn run_soak_test(duration_secs: u64, report_interval_secs: u64) -> bool {
                     stamp_nanos: seq,
                 };
 
-                if hub_cmdvel_tx.send(msg, &mut None).is_ok() {
+                if hub_cmdvel_tx.send(msg).is_ok() {
                     sent_clone.fetch_add(1, Ordering::Relaxed);
                 } else {
                     errors_clone.fetch_add(1, Ordering::Relaxed);
@@ -396,7 +396,7 @@ fn run_soak_test(duration_secs: u64, report_interval_secs: u64) -> bool {
                 imu.linear_acceleration = [0.0, 0.0, 9.81];
                 imu.timestamp = seq;
 
-                if hub_imu_tx.send(imu, &mut None).is_ok() {
+                if hub_imu_tx.send(imu).is_ok() {
                     sent_clone.fetch_add(1, Ordering::Relaxed);
                 } else {
                     errors_clone.fetch_add(1, Ordering::Relaxed);
@@ -417,7 +417,7 @@ fn run_soak_test(duration_secs: u64, report_interval_secs: u64) -> bool {
 
         while running_clone.load(Ordering::Relaxed) {
             let start = Instant::now();
-            if link_cmdvel_rx.recv(&mut None).is_some() {
+            if link_cmdvel_rx.recv().is_some() {
                 let latency = start.elapsed().as_nanos() as u64;
                 latencies.push(latency);
                 recv_clone.fetch_add(1, Ordering::Relaxed);
@@ -432,7 +432,7 @@ fn run_soak_test(duration_secs: u64, report_interval_secs: u64) -> bool {
 
     let link_imu_recv_handle = thread::spawn(move || {
         while running_clone.load(Ordering::Relaxed) {
-            if link_imu_rx.recv(&mut None).is_some() {
+            if link_imu_rx.recv().is_some() {
                 recv_clone.fetch_add(1, Ordering::Relaxed);
             }
         }
@@ -443,7 +443,7 @@ fn run_soak_test(duration_secs: u64, report_interval_secs: u64) -> bool {
 
     let hub_cmdvel_recv1_handle = thread::spawn(move || {
         while running_clone.load(Ordering::Relaxed) {
-            if hub_cmdvel_rx1.recv(&mut None).is_some() {
+            if hub_cmdvel_rx1.recv().is_some() {
                 recv_clone.fetch_add(1, Ordering::Relaxed);
             }
         }
@@ -454,7 +454,7 @@ fn run_soak_test(duration_secs: u64, report_interval_secs: u64) -> bool {
 
     let hub_cmdvel_recv2_handle = thread::spawn(move || {
         while running_clone.load(Ordering::Relaxed) {
-            if hub_cmdvel_rx2.recv(&mut None).is_some() {
+            if hub_cmdvel_rx2.recv().is_some() {
                 recv_clone.fetch_add(1, Ordering::Relaxed);
             }
         }
@@ -465,7 +465,7 @@ fn run_soak_test(duration_secs: u64, report_interval_secs: u64) -> bool {
 
     let hub_imu_recv_handle = thread::spawn(move || {
         while running_clone.load(Ordering::Relaxed) {
-            if hub_imu_rx.recv(&mut None).is_some() {
+            if hub_imu_rx.recv().is_some() {
                 recv_clone.fetch_add(1, Ordering::Relaxed);
             }
         }

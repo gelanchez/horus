@@ -151,25 +151,25 @@ fn benchmark_pod_topic() -> BenchmarkStats {
     // Warmup
     for i in 0..WARMUP {
         let msg = CmdVel::new(i as f32 * 0.1, i as f32 * 0.01);
-        producer.send(msg, &mut None).unwrap();
-        let _ = consumer.recv(&mut None);
+        producer.send(msg).unwrap();
+        let _ = consumer.recv();
     }
 
     // Benchmark send
     let msg = CmdVel::new(1.0, 0.5);
     let send_start = Instant::now();
     for _ in 0..ITERATIONS {
-        producer.send(msg, &mut None).unwrap();
+        producer.send(msg).unwrap();
     }
     let send_duration = send_start.elapsed();
 
     // Benchmark recv (make sure data is available)
-    producer.send(msg, &mut None).unwrap();
+    producer.send(msg).unwrap();
     let recv_start = Instant::now();
     for _ in 0..ITERATIONS {
         // Keep sending to ensure recv always has data
-        producer.send(msg, &mut None).unwrap();
-        let _ = consumer.recv(&mut None);
+        producer.send(msg).unwrap();
+        let _ = consumer.recv();
     }
     let recv_duration = recv_start.elapsed();
 
@@ -178,8 +178,8 @@ fn benchmark_pod_topic() -> BenchmarkStats {
     for i in 0..ITERATIONS {
         let msg = CmdVel::new(i as f32 * 0.1, i as f32 * 0.01);
         let start = Instant::now();
-        producer.send(msg, &mut None).unwrap();
-        let _ = consumer.recv(&mut None).expect("Should receive message");
+        producer.send(msg).unwrap();
+        let _ = consumer.recv().expect("Should receive message");
         raw_latencies.push(start.elapsed().as_nanos() as f64);
     }
 
@@ -203,24 +203,24 @@ fn benchmark_standard_topic() -> BenchmarkStats {
     // Warmup
     for i in 0..WARMUP {
         let msg = CmdVel::new(i as f32 * 0.1, i as f32 * 0.01);
-        let _ = producer.send(msg, &mut None);
-        let _ = consumer.recv(&mut None);
+        let _ = producer.send(msg);
+        let _ = consumer.recv();
     }
 
     // Benchmark send
     let msg = CmdVel::new(1.0, 0.5);
     let send_start = Instant::now();
     for _ in 0..ITERATIONS {
-        let _ = producer.send(msg, &mut None);
+        let _ = producer.send(msg);
     }
     let send_duration = send_start.elapsed();
 
     // Benchmark recv
-    let _ = producer.send(msg, &mut None);
+    let _ = producer.send(msg);
     let recv_start = Instant::now();
     for _ in 0..ITERATIONS {
-        let _ = producer.send(msg, &mut None);
-        let _ = consumer.recv(&mut None);
+        let _ = producer.send(msg);
+        let _ = consumer.recv();
     }
     let recv_duration = recv_start.elapsed();
 
@@ -229,8 +229,8 @@ fn benchmark_standard_topic() -> BenchmarkStats {
     for i in 0..ITERATIONS {
         let msg = CmdVel::new(i as f32 * 0.1, i as f32 * 0.01);
         let start = Instant::now();
-        let _ = producer.send(msg, &mut None);
-        let _ = consumer.recv(&mut None);
+        let _ = producer.send(msg);
+        let _ = consumer.recv();
         raw_latencies.push(start.elapsed().as_nanos() as f64);
     }
 

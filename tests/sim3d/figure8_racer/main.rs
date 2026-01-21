@@ -165,7 +165,7 @@ impl Node for Figure8Racer {
 
         // Send velocity command
         let cmd = CmdVel::new(linear, angular);
-        self.cmd_vel.send(cmd, &mut ctx).ok();
+        self.cmd_vel.send(cmd).ok();
 
         // Print status every 100 ticks (~1 second)
         if self.total_ticks % 100 == 0 {
@@ -181,7 +181,7 @@ impl Node for Figure8Racer {
     fn shutdown(&mut self, ctx: &mut NodeInfo) -> HorusResult<()> {
         // Stop the robot
         let stop_cmd = CmdVel::new(0.0, 0.0);
-        self.cmd_vel.send(stop_cmd, &mut Some(ctx)).ok();
+        self.cmd_vel.send(stop_cmd).ok();
 
         ctx.log_info(&format!("Figure-8 Racer stopped after {} laps, {} ticks",
                               self.lap_count, self.total_ticks));

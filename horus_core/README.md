@@ -204,9 +204,9 @@ impl Node for SensorNode {
     }
 
     // Required: Called repeatedly by scheduler
-    fn tick(&mut self, mut ctx: Option<&mut NodeInfo>) {
+    fn tick(&mut self, _ctx: Option<&mut NodeInfo>) {
         let reading = self.counter as f64 * 0.1;
-        let _ = self.publisher.send(reading, ctx);
+        let _ = self.publisher.send(reading);
         self.counter += 1;
     }
 
@@ -382,11 +382,11 @@ struct UnsafeMessage {
 
 ```rust
 impl Node for WellDesignedNode {
-    fn tick(&mut self, mut ctx: Option<&mut NodeInfo>) {
+    fn tick(&mut self, _ctx: Option<&mut NodeInfo>) {
         //  Good: Bounded execution (one message per tick)
-        if let Some(data) = self.input.recv(ctx) {
+        if let Some(data) = self.input.recv() {
             let result = process_data(data);
-            let _ = self.output.send(result, ctx);
+            let _ = self.output.send(result);
         }
 
         //  Bad: Blocking operations in tick()
@@ -406,13 +406,13 @@ impl Node for WellDesignedNode {
 
 ```rust
 impl Node for RobustNode {
-    fn tick(&mut self, mut ctx: Option<&mut NodeInfo>) {
+    fn tick(&mut self, _ctx: Option<&mut NodeInfo>) {
         // Handle communication errors gracefully
-        match self.publisher.send(data, ctx) {
+        match self.publisher.send(data) {
             Ok(()) => { /* Success */ }
-            Err(msg) => {
+            Err(_) => {
                 // Log error but don't panic - keep system running
-        ctx.log_warning("Message dropped due to full buffer");
+                // Use external introspection tools to monitor errors
             }
         }
     }

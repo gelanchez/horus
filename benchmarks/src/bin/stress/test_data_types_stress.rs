@@ -672,7 +672,7 @@ fn test_primitives_unsigned() -> bool {
 
     let mut success = true;
     for (i, expected) in test_values.iter().enumerate() {
-        if pub_hub.send(*expected, &mut None).is_err() {
+        if pub_hub.send(*expected).is_err() {
             eprintln!("  Failed to send message {}", i);
             success = false;
             continue;
@@ -680,7 +680,7 @@ fn test_primitives_unsigned() -> bool {
 
         thread::sleep(Duration::from_millis(10));
 
-        if let Some(received) = sub_hub.recv(&mut None) {
+        if let Some(received) = sub_hub.recv() {
             if received != *expected {
                 eprintln!("  Message {} mismatch: {:?} != {:?}", i, received, expected);
                 success = false;
@@ -741,7 +741,7 @@ fn test_primitives_signed() -> bool {
 
     let mut success = true;
     for (i, expected) in test_values.iter().enumerate() {
-        if pub_hub.send(*expected, &mut None).is_err() {
+        if pub_hub.send(*expected).is_err() {
             eprintln!("  Failed to send message {}", i);
             success = false;
             continue;
@@ -749,7 +749,7 @@ fn test_primitives_signed() -> bool {
 
         thread::sleep(Duration::from_millis(10));
 
-        if let Some(received) = sub_hub.recv(&mut None) {
+        if let Some(received) = sub_hub.recv() {
             if received != *expected {
                 eprintln!("  Message {} mismatch: {:?} != {:?}", i, received, expected);
                 success = false;
@@ -812,7 +812,7 @@ fn test_primitives_float() -> bool {
 
     let mut success = true;
     for (i, expected) in test_values.iter().enumerate() {
-        if pub_hub.send(*expected, &mut None).is_err() {
+        if pub_hub.send(*expected).is_err() {
             eprintln!("  Failed to send message {}", i);
             success = false;
             continue;
@@ -820,7 +820,7 @@ fn test_primitives_float() -> bool {
 
         thread::sleep(Duration::from_millis(10));
 
-        if let Some(received) = sub_hub.recv(&mut None) {
+        if let Some(received) = sub_hub.recv() {
             // Use bitwise comparison for floating point
             if received.val_f32.to_bits() != expected.val_f32.to_bits() ||
                received.val_f64.to_bits() != expected.val_f64.to_bits() {
@@ -886,7 +886,7 @@ fn test_arrays_u8() -> bool {
 
         let msg = ArrayU8 { len: 60, data };
 
-        if pub_hub.send(msg, &mut None).is_err() {
+        if pub_hub.send(msg).is_err() {
             eprintln!("  Failed to send message {}", i);
             success = false;
             continue;
@@ -894,7 +894,7 @@ fn test_arrays_u8() -> bool {
 
         thread::sleep(Duration::from_millis(10));
 
-        if let Some(received) = sub_hub.recv(&mut None) {
+        if let Some(received) = sub_hub.recv() {
             if received.data != msg.data || received.len != msg.len {
                 eprintln!("  Message {} array mismatch", i);
                 success = false;
@@ -955,13 +955,13 @@ fn test_arrays_u32() -> bool {
 
     let mut success = true;
 
-    if pub_hub.send(msg, &mut None).is_err() {
+    if pub_hub.send(msg).is_err() {
         eprintln!("  Failed to send message");
         success = false;
     } else {
         thread::sleep(Duration::from_millis(10));
 
-        if let Some(received) = sub_hub.recv(&mut None) {
+        if let Some(received) = sub_hub.recv() {
             if received.data != msg.data || received.len != msg.len {
                 eprintln!("  Array mismatch");
                 success = false;
@@ -1029,13 +1029,13 @@ fn test_arrays_f64() -> bool {
 
     let mut success = true;
 
-    if pub_hub.send(msg, &mut None).is_err() {
+    if pub_hub.send(msg).is_err() {
         eprintln!("  Failed to send message");
         success = false;
     } else {
         thread::sleep(Duration::from_millis(10));
 
-        if let Some(received) = sub_hub.recv(&mut None) {
+        if let Some(received) = sub_hub.recv() {
             let mut match_ok = received.timestamp == msg.timestamp;
             for i in 0..8 {
                 if received.data[i].to_bits() != msg.data[i].to_bits() {
@@ -1102,13 +1102,13 @@ fn test_nested_pose() -> bool {
 
     let mut success = true;
 
-    if pub_hub.send(msg, &mut None).is_err() {
+    if pub_hub.send(msg).is_err() {
         eprintln!("  Failed to send message");
         success = false;
     } else {
         thread::sleep(Duration::from_millis(10));
 
-        if let Some(received) = sub_hub.recv(&mut None) {
+        if let Some(received) = sub_hub.recv() {
             if received != msg {
                 eprintln!("  Nested struct mismatch");
                 success = false;
@@ -1180,13 +1180,13 @@ fn test_nested_transform() -> bool {
 
     let mut success = true;
 
-    if pub_hub.send(msg, &mut None).is_err() {
+    if pub_hub.send(msg).is_err() {
         eprintln!("  Failed to send message");
         success = false;
     } else {
         thread::sleep(Duration::from_millis(10));
 
-        if let Some(received) = sub_hub.recv(&mut None) {
+        if let Some(received) = sub_hub.recv() {
             if received != msg {
                 eprintln!("  Deeply nested struct mismatch");
                 success = false;
@@ -1249,7 +1249,7 @@ fn test_enum_u8() -> bool {
 
     let mut success = true;
     for (i, expected) in test_values.iter().enumerate() {
-        if pub_hub.send(*expected, &mut None).is_err() {
+        if pub_hub.send(*expected).is_err() {
             eprintln!("  Failed to send message {}", i);
             success = false;
             continue;
@@ -1257,7 +1257,7 @@ fn test_enum_u8() -> bool {
 
         thread::sleep(Duration::from_millis(10));
 
-        if let Some(received) = sub_hub.recv(&mut None) {
+        if let Some(received) = sub_hub.recv() {
             if received.status != expected.status || received.error_code != expected.error_code {
                 eprintln!("  Message {} mismatch: {:?} != {:?}", i, received, expected);
                 success = false;
@@ -1318,7 +1318,7 @@ fn test_enum_u32() -> bool {
 
     let mut success = true;
     for (i, expected) in test_values.iter().enumerate() {
-        if pub_hub.send(*expected, &mut None).is_err() {
+        if pub_hub.send(*expected).is_err() {
             eprintln!("  Failed to send message {}", i);
             success = false;
             continue;
@@ -1326,7 +1326,7 @@ fn test_enum_u32() -> bool {
 
         thread::sleep(Duration::from_millis(10));
 
-        if let Some(received) = sub_hub.recv(&mut None) {
+        if let Some(received) = sub_hub.recv() {
             if received.status != expected.status || received.error_code != expected.error_code {
                 eprintln!("  Message {} mismatch: {:?} != {:?}", i, received, expected);
                 success = false;
@@ -1368,10 +1368,10 @@ fn test_alignment_variations() -> bool {
         thread::sleep(Duration::from_millis(20));
 
         let msg = Align1 { a: 0x11, b: 0x22, c: 0x33, d: 0x44 };
-        pub_hub.send(msg, &mut None).expect("send");
+        pub_hub.send(msg).expect("send");
         thread::sleep(Duration::from_millis(10));
 
-        if let Some(recv) = sub_hub.recv(&mut None) {
+        if let Some(recv) = sub_hub.recv() {
             if recv == msg {
                 println!("  Align1 (packed): size={}, align={} ✓",
                     std::mem::size_of::<Align1>(), std::mem::align_of::<Align1>());
@@ -1393,10 +1393,10 @@ fn test_alignment_variations() -> bool {
         thread::sleep(Duration::from_millis(20));
 
         let msg = Align2 { a: 0x1122, b: 0x3344 };
-        pub_hub.send(msg, &mut None).expect("send");
+        pub_hub.send(msg).expect("send");
         thread::sleep(Duration::from_millis(10));
 
-        if let Some(recv) = sub_hub.recv(&mut None) {
+        if let Some(recv) = sub_hub.recv() {
             if recv == msg {
                 println!("  Align2: size={}, align={} ✓",
                     std::mem::size_of::<Align2>(), std::mem::align_of::<Align2>());
@@ -1418,10 +1418,10 @@ fn test_alignment_variations() -> bool {
         thread::sleep(Duration::from_millis(20));
 
         let msg = Align4 { a: 0x11223344, b: 0x55667788 };
-        pub_hub.send(msg, &mut None).expect("send");
+        pub_hub.send(msg).expect("send");
         thread::sleep(Duration::from_millis(10));
 
-        if let Some(recv) = sub_hub.recv(&mut None) {
+        if let Some(recv) = sub_hub.recv() {
             if recv == msg {
                 println!("  Align4: size={}, align={} ✓",
                     std::mem::size_of::<Align4>(), std::mem::align_of::<Align4>());
@@ -1443,10 +1443,10 @@ fn test_alignment_variations() -> bool {
         thread::sleep(Duration::from_millis(20));
 
         let msg = Align8 { a: 0x1122334455667788, b: 0x99AABBCCDDEEFF00 };
-        pub_hub.send(msg, &mut None).expect("send");
+        pub_hub.send(msg).expect("send");
         thread::sleep(Duration::from_millis(10));
 
-        if let Some(recv) = sub_hub.recv(&mut None) {
+        if let Some(recv) = sub_hub.recv() {
             if recv == msg {
                 println!("  Align8: size={}, align={} ✓",
                     std::mem::size_of::<Align8>(), std::mem::align_of::<Align8>());
@@ -1510,13 +1510,13 @@ fn test_cache_line_alignment() -> bool {
         success = false;
     }
 
-    if pub_hub.send(msg, &mut None).is_err() {
+    if pub_hub.send(msg).is_err() {
         eprintln!("  Failed to send message");
         success = false;
     } else {
         thread::sleep(Duration::from_millis(10));
 
-        if let Some(received) = sub_hub.recv(&mut None) {
+        if let Some(received) = sub_hub.recv() {
             if received.timestamp != msg.timestamp || received.data != msg.data {
                 eprintln!("  Cache-line aligned message mismatch");
                 success = false;
@@ -1578,13 +1578,13 @@ fn test_robotics_imu() -> bool {
 
     let mut success = true;
 
-    if pub_hub.send(msg, &mut None).is_err() {
+    if pub_hub.send(msg).is_err() {
         eprintln!("  Failed to send message");
         success = false;
     } else {
         thread::sleep(Duration::from_millis(10));
 
-        if let Some(received) = sub_hub.recv(&mut None) {
+        if let Some(received) = sub_hub.recv() {
             // Verify each field
             let mut match_ok = received.timestamp == msg.timestamp;
             match_ok &= received.temperature.to_bits() == msg.temperature.to_bits();
@@ -1657,13 +1657,13 @@ fn test_robotics_joint() -> bool {
 
     let mut success = true;
 
-    if pub_hub.send(msg, &mut None).is_err() {
+    if pub_hub.send(msg).is_err() {
         eprintln!("  Failed to send message");
         success = false;
     } else {
         thread::sleep(Duration::from_millis(10));
 
-        if let Some(received) = sub_hub.recv(&mut None) {
+        if let Some(received) = sub_hub.recv() {
             // Verify each field
             let mut match_ok = received.timestamp == msg.timestamp;
             match_ok &= received.num_joints == msg.num_joints;
@@ -1748,13 +1748,13 @@ fn test_robotics_laser() -> bool {
 
     let mut success = true;
 
-    if pub_hub.send(msg, &mut None).is_err() {
+    if pub_hub.send(msg).is_err() {
         eprintln!("  Failed to send message");
         success = false;
     } else {
         thread::sleep(Duration::from_millis(10));
 
-        if let Some(received) = sub_hub.recv(&mut None) {
+        if let Some(received) = sub_hub.recv() {
             // Verify key fields and some range samples
             let mut match_ok = received.timestamp == msg.timestamp;
             match_ok &= received.num_ranges == msg.num_ranges;

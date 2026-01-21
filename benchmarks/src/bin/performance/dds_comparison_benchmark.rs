@@ -375,8 +375,8 @@ fn run_benchmark(
             timestamp_ns: 0,
             data: [0u8; 48],
         };
-        tx.send(msg, &mut None).unwrap();
-        let _ = rx.recv(&mut None);
+        tx.send(msg).unwrap();
+        let _ = rx.recv();
     }
 
     // Measurement
@@ -388,8 +388,8 @@ fn run_benchmark(
             data: [0u8; 48],
         };
         let start = timer.start();
-        tx.send(msg, &mut None).unwrap();
-        let _ = rx.recv(&mut None);
+        tx.send(msg).unwrap();
+        let _ = rx.recv();
         latencies.push(timer.elapsed_ns(start));
     }
 

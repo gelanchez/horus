@@ -263,8 +263,8 @@ where
                 timestamp: 0,
                 seq: i as u64,
             };
-            tx.send(msg, &mut None).unwrap();
-            let _ = rx.recv(&mut None);
+            tx.send(msg).unwrap();
+            let _ = rx.recv();
         }
 
         // Measured iterations
@@ -279,8 +279,8 @@ where
             };
 
             let start = timer.start();
-            tx.send(msg, &mut None).unwrap();
-            let _ = rx.recv(&mut None);
+            tx.send(msg).unwrap();
+            let _ = rx.recv();
             let elapsed = timer.elapsed_ns(start);
 
             run_latencies.push(elapsed);

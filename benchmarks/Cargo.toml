@@ -11,27 +11,11 @@ name = "horus_benchmarks"
 path = "src/lib.rs"
 
 [[bench]]
-name = "production_messages"
-harness = false
-
-[[bench]]
-name = "topic_performance"
+name = "ipc_benchmark"
 harness = false
 
 [[bench]]
 name = "network_transport"
-harness = false
-
-[[bench]]
-name = "latency_matrix"
-harness = false
-
-[[bench]]
-name = "latency_rigorous"
-harness = false
-
-[[bench]]
-name = "competitive_comparison"
 harness = false
 
 # =============================================================================
@@ -72,6 +56,11 @@ doc = true
 [[bin]]
 name = "dds_comparison_benchmark"
 path = "src/bin/performance/dds_comparison_benchmark.rs"
+doc = true
+
+[[bin]]
+name = "backend_latency_benchmark"
+path = "src/bin/performance/backend_latency_benchmark.rs"
 doc = true
 
 # =============================================================================

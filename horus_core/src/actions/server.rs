@@ -228,7 +228,7 @@ where
         if elapsed >= self.min_interval {
             if let Some(ref link) = *self.link.read() {
                 let msg = ActionFeedback::new(goal_id, feedback);
-                let _ = link.send(msg, &mut None);
+                let _ = link.send(msg);
                 *self.last_send.write() = now;
             }
         }
@@ -774,7 +774,7 @@ where
             // Store in history
             // Note: We can't modify result_history here since we only have &self
             // This would need to be handled differently in a real implementation
-            let _ = link.send(result, &mut None);
+            let _ = link.send(result);
         }
     }
 
@@ -782,7 +782,7 @@ where
     fn publish_status(&self, goal_id: GoalId, status: GoalStatus) {
         if let Some(ref link) = self.status_link {
             let update = GoalStatusUpdate::new(goal_id, status);
-            let _ = link.send(update, &mut None);
+            let _ = link.send(update);
         }
     }
 
@@ -861,7 +861,7 @@ where
     fn tick(&mut self, _ctx: Option<&mut NodeInfo>) {
         // Collect incoming goals first to avoid borrow conflict
         let goals: Vec<_> = if let Some(ref link) = self.goal_link {
-            std::iter::from_fn(|| link.recv(&mut None)).collect()
+            std::iter::from_fn(|| link.recv()).collect()
         } else {
             Vec::new()
         };
@@ -873,7 +873,7 @@ where
 
         // Collect cancel requests first to avoid borrow conflict
         let cancels: Vec<_> = if let Some(ref link) = self.cancel_link {
-            std::iter::from_fn(|| link.recv(&mut None)).collect()
+            std::iter::from_fn(|| link.recv()).collect()
         } else {
             Vec::new()
         };

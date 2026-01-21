@@ -18,7 +18,7 @@
 //!
 //! // Default MPMC mode - most flexible
 //! let topic: Topic<String> = Topic::new("sensor_data").unwrap();
-//! topic.send("hello".to_string(), &mut None)?;
+//! topic.send("hello".to_string())?;
 //!
 //! // SPSC mode - lowest latency for point-to-point
 //! let topic: Topic<String, Spsc> = Topic::with_mode("control_cmd").unwrap();
