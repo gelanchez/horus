@@ -128,6 +128,7 @@ pub fn to_dlpack(
 ///
 /// Like `to_dlpack` but takes an Arc to keep the data alive.
 /// This is safer as it ensures the data outlives the DLPack tensor.
+#[allow(dead_code)]
 pub fn to_dlpack_with_ref(
     data_ptr: *mut c_void,
     shape: &[i64],

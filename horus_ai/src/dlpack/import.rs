@@ -146,6 +146,7 @@ fn compute_contiguous_strides(shape: &[u64], elem_size: usize) -> Vec<u64> {
 /// Wrapper that owns a DLManagedTensor and calls deleter on drop
 ///
 /// Use this when you want RAII-style management of imported DLPack tensors.
+#[allow(dead_code)]
 pub struct OwnedDLPackTensor {
     managed: *mut DLManagedTensor,
     descriptor: TensorDescriptor,
@@ -158,32 +159,38 @@ impl OwnedDLPackTensor {
     ///
     /// The caller must ensure `managed` points to a valid DLManagedTensor
     /// and that ownership is being transferred (caller won't call deleter).
+    #[allow(dead_code)]
     pub unsafe fn from_raw(managed: *mut DLManagedTensor) -> Result<Self, DLPackImportError> {
         let descriptor = from_dlpack(managed)?;
         Ok(Self { managed, descriptor })
     }
 
     /// Get the tensor descriptor
+    #[allow(dead_code)]
     pub fn descriptor(&self) -> &TensorDescriptor {
         &self.descriptor
     }
 
     /// Get the data pointer
+    #[allow(dead_code)]
     pub fn data_ptr(&self) -> *mut c_void {
         (self.descriptor.data_ptr as usize) as *mut c_void
     }
 
     /// Get the shape
+    #[allow(dead_code)]
     pub fn shape(&self) -> &[u64] {
         &self.descriptor.shape
     }
 
     /// Get the dtype
+    #[allow(dead_code)]
     pub fn dtype(&self) -> TensorDtype {
         self.descriptor.dtype
     }
 
     /// Get the device
+    #[allow(dead_code)]
     pub fn device(&self) -> Device {
         self.descriptor.device
     }

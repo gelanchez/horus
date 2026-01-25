@@ -867,6 +867,7 @@ pub struct ClientGoalHandle<R, F> {
     /// Result (set when goal completes)
     result: Arc<RwLock<Option<R>>>,
     /// Action name for topic construction
+    #[allow(dead_code)]
     action_name: String,
 }
 
@@ -1132,6 +1133,7 @@ pub struct Ros2ActionClient<G, R, F> {
     /// Statistics
     stats: Arc<ActionStats>,
     /// Sequence number for requests
+    #[allow(dead_code)]
     sequence: AtomicU64,
     /// Marker for goal type
     _goal_marker: std::marker::PhantomData<G>,

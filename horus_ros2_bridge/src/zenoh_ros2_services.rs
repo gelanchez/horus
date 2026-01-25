@@ -172,28 +172,19 @@ impl Ros2RequestHeader {
 /// Serialize a message to CDR format
 ///
 /// Uses the cdr-encoding crate when the zenoh-ros2 feature is enabled
-#[cfg(feature = "zenoh-ros2")]
+
 pub fn serialize_cdr<T: Serialize>(msg: &T) -> Result<Vec<u8>, Ros2ServiceError> {
-    cdr_encoding::to_vec(msg).map_err(|e| Ros2ServiceError::SerializationError(e.to_string()))
+    cdr_encoding::to_vec::<T, byteorder::LittleEndian>(msg)
+        .map_err(|e| Ros2ServiceError::SerializationError(e.to_string()))
 }
 
 /// Deserialize a message from CDR format
-#[cfg(feature = "zenoh-ros2")]
 pub fn deserialize_cdr<T: DeserializeOwned>(data: &[u8]) -> Result<T, Ros2ServiceError> {
-    cdr_encoding::from_slice(data).map_err(|e| Ros2ServiceError::SerializationError(e.to_string()))
+    cdr_encoding::from_bytes::<T, byteorder::LittleEndian>(data)
+        .map(|(value, _bytes_read)| value)
+        .map_err(|e| Ros2ServiceError::SerializationError(e.to_string()))
 }
 
-/// Fallback serialization using MessagePack when CDR is not available
-#[cfg(not(feature = "zenoh-ros2"))]
-pub fn serialize_cdr<T: Serialize>(msg: &T) -> Result<Vec<u8>, Ros2ServiceError> {
-    // Use MessagePack as fallback - still compatible with HORUS-to-HORUS communication
-    rmp_serde::to_vec(msg).map_err(|e| Ros2ServiceError::SerializationError(e.to_string()))
-}
-
-#[cfg(not(feature = "zenoh-ros2"))]
-pub fn deserialize_cdr<T: DeserializeOwned>(data: &[u8]) -> Result<T, Ros2ServiceError> {
-    rmp_serde::from_slice(data).map_err(|e| Ros2ServiceError::SerializationError(e.to_string()))
-}
 
 // ============================================================================
 // Error Types
@@ -280,7 +271,7 @@ impl Default for Ros2ServiceConfig {
             zenoh_config: ZenohConfig::ros2(0),
             timeout: Duration::from_secs(5),
             max_concurrent_requests: 100,
-            use_cdr: cfg!(feature = "zenoh-ros2"),
+            use_cdr: true,
             namespace: String::new(),
         }
     }

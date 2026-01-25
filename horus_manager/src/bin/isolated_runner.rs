@@ -71,7 +71,7 @@ fn main() {
     // ```
 
     // For testing, create a simple demo node
-    use horus_core::core::node::{Node, NodeInfo};
+    use horus_core::core::node::Node;
 
     struct DemoIsolatedNode {
         name: &'static str,

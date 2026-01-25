@@ -165,6 +165,7 @@ struct ProcessedField {
     internal_type: Type,
     is_string: bool,
     is_pod: bool,
+    #[allow(dead_code)]
     max_len: Option<usize>,
 }
 

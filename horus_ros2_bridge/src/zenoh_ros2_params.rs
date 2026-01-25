@@ -1385,12 +1385,14 @@ pub struct Ros2ParameterClient {
     /// Target node name
     node_name: String,
     /// Configuration
+    #[allow(dead_code)]
     config: Ros2ParameterConfig,
     /// Topics
     topics: ParameterClientTopics,
     /// Statistics
     stats: Arc<ParameterStats>,
     /// Sequence counter for requests
+    #[allow(dead_code)]
     sequence: AtomicU64,
 }
 
@@ -1425,6 +1427,7 @@ impl Ros2ParameterClient {
     }
 
     /// Get next sequence number
+    #[allow(dead_code)]
     fn next_sequence(&self) -> u64 {
         self.sequence.fetch_add(1, Ordering::Relaxed)
     }
@@ -1518,6 +1521,7 @@ pub struct Ros2ParameterServer {
     /// Local parameter store
     store: Arc<LocalParameterStore>,
     /// Configuration
+    #[allow(dead_code)]
     config: Ros2ParameterConfig,
     /// Topics
     topics: ParameterServerTopics,
