@@ -16,4 +16,4 @@ Run individual benchmark:
     python -m horus_py.benchmarks.ipc_latency
 """
 
-__version__ = "0.1.7"
+__version__ = "0.1.8"

@@ -1,6 +1,6 @@
 [package]
 name = "horus_library"
-version = "0.1.7"
+version = "0.1.8"
 edition = "2021"
 authors = ["HORUS Contributors"]
 description = "Standard library of messages, nodes, and algorithms for HORUS"

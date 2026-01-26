@@ -2535,7 +2535,7 @@ fn detect_package_info(dir: &Path) -> Result<(String, String, Option<String>, Op
 
     // Simple YAML parsing for name, version, description, license
     let mut name = String::from("unknown");
-    let mut version = String::from("0.1.7");
+    let mut version = String::from("0.1.8");
     let mut description: Option<String> = None;
     let mut license: Option<String> = None;
 
