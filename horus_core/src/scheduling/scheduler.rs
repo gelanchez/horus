@@ -286,8 +286,9 @@ impl Scheduler {
             // Configuration
             config: None,
 
-            // Safety monitor (enabled by default now)
-            safety_monitor: Some(SafetyMonitor::new(5)), // Allow 5 deadline misses before action
+            // Safety monitor (disabled by default for prototyping)
+            // Enable explicitly via builder.safety_monitor(N) or use safety_critical()/hard_realtime() presets
+            safety_monitor: None,
 
             // Runtime features
             tick_period: Duration::from_micros(16667), // ~60Hz default
@@ -4926,7 +4927,8 @@ mod tests {
         assert!(!caps.kernel_version.is_empty(), "Should detect kernel version");
 
         // Should have safety monitor enabled by default
-        assert!(scheduler.safety_monitor.is_some());
+        // Safety monitor is now disabled by default (prototyping-friendly)
+        assert!(scheduler.safety_monitor.is_none());
     }
 
     #[test]

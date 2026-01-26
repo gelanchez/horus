@@ -331,6 +331,7 @@ fn main() -> Result<()> {
         r#"// Mobile robot controller
 
 use horus::prelude::*;
+use horus::core::node::TopicMetadata;
 
 struct Controller {
     cmd_vel: Topic<CmdVel>,
@@ -356,6 +357,15 @@ impl Node for Controller {
         // send_logged() writes to shared log buffer for monitoring tools
         // Use send() instead for zero-overhead hot path (~167ns vs ~300ns)
         self.cmd_vel.send_logged(msg).ok();
+    }
+
+    fn get_publishers(&self) -> Vec<TopicMetadata> {
+        vec![
+            TopicMetadata {
+                topic_name: "motors.cmd_vel".to_string(),
+                type_name: std::any::type_name::<CmdVel>().to_string(),
+            }
+        ]
     }
 }
 
