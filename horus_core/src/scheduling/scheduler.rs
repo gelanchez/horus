@@ -354,14 +354,11 @@ impl Scheduler {
             });
         }
 
-        // 2. Apply memory locking if permitted
+        // 2. Apply memory locking if permitted (silent on success)
         if caps.can_lock_memory() {
             match scheduler.apply_memory_lock_internal() {
                 Ok(()) => {
-                    print_line(&format!(
-                        "[AUTO] Memory locked (limit: {} MB)",
-                        caps.memlock_limit_bytes / 1024 / 1024
-                    ).green().to_string());
+                    // Success - no need to announce for normal development
                 }
                 Err(e) => {
                     degradations.push(RtDegradation {
@@ -397,15 +394,7 @@ impl Scheduler {
             if let Some(cpu) = best_cpu {
                 match scheduler.apply_cpu_affinity_internal(cpu) {
                     Ok(()) => {
-                        let cpu_type = if caps.nohz_full_cpus.contains(&cpu) {
-                            "isolated+nohz_full"
-                        } else {
-                            "isolated"
-                        };
-                        print_line(&format!(
-                            "[AUTO] Pinned to CPU {} ({})",
-                            cpu, cpu_type
-                        ).green().to_string());
+                        // Success - no need to announce for normal development
                     }
                     Err(e) => {
                         degradations.push(RtDegradation {
@@ -419,22 +408,12 @@ impl Scheduler {
         }
         // If no isolated CPUs, don't auto-pin - let the OS scheduler handle it
 
-        // 4. Note NUMA topology for future thread pool optimization
-        if caps.numa_node_count > 1 {
-            print_line(&format!(
-                "[AUTO] NUMA detected ({} nodes) - consider pinning node threads",
-                caps.numa_node_count
-            ).cyan().to_string());
-        }
-
-        // 5. Print capability summary
-        print_line(&caps.summary().cyan().to_string());
-
-        // 6. BlackBox enabled by default for crash analysis
-        print_line(&"[AUTO] BlackBox enabled (16MB buffer for crash analysis)".green().to_string());
-
-        // 7. SafetyMonitor with WCET enforcement enabled by default
-        print_line(&"[AUTO] SafetyMonitor enabled (WCET enforcement for RT nodes)".green().to_string());
+        // 4-7. RT features detected and applied silently
+        // - NUMA topology noted for future thread pool optimization
+        // - RuntimeCapabilities available via scheduler.runtime_capabilities
+        // - BlackBox enabled by default for crash analysis
+        // - SafetyMonitor disabled by default (enable with safety_critical() or hard_realtime())
+        // Use Scheduler::builder().verbose(true) for full diagnostics
 
         // Store degradations
         scheduler.rt_degradations = degradations;
