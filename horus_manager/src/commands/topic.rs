@@ -116,10 +116,16 @@ pub fn list_topics(verbose: bool, json: bool) -> HorusResult<()> {
 pub fn echo_topic(name: &str, count: Option<usize>, rate: Option<f64>) -> HorusResult<()> {
     let topics = discover_shared_memory()?;
 
-    // Find the topic
-    let topic = topics
-        .iter()
-        .find(|t| t.topic_name == name || t.topic_name.ends_with(&format!("/{}", name)));
+    // Find the topic - match by exact name, path suffix, or base name
+    let topic = topics.iter().find(|t| {
+        t.topic_name == name
+            || t.topic_name.ends_with(&format!("/{}", name))
+            || t.topic_name
+                .rsplit('/')
+                .next()
+                .map(|base| base == name)
+                .unwrap_or(false)
+    });
 
     if topic.is_none() {
         return Err(HorusError::Config(format!(
@@ -239,9 +245,16 @@ fn print_hex_dump(data: &[u8], max_bytes: usize) {
 pub fn topic_info(name: &str) -> HorusResult<()> {
     let topics = discover_shared_memory()?;
 
-    let topic = topics
-        .iter()
-        .find(|t| t.topic_name == name || t.topic_name.ends_with(&format!("/{}", name)));
+    // Match by exact name, path suffix, or base name
+    let topic = topics.iter().find(|t| {
+        t.topic_name == name
+            || t.topic_name.ends_with(&format!("/{}", name))
+            || t.topic_name
+                .rsplit('/')
+                .next()
+                .map(|base| base == name)
+                .unwrap_or(false)
+    });
 
     if topic.is_none() {
         return Err(HorusError::Config(format!(
@@ -309,9 +322,16 @@ pub fn topic_info(name: &str) -> HorusResult<()> {
 pub fn topic_hz(name: &str, window: Option<usize>) -> HorusResult<()> {
     let topics = discover_shared_memory()?;
 
-    let topic = topics
-        .iter()
-        .find(|t| t.topic_name == name || t.topic_name.ends_with(&format!("/{}", name)));
+    // Match by exact name, path suffix, or base name
+    let topic = topics.iter().find(|t| {
+        t.topic_name == name
+            || t.topic_name.ends_with(&format!("/{}", name))
+            || t.topic_name
+                .rsplit('/')
+                .next()
+                .map(|base| base == name)
+                .unwrap_or(false)
+    });
 
     if topic.is_none() {
         return Err(HorusError::Config(format!(

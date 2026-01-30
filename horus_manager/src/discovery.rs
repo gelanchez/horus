@@ -1660,6 +1660,14 @@ fn scan_topics_directory(shm_path: &Path) -> HorusResult<Vec<SharedMemoryInfo>> 
                     &registry_topics,
                     &active_nodes,
                 )?);
+            } else if metadata.is_dir() && name == "horus_topic" {
+                // Topic API topics - files inside horus_topic subdirectory
+                // These are created by Topic::new() in HORUS applications
+                topics.extend(scan_topic_api_directory(
+                    &path,
+                    &registry_topics,
+                    &active_nodes,
+                )?);
             }
         }
     }
@@ -1683,6 +1691,43 @@ fn scan_links_directory(
                     if let Some(name) = path.file_name().and_then(|s| s.to_str()) {
                         // Link topic name format: links/<topic>
                         let topic_name = format!("links/{}", name);
+                        if let Some(mut info) =
+                            scan_topic_file(&path, name, registry_topics, active_nodes)
+                        {
+                            info.topic_name = topic_name;
+                            topics.push(info);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(topics)
+}
+
+/// Scan the horus_topic directory for Topic API shared memory files
+/// These are created by Topic::new() in HORUS applications
+fn scan_topic_api_directory(
+    topic_path: &Path,
+    registry_topics: &StdHashMap<String, (String, Vec<String>, Vec<String>)>,
+    active_nodes: &[String],
+) -> HorusResult<Vec<SharedMemoryInfo>> {
+    let mut topics = Vec::new();
+
+    if let Ok(entries) = std::fs::read_dir(topic_path) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if let Ok(metadata) = entry.metadata() {
+                if metadata.is_file() {
+                    if let Some(name) = path.file_name().and_then(|s| s.to_str()) {
+                        // Skip discovery metadata files
+                        if name == "horus.discovery" {
+                            continue;
+                        }
+                        // Topic API uses horus_topic/<name> path format
+                        // Include the subdirectory in topic_name for proper path construction
+                        let topic_name = format!("horus_topic/{}", name);
                         if let Some(mut info) =
                             scan_topic_file(&path, name, registry_topics, active_nodes)
                         {
