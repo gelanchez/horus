@@ -1636,9 +1636,9 @@ mod tests {
         assert_eq!(int_val.integer_value, 42);
         assert_eq!(int_val.as_integer(), Some(42));
 
-        let double_val = ParameterValue::from_double(3.14);
+        let double_val = ParameterValue::from_double(3.5);
         assert_eq!(double_val.param_type, ParameterType::Double as u8);
-        assert!((double_val.double_value - 3.14).abs() < 0.001);
+        assert!((double_val.double_value - 3.5).abs() < 0.001);
         assert!(double_val.as_double().is_some());
 
         let string_val = ParameterValue::from_string("hello");
@@ -1958,7 +1958,7 @@ mod tests {
             .declare_parameter("int_param", ParameterValue::from_integer(42), None)
             .unwrap();
         store
-            .declare_parameter("double_param", ParameterValue::from_double(3.14), None)
+            .declare_parameter("double_param", ParameterValue::from_double(3.5), None)
             .unwrap();
         store
             .declare_parameter("string_param", ParameterValue::from_string("hello"), None)
