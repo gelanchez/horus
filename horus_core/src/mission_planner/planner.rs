@@ -1547,7 +1547,8 @@ mod tests {
         planner.submit(mission).unwrap();
 
         // Events are emitted on start, goal start, task starts, task completions, etc.
-        assert!(event_count.load(Ordering::SeqCst) >= 0);
+        // At minimum, mission started event should be emitted
+        assert!(event_count.load(Ordering::SeqCst) > 0);
     }
 
     #[test]

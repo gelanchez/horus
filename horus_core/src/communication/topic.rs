@@ -6738,10 +6738,7 @@ mod tests {
         let consumer = Topic::<SpmcTestMsg>::spmc_shm(&unique_name, false).unwrap();
 
         // Send a message
-        let msg = SpmcTestMsg {
-            id: 42,
-            value: 3.5,
-        };
+        let msg = SpmcTestMsg { id: 42, value: 3.5 };
         producer.send(msg.clone()).unwrap();
 
         // Receive the message
