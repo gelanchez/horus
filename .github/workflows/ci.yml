@@ -118,8 +118,12 @@ jobs:
           sudo mkdir -p /dev/shm/horus/heartbeats
           sudo chmod 777 /dev/shm/horus /dev/shm/horus/topics /dev/shm/horus/heartbeats
 
+      # Build and test in separate steps to avoid crate-type collision
+      - name: Build Workspace
+        run: cargo build --workspace
+
       - name: Run Tests
-        run: cargo test --workspace --jobs 1
+        run: cargo test --workspace --no-fail-fast
         env:
           RUST_BACKTRACE: 1
 
