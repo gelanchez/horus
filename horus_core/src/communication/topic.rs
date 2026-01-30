@@ -3321,13 +3321,56 @@ where
         // - SpmcShm (~70ns) - 1P:NC cross-process
         // - SpscShm (~85ns) - 1P:1C cross-process
         // - MpmcShm (~167ns) - NP:NC cross-process
-        let adaptive = AdaptiveTopic::with_capacity(&shm_name, capacity as u32)?;
+        let adaptive = AdaptiveTopic::with_capacity(&shm_name, capacity as u32, None)?;
 
         log::info!(
             "Topic '{}': Created with AdaptiveTopic (mode={:?}, latency=~{}ns)",
             name,
             adaptive.mode(),
             adaptive.mode().expected_latency_ns()
+        );
+
+        Ok(Self {
+            name,
+            backend: TopicBackend::Adaptive(adaptive),
+            metrics: Arc::new(AtomicTopicMetrics::default()),
+            state: std::sync::atomic::AtomicU8::new(ConnectionState::Connected.into_u8()),
+            _marker: PhantomData,
+        })
+    }
+
+    /// Create a new topic with custom slot size for large messages
+    ///
+    /// Use this for types that serialize to more than 8KB, such as images.
+    /// The slot_size should be larger than the expected serialized size of your messages.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - The topic name
+    /// * `capacity` - Number of message slots in the buffer
+    /// * `slot_size` - Size of each slot in bytes (for non-POD types only)
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use horus_core::communication::Topic;
+    /// use horus_library::Image;
+    ///
+    /// // For 640x480 RGB images (~921KB), use 1MB slot size
+    /// let topic: Topic<Image> = Topic::with_slot_size("camera/image", 4, 1024 * 1024)?;
+    /// ```
+    pub fn with_slot_size(name: impl Into<String>, capacity: usize, slot_size: usize) -> HorusResult<Self> {
+        let name = name.into();
+        let shm_name = format!("topic/{}", name);
+
+        let adaptive = AdaptiveTopic::with_capacity(&shm_name, capacity as u32, Some(slot_size))?;
+
+        log::info!(
+            "Topic '{}': Created with AdaptiveTopic (mode={:?}, latency=~{}ns, slot_size={})",
+            name,
+            adaptive.mode(),
+            adaptive.mode().expected_latency_ns(),
+            slot_size
         );
 
         Ok(Self {

@@ -50,7 +50,8 @@ use crate::memory::shm_region::ShmRegion;
 const ADAPTIVE_MAGIC: u64 = 0x4144415054495645; // "ADAPTIVE"
 
 /// Header version for compatibility checking
-const ADAPTIVE_VERSION: u32 = 1;
+/// v2: Added slot_size field for large message support
+const ADAPTIVE_VERSION: u32 = 2;
 
 /// Default lease timeout in milliseconds (5 seconds)
 const DEFAULT_LEASE_TIMEOUT_MS: u64 = 5000;
@@ -309,8 +310,10 @@ pub struct AdaptiveTopicHeader {
     pub capacity: u32,
     /// Capacity mask for fast modulo (capacity - 1, only valid if capacity is power of 2)
     pub capacity_mask: u32,
-    /// Padding to fill cache line (64 - 8 - 4 - 4 = 48 bytes)
-    pub _pad_producer: [u8; 48],
+    /// Slot size in bytes (for non-POD types, includes header + data)
+    pub slot_size: u32,
+    /// Padding to fill cache line (64 - 8 - 4 - 4 - 4 = 44 bytes)
+    pub _pad_producer: [u8; 44],
 
     // === Cache line 3 (bytes 128-191): CONSUMER WRITE LINE ===
     // This cache line is ONLY written by consumers (receivers)
@@ -362,7 +365,8 @@ impl AdaptiveTopicHeader {
             sequence_or_head: AtomicU64::new(0),
             capacity: 0,
             capacity_mask: 0,
-            _pad_producer: [0; 48],
+            slot_size: 0,
+            _pad_producer: [0; 44],
             // Cache line 3: Consumer write line
             tail: AtomicU64::new(0),
             _pad_consumer: [0; 56],
@@ -385,7 +389,7 @@ impl AdaptiveTopicHeader {
     }
 
     /// Initialize a new header
-    pub fn init(&mut self, type_size: u32, type_align: u32, is_pod: bool, capacity: u32) {
+    pub fn init(&mut self, type_size: u32, type_align: u32, is_pod: bool, capacity: u32, slot_size: u32) {
         // Ensure capacity is power of 2 for fast modulo
         let capacity = capacity.next_power_of_two();
 
@@ -408,6 +412,7 @@ impl AdaptiveTopicHeader {
         self.sequence_or_head.store(0, Ordering::Release);
         self.capacity = capacity;
         self.capacity_mask = capacity.wrapping_sub(1); // For bitwise AND instead of modulo
+        self.slot_size = slot_size;
 
         // Cache line 3: Consumer write line
         self.tail.store(0, Ordering::Release);
@@ -1294,27 +1299,50 @@ impl<T: Clone + Send + Sync + Serialize + DeserializeOwned + 'static> AdaptiveTo
     /// - Same-thread/same-process detection
     /// - POD type detection
     pub fn new(name: &str) -> HorusResult<Self> {
-        Self::with_capacity(name, auto_capacity::<T>())
+        Self::with_capacity(name, auto_capacity::<T>(), None)
     }
 
-    /// Create a new adaptive topic with custom capacity
-    pub fn with_capacity(name: &str, capacity: u32) -> HorusResult<Self> {
+    /// Create a new adaptive topic with custom capacity and optional slot size
+    ///
+    /// # Arguments
+    /// * `name` - Topic name
+    /// * `capacity` - Number of slots in the ring buffer
+    /// * `slot_size` - Custom slot size in bytes for non-POD types (default: 8KB).
+    ///                 Use larger values for big messages like images.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// // Default slot size (8KB) - fine for small messages
+    /// let topic: AdaptiveTopic<SensorData> = AdaptiveTopic::with_capacity("sensor", 64, None)?;
+    ///
+    /// // For 640x480 RGB images (~921KB), use 1MB slot size with 4 slots
+    /// let topic: AdaptiveTopic<Image> = AdaptiveTopic::with_capacity(
+    ///     "camera/image",
+    ///     4,
+    ///     Some(1024 * 1024)  // 1MB per slot
+    /// )?;
+    /// ```
+    pub fn with_capacity(
+        name: &str,
+        capacity: u32,
+        slot_size: Option<usize>,
+    ) -> HorusResult<Self> {
         let is_pod = Self::check_is_pod();
         let type_size = mem::size_of::<T>() as u32;
         let type_align = mem::align_of::<T>() as u32;
 
         // For non-POD cross-process: use slot-based layout for serialized data
         // Slot layout: [8 bytes sequence][8 bytes length][serialized data...]
-        let slot_size = if is_pod {
+        let actual_slot_size = if is_pod {
             type_size as usize
         } else {
-            // Use DEFAULT_SLOT_SIZE for serialized messages
-            DEFAULT_SLOT_SIZE
+            // Use custom slot size if provided, otherwise DEFAULT_SLOT_SIZE
+            slot_size.unwrap_or(DEFAULT_SLOT_SIZE)
         };
 
         // Calculate total storage size: header + data buffer
         // Both POD and non-POD need full ring buffer with capacity slots
-        let data_size = (capacity as usize) * slot_size;
+        let data_size = (capacity as usize) * actual_slot_size;
         let total_size = Self::HEADER_SIZE + data_size;
 
         // Create or open shared memory
@@ -1323,9 +1351,10 @@ impl<T: Clone + Send + Sync + Serialize + DeserializeOwned + 'static> AdaptiveTo
         // Initialize header if we're the creator
         let header = unsafe { &mut *(storage.as_ptr() as *mut AdaptiveTopicHeader) };
 
-        if header.magic != ADAPTIVE_MAGIC {
+        let final_slot_size = if header.magic != ADAPTIVE_MAGIC {
             // We're the creator - initialize the header
-            header.init(type_size, type_align, is_pod, capacity);
+            header.init(type_size, type_align, is_pod, capacity, actual_slot_size as u32);
+            actual_slot_size
         } else {
             // Validate existing header
             if header.version != ADAPTIVE_VERSION {
@@ -1341,14 +1370,16 @@ impl<T: Clone + Send + Sync + Serialize + DeserializeOwned + 'static> AdaptiveTo
                     header.type_size, type_size
                 )));
             }
-        }
+            // Use the slot_size from header for existing topics
+            header.slot_size as usize
+        };
 
         Ok(Self {
             name: name.to_string(),
             storage,
             local: std::cell::UnsafeCell::new(LocalState {
                 is_pod,
-                slot_size,
+                slot_size: final_slot_size,
                 ..Default::default()
             }),
             metrics: Arc::new(AdaptiveMetrics::default()),
@@ -2663,7 +2694,7 @@ impl<T: PodMessage + Clone + Send + Sync + Serialize + DeserializeOwned + 'stati
         let header = unsafe { &mut *(storage.as_ptr() as *mut AdaptiveTopicHeader) };
 
         if header.magic != ADAPTIVE_MAGIC {
-            header.init(type_size, type_align, true, 1);
+            header.init(type_size, type_align, true, 1, type_size);
         }
 
         Ok(Self {
@@ -2782,7 +2813,7 @@ mod tests {
     #[test]
     fn test_migrator_creation() {
         let mut header = AdaptiveTopicHeader::zeroed();
-        header.init(8, 4, true, 100);
+        header.init(8, 4, true, 100, 8);
 
         let migrator = BackendMigrator::new(&header);
         assert_eq!(migrator.current_epoch(), 0);
@@ -2792,7 +2823,7 @@ mod tests {
     #[test]
     fn test_migrator_with_custom_timeout() {
         let mut header = AdaptiveTopicHeader::zeroed();
-        header.init(8, 4, true, 100);
+        header.init(8, 4, true, 100, 8);
 
         let migrator = BackendMigrator::with_drain_timeout(&header, 500);
         assert_eq!(migrator.drain_timeout_ms, 500);
@@ -2801,7 +2832,7 @@ mod tests {
     #[test]
     fn test_migration_not_needed() {
         let mut header = AdaptiveTopicHeader::zeroed();
-        header.init(8, 4, true, 100);
+        header.init(8, 4, true, 100, 8);
         // Set initial mode to MpmcShm (default)
         header
             .backend_mode
@@ -2815,7 +2846,7 @@ mod tests {
     #[test]
     fn test_migration_success() {
         let mut header = AdaptiveTopicHeader::zeroed();
-        header.init(8, 4, true, 100);
+        header.init(8, 4, true, 100, 8);
         header
             .backend_mode
             .store(AdaptiveBackendMode::Unknown as u8, Ordering::Release);
@@ -2835,7 +2866,7 @@ mod tests {
     #[test]
     fn test_migration_concurrent_lock() {
         let mut header = AdaptiveTopicHeader::zeroed();
-        header.init(8, 4, true, 100);
+        header.init(8, 4, true, 100, 8);
 
         // Manually acquire the lock
         assert!(header.try_lock_migration());
@@ -2854,7 +2885,7 @@ mod tests {
     #[test]
     fn test_migrator_is_optimal() {
         let mut header = AdaptiveTopicHeader::zeroed();
-        header.init(8, 4, true, 100);
+        header.init(8, 4, true, 100, 8);
 
         // With default state (0 pubs, 0 subs), optimal is MpmcShm
         let optimal = header.detect_optimal_backend();
@@ -2873,7 +2904,7 @@ mod tests {
     #[test]
     fn test_migrator_stats() {
         let mut header = AdaptiveTopicHeader::zeroed();
-        header.init(8, 4, true, 100);
+        header.init(8, 4, true, 100, 8);
         header
             .backend_mode
             .store(AdaptiveBackendMode::SpscIntra as u8, Ordering::Release);
@@ -2892,7 +2923,7 @@ mod tests {
     #[test]
     fn test_migrate_to_optimal() {
         let mut header = AdaptiveTopicHeader::zeroed();
-        header.init(8, 4, true, 100);
+        header.init(8, 4, true, 100, 8);
         header
             .backend_mode
             .store(AdaptiveBackendMode::Unknown as u8, Ordering::Release);
@@ -2915,7 +2946,7 @@ mod tests {
     #[test]
     fn test_epoch_increments_on_migration() {
         let mut header = AdaptiveTopicHeader::zeroed();
-        header.init(8, 4, true, 100);
+        header.init(8, 4, true, 100, 8);
         header
             .backend_mode
             .store(AdaptiveBackendMode::Unknown as u8, Ordering::Release);
