@@ -122,7 +122,11 @@ impl CertificateManagerBuilder {
     }
 
     /// Set certificate and key file names
-    pub fn with_file_names(mut self, cert_file: impl Into<String>, key_file: impl Into<String>) -> Self {
+    pub fn with_file_names(
+        mut self,
+        cert_file: impl Into<String>,
+        key_file: impl Into<String>,
+    ) -> Self {
         self.config.cert_file = cert_file.into();
         self.config.key_file = key_file.into();
         self
@@ -215,7 +219,10 @@ impl CertificateManager {
             fs::create_dir_all(&config.cert_dir).map_err(|e| {
                 io::Error::new(
                     io::ErrorKind::Other,
-                    format!("Failed to create certificate directory {:?}: {}", config.cert_dir, e),
+                    format!(
+                        "Failed to create certificate directory {:?}: {}",
+                        config.cert_dir, e
+                    ),
                 )
             })?;
             log::info!("Created certificate directory: {:?}", config.cert_dir);
@@ -254,7 +261,9 @@ impl CertificateManager {
     /// If certificates exist and are valid, loads them from disk.
     /// Otherwise, generates new self-signed certificates and saves them.
     #[cfg(feature = "tls")]
-    pub fn get_or_create(&self) -> io::Result<(Vec<CertificateDer<'static>>, PrivateKeyDer<'static>)> {
+    pub fn get_or_create(
+        &self,
+    ) -> io::Result<(Vec<CertificateDer<'static>>, PrivateKeyDer<'static>)> {
         // Check if certificates exist
         if self.certificates_exist() {
             // Check if they're still valid
@@ -299,7 +308,9 @@ impl CertificateManager {
 
     /// Generate new certificates and save to disk
     #[cfg(feature = "tls")]
-    pub fn generate_and_save(&self) -> io::Result<(Vec<CertificateDer<'static>>, PrivateKeyDer<'static>)> {
+    pub fn generate_and_save(
+        &self,
+    ) -> io::Result<(Vec<CertificateDer<'static>>, PrivateKeyDer<'static>)> {
         use rcgen::{CertificateParams, DistinguishedName, Ia5String};
 
         log::info!("Generating new self-signed certificate");
@@ -320,8 +331,12 @@ impl CertificateManager {
         // Build Subject Alternative Names
         let mut san = Vec::new();
         for dns in &self.config.san_dns {
-            let ia5 = Ia5String::try_from(dns.clone())
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, format!("Invalid DNS SAN: {:?}", e)))?;
+            let ia5 = Ia5String::try_from(dns.clone()).map_err(|e| {
+                io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("Invalid DNS SAN: {:?}", e),
+                )
+            })?;
             san.push(rcgen::SanType::DnsName(ia5));
         }
         for ip in &self.config.san_ips {
@@ -330,12 +345,20 @@ impl CertificateManager {
         params.subject_alt_names = san;
 
         // Generate key pair
-        let key_pair = rcgen::KeyPair::generate()
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to generate key pair: {}", e)))?;
+        let key_pair = rcgen::KeyPair::generate().map_err(|e| {
+            io::Error::new(
+                io::ErrorKind::Other,
+                format!("Failed to generate key pair: {}", e),
+            )
+        })?;
 
         // Generate self-signed certificate
-        let cert = params.self_signed(&key_pair)
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to generate certificate: {}", e)))?;
+        let cert = params.self_signed(&key_pair).map_err(|e| {
+            io::Error::new(
+                io::ErrorKind::Other,
+                format!("Failed to generate certificate: {}", e),
+            )
+        })?;
 
         // Get PEM-encoded versions
         let cert_pem = cert.pem();
@@ -345,14 +368,22 @@ impl CertificateManager {
         fs::write(self.cert_path(), &cert_pem).map_err(|e| {
             io::Error::new(
                 io::ErrorKind::Other,
-                format!("Failed to write certificate to {:?}: {}", self.cert_path(), e),
+                format!(
+                    "Failed to write certificate to {:?}: {}",
+                    self.cert_path(),
+                    e
+                ),
             )
         })?;
 
         fs::write(self.key_path(), &key_pem).map_err(|e| {
             io::Error::new(
                 io::ErrorKind::Other,
-                format!("Failed to write private key to {:?}: {}", self.key_path(), e),
+                format!(
+                    "Failed to write private key to {:?}: {}",
+                    self.key_path(),
+                    e
+                ),
             )
         })?;
 
@@ -376,18 +407,28 @@ impl CertificateManager {
 
     /// Load certificates from disk
     #[cfg(feature = "tls")]
-    pub fn load_certificates(&self) -> io::Result<(Vec<CertificateDer<'static>>, PrivateKeyDer<'static>)> {
+    pub fn load_certificates(
+        &self,
+    ) -> io::Result<(Vec<CertificateDer<'static>>, PrivateKeyDer<'static>)> {
         let cert_pem = fs::read_to_string(self.cert_path()).map_err(|e| {
             io::Error::new(
                 io::ErrorKind::NotFound,
-                format!("Failed to read certificate from {:?}: {}", self.cert_path(), e),
+                format!(
+                    "Failed to read certificate from {:?}: {}",
+                    self.cert_path(),
+                    e
+                ),
             )
         })?;
 
         let key_pem = fs::read_to_string(self.key_path()).map_err(|e| {
             io::Error::new(
                 io::ErrorKind::NotFound,
-                format!("Failed to read private key from {:?}: {}", self.key_path(), e),
+                format!(
+                    "Failed to read private key from {:?}: {}",
+                    self.key_path(),
+                    e
+                ),
             )
         })?;
 
@@ -396,10 +437,19 @@ impl CertificateManager {
 
     /// Parse PEM strings into rustls types
     #[cfg(feature = "tls")]
-    fn parse_pem(&self, cert_pem: &str, key_pem: &str) -> io::Result<(Vec<CertificateDer<'static>>, PrivateKeyDer<'static>)> {
+    fn parse_pem(
+        &self,
+        cert_pem: &str,
+        key_pem: &str,
+    ) -> io::Result<(Vec<CertificateDer<'static>>, PrivateKeyDer<'static>)> {
         let certs = rustls_pemfile::certs(&mut cert_pem.as_bytes())
             .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("Failed to parse certificate: {}", e)))?;
+            .map_err(|e| {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("Failed to parse certificate: {}", e),
+                )
+            })?;
 
         if certs.is_empty() {
             return Err(io::Error::new(
@@ -409,8 +459,18 @@ impl CertificateManager {
         }
 
         let key = rustls_pemfile::private_key(&mut key_pem.as_bytes())
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("Failed to parse private key: {}", e)))?
-            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "No private key found in key file"))?;
+            .map_err(|e| {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("Failed to parse private key: {}", e),
+                )
+            })?
+            .ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "No private key found in key file",
+                )
+            })?;
 
         // Validate pinning if enabled
         if self.config.enable_pinning && !self.config.pinned_fingerprints.is_empty() {
@@ -431,8 +491,12 @@ impl CertificateManager {
             .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "No certificate found"))?
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
-        let (_, cert) = X509Certificate::from_der(cert_der.as_ref())
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("Failed to parse certificate: {:?}", e)))?;
+        let (_, cert) = X509Certificate::from_der(cert_der.as_ref()).map_err(|e| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("Failed to parse certificate: {:?}", e),
+            )
+        })?;
 
         let validity = cert.validity();
         let now = SystemTime::now()
@@ -473,7 +537,12 @@ impl CertificateManager {
         hasher.update(cert.as_ref());
         let fingerprint = hex::encode(hasher.finalize());
 
-        if self.config.pinned_fingerprints.iter().any(|f| f.eq_ignore_ascii_case(&fingerprint)) {
+        if self
+            .config
+            .pinned_fingerprints
+            .iter()
+            .any(|f| f.eq_ignore_ascii_case(&fingerprint))
+        {
             Ok(())
         } else {
             Err(io::Error::new(
@@ -525,17 +594,25 @@ impl CertificateManager {
             .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "No certificate found"))?
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
-        let (_, cert) = X509Certificate::from_der(cert_der.as_ref())
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("Failed to parse certificate: {:?}", e)))?;
+        let (_, cert) = X509Certificate::from_der(cert_der.as_ref()).map_err(|e| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("Failed to parse certificate: {:?}", e),
+            )
+        })?;
 
         // Extract values before cert goes out of scope
-        let common_name = cert.subject().iter_common_name()
+        let common_name = cert
+            .subject()
+            .iter_common_name()
             .next()
             .and_then(|cn| cn.as_str().ok())
             .unwrap_or("unknown")
             .to_string();
 
-        let organization = cert.subject().iter_organization()
+        let organization = cert
+            .subject()
+            .iter_organization()
             .next()
             .and_then(|o| o.as_str().ok())
             .unwrap_or("unknown")
@@ -666,14 +743,22 @@ mod tests {
 
         // Generate certificates
         let result = manager.generate_and_save();
-        assert!(result.is_ok(), "Failed to generate certificates: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Failed to generate certificates: {:?}",
+            result.err()
+        );
 
         // Verify files exist
         assert!(manager.certificates_exist());
 
         // Load certificates
         let load_result = manager.load_certificates();
-        assert!(load_result.is_ok(), "Failed to load certificates: {:?}", load_result.err());
+        assert!(
+            load_result.is_ok(),
+            "Failed to load certificates: {:?}",
+            load_result.err()
+        );
 
         // Get fingerprint
         let fingerprint = manager.get_fingerprint();
@@ -766,7 +851,9 @@ mod tests {
         // Create manager with wrong pin
         let wrong_pin_manager = CertificateManager::builder()
             .with_cert_dir(temp_dir.path())
-            .with_pinned_fingerprint("0000000000000000000000000000000000000000000000000000000000000000")
+            .with_pinned_fingerprint(
+                "0000000000000000000000000000000000000000000000000000000000000000",
+            )
             .build()
             .unwrap();
 

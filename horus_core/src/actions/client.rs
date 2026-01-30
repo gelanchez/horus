@@ -333,11 +333,11 @@ where
         }
 
         // Create links using Topic::new() - auto-detects role on first send/recv
-        *self.goal_link.write() = Some(Topic::new(&A::goal_topic())?);
-        *self.cancel_link.write() = Some(Topic::new(&A::cancel_topic())?);
-        *self.result_link.write() = Some(Topic::new(&A::result_topic())?);
-        *self.feedback_link.write() = Some(Topic::new(&A::feedback_topic())?);
-        *self.status_link.write() = Some(Topic::new(&A::status_topic())?);
+        *self.goal_link.write() = Some(Topic::new(A::goal_topic())?);
+        *self.cancel_link.write() = Some(Topic::new(A::cancel_topic())?);
+        *self.result_link.write() = Some(Topic::new(A::result_topic())?);
+        *self.feedback_link.write() = Some(Topic::new(A::feedback_topic())?);
+        *self.status_link.write() = Some(Topic::new(A::status_topic())?);
 
         self.initialized.store(true, Ordering::Release);
 

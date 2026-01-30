@@ -87,12 +87,12 @@ impl<T: Default> Default for CachePadded<T> {
 struct RingBufferHeader {
     // === Cache Lines 0-1 (128 bytes): Read-mostly fields ===
     // These are written once during initialization and rarely change thereafter
-    magic: AtomicU64,           // 8 bytes - written LAST to signal initialization complete
-    capacity: AtomicU32,        // 4 bytes - fixed after init (32-bit: max 4B entries)
-    tail: AtomicU32,            // 4 bytes - unused, kept for compatibility
-    element_size: AtomicUsize,  // 8 bytes - fixed after init (stays usize for large elements)
-    consumer_count: AtomicU32,  // 4 bytes - written occasionally on register/unregister
-    _padding0: [u8; 100],       // Pad to 128 bytes (8 + 4 + 4 + 8 + 4 = 28, 128 - 28 = 100)
+    magic: AtomicU64,    // 8 bytes - written LAST to signal initialization complete
+    capacity: AtomicU32, // 4 bytes - fixed after init (32-bit: max 4B entries)
+    tail: AtomicU32,     // 4 bytes - unused, kept for compatibility
+    element_size: AtomicUsize, // 8 bytes - fixed after init (stays usize for large elements)
+    consumer_count: AtomicU32, // 4 bytes - written occasionally on register/unregister
+    _padding0: [u8; 100], // Pad to 128 bytes (8 + 4 + 4 + 8 + 4 = 28, 128 - 28 = 100)
 
     // === Cache Lines 2-3 (128 bytes): Producer head index ===
     // Written frequently by producer on every publish
@@ -122,8 +122,8 @@ pub struct ShmTopic<T> {
     _region: Arc<ShmRegion>,
     header: NonNull<RingBufferHeader>,
     data_ptr: NonNull<u8>,
-    capacity: u32,         // 32-bit: max 4B entries (far exceeds MAX_CAPACITY of 1M)
-    _consumer_id: u32,     // MPMC: Consumer ID for registration (max 16 consumers)
+    capacity: u32,            // 32-bit: max 4B entries (far exceeds MAX_CAPACITY of 1M)
+    _consumer_id: u32,        // MPMC: Consumer ID for registration (max 16 consumers)
     consumer_tail: AtomicU32, // MPMC OPTIMIZED: Each consumer tracks tail in LOCAL memory (32-bit)
     /// Rigtorp optimization: Cached head index to avoid reading shared memory on every pop/receive.
     /// Only refreshed when buffer appears empty (cached_head == consumer_tail).
@@ -332,9 +332,8 @@ impl<T> ShmTopic<T> {
         // 32-bit Index Optimization: capacity stored as u32 for reduced instruction cache pressure
         let actual_capacity: u32 = if is_owner {
             // Validate capacity fits in u32 (should always pass given MAX_CAPACITY = 1M)
-            let capacity_u32 = u32::try_from(capacity).map_err(|_| {
-                format!("Capacity {} exceeds u32 maximum (4 billion)", capacity)
-            })?;
+            let capacity_u32 = u32::try_from(capacity)
+                .map_err(|_| format!("Capacity {} exceeds u32 maximum (4 billion)", capacity))?;
 
             unsafe {
                 // Initialize all fields BEFORE setting magic (prevents race condition)
@@ -412,9 +411,8 @@ impl<T> ShmTopic<T> {
 
             // Validate that the existing capacity matches what we calculated
             // Convert capacity (usize) to u32 for comparison with stored value
-            let capacity_u32 = u32::try_from(capacity).map_err(|_| {
-                format!("Capacity {} exceeds u32 maximum (4 billion)", capacity)
-            })?;
+            let capacity_u32 = u32::try_from(capacity)
+                .map_err(|_| format!("Capacity {} exceeds u32 maximum (4 billion)", capacity))?;
             if existing_capacity != capacity_u32 {
                 return Err(format!(
                     "Topic '{}' capacity mismatch: existing={}, requested={} (rounded from original request). \
@@ -789,12 +787,10 @@ impl<T> ShmTopic<T> {
 
         // OPTIMISTIC: Skip the 75% fill check - assume space is available
         // Try a single CAS attempt
-        match header.head.compare_exchange(
-            head,
-            next,
-            Ordering::Release,
-            Ordering::Relaxed,
-        ) {
+        match header
+            .head
+            .compare_exchange(head, next, Ordering::Release, Ordering::Relaxed)
+        {
             Ok(_) => {
                 // Successfully claimed slot, write data
                 unsafe {
@@ -851,12 +847,10 @@ impl<T> ShmTopic<T> {
         let next = (head + 1) & (self.capacity - 1);
 
         // Single CAS attempt - return immediately on contention
-        match header.head.compare_exchange(
-            head,
-            next,
-            Ordering::Release,
-            Ordering::Relaxed,
-        ) {
+        match header
+            .head
+            .compare_exchange(head, next, Ordering::Release, Ordering::Relaxed)
+        {
             Ok(_) => {
                 // Write directly - NO BOUNDS CHECKING
                 // Safety: head is always < capacity due to bitwise AND modulo
@@ -1184,7 +1178,9 @@ impl<T> ShmTopic<T> {
             // Safe: prefetch with invalid address is a no-op on x86
             let slot_offset = (my_tail as usize) * mem::size_of::<T>();
             let slot_addr = unsafe { self.data_ptr.as_ptr().add(slot_offset) };
-            unsafe { _mm_prefetch(slot_addr as *const i8, _MM_HINT_T0); }
+            unsafe {
+                _mm_prefetch(slot_addr as *const i8, _MM_HINT_T0);
+            }
         }
 
         // RIGTORP OPTIMIZATION: Use cached head first, only refresh from shared memory

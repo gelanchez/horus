@@ -102,7 +102,7 @@ impl NodePresence {
         if let Ok(entries) = fs::read_dir(&dir) {
             for entry in entries.flatten() {
                 let path = entry.path();
-                if path.extension().map_or(false, |ext| ext == "json") {
+                if path.extension().is_some_and(|ext| ext == "json") {
                     if let Ok(content) = fs::read_to_string(&path) {
                         if let Ok(presence) = serde_json::from_str::<NodePresence>(&content) {
                             // Verify process is still alive
@@ -130,7 +130,7 @@ impl NodePresence {
         if let Ok(entries) = fs::read_dir(&dir) {
             for entry in entries.flatten() {
                 let path = entry.path();
-                if path.extension().map_or(false, |ext| ext == "json") {
+                if path.extension().is_some_and(|ext| ext == "json") {
                     if let Ok(content) = fs::read_to_string(&path) {
                         if let Ok(presence) = serde_json::from_str::<NodePresence>(&content) {
                             if process_exists(presence.pid) {

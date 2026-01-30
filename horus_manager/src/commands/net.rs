@@ -109,15 +109,27 @@ pub fn run_check(verbose: bool) -> HorusResult<()> {
 
     // Summary
     println!();
-    let errors = results.iter().filter(|r| r.status == NetStatus::Error).count();
-    let warnings = results.iter().filter(|r| r.status == NetStatus::Warning).count();
+    let errors = results
+        .iter()
+        .filter(|r| r.status == NetStatus::Error)
+        .count();
+    let warnings = results
+        .iter()
+        .filter(|r| r.status == NetStatus::Warning)
+        .count();
 
     if errors > 0 {
         println!("{} {} error(s), {} warning(s)", "✗".red(), errors, warnings);
-        println!("  {} Run `horus net doctor` for suggested fixes", "Tip:".dimmed());
+        println!(
+            "  {} Run `horus net doctor` for suggested fixes",
+            "Tip:".dimmed()
+        );
     } else if warnings > 0 {
         println!("{} {} warning(s), no errors", "⚠".yellow(), warnings);
-        println!("  {} Some network features may be limited", "Note:".dimmed());
+        println!(
+            "  {} Some network features may be limited",
+            "Note:".dimmed()
+        );
     } else {
         println!("{} All network checks passed!", "✓".green());
     }
@@ -127,11 +139,7 @@ pub fn run_check(verbose: bool) -> HorusResult<()> {
 
 /// Ping an endpoint and measure latency
 pub fn run_ping(endpoint: &str, count: u32, interval_ms: u64) -> HorusResult<()> {
-    println!(
-        "{} {}",
-        "Pinging".green().bold(),
-        endpoint.cyan()
-    );
+    println!("{} {}", "Pinging".green().bold(), endpoint.cyan());
     println!();
 
     // Parse endpoint
@@ -156,12 +164,7 @@ pub fn run_ping(endpoint: &str, count: u32, interval_ms: u64) -> HorusResult<()>
                 let latency_ms = latency.as_secs_f64() * 1000.0;
                 latencies.push(latency_ms);
                 successes += 1;
-                println!(
-                    "  seq={} time={:.2}ms {}",
-                    seq,
-                    latency_ms,
-                    "✓".green()
-                );
+                println!("  seq={} time={:.2}ms {}", seq, latency_ms, "✓".green());
             }
             Err(e) => {
                 failures += 1;
@@ -195,7 +198,8 @@ pub fn run_ping(endpoint: &str, count: u32, interval_ms: u64) -> HorusResult<()>
         let avg = latencies.iter().sum::<f64>() / latencies.len() as f64;
 
         // Standard deviation
-        let variance = latencies.iter().map(|x| (x - avg).powi(2)).sum::<f64>() / latencies.len() as f64;
+        let variance =
+            latencies.iter().map(|x| (x - avg).powi(2)).sum::<f64>() / latencies.len() as f64;
         let stddev = variance.sqrt();
 
         println!(
@@ -221,11 +225,7 @@ pub fn run_ping(endpoint: &str, count: u32, interval_ms: u64) -> HorusResult<()>
 
 /// Trace path to endpoint
 pub fn run_trace(endpoint: &str, _max_hops: u32) -> HorusResult<()> {
-    println!(
-        "{} path to {}",
-        "Tracing".green().bold(),
-        endpoint.cyan()
-    );
+    println!("{} path to {}", "Tracing".green().bold(), endpoint.cyan());
     println!();
 
     // Parse endpoint
@@ -248,14 +248,19 @@ pub fn run_trace(endpoint: &str, _max_hops: u32) -> HorusResult<()> {
     match tcp_ping(&addr, Duration::from_secs(10)) {
         Ok(latency) => {
             let latency_ms = latency.as_secs_f64() * 1000.0;
-            println!("  1. {} -> {} ({:.2}ms) {}",
+            println!(
+                "  1. {} -> {} ({:.2}ms) {}",
                 get_local_ip().unwrap_or_else(|| "localhost".to_string()),
                 addr,
                 latency_ms,
                 "✓".green()
             );
             println!();
-            println!("  {} Full traceroute requires: sudo traceroute {}", "Tip:".dimmed(), endpoint);
+            println!(
+                "  {} Full traceroute requires: sudo traceroute {}",
+                "Tip:".dimmed(),
+                endpoint
+            );
         }
         Err(e) => {
             println!("  {} Unable to reach destination: {}", "✗".red(), e);
@@ -318,7 +323,13 @@ pub fn run_doctor() -> HorusResult<()> {
             NetStatus::Ok => "✓".green(),
         };
 
-        println!("{}. {} {}: {}", i + 1, icon, issue.name.cyan(), issue.message);
+        println!(
+            "{}. {} {}: {}",
+            i + 1,
+            icon,
+            issue.name.cyan(),
+            issue.message
+        );
         println!();
 
         // Print fix suggestions based on issue
@@ -342,7 +353,8 @@ fn print_result(result: &NetCheckResult, _verbose: bool) {
         NetStatus::Error => "[ERR]".red(),
     };
 
-    let latency_str = result.latency_ms
+    let latency_str = result
+        .latency_ms
         .map(|l| format!(" ({:.1}ms)", l))
         .unwrap_or_default();
 
@@ -353,12 +365,7 @@ fn print_result(result: &NetCheckResult, _verbose: bool) {
         NetStatus::Error => msg.red(),
     };
 
-    println!(
-        "  {} {:20} {}",
-        icon,
-        result.name.cyan(),
-        colored_msg
-    );
+    println!("  {} {:20} {}", icon, result.name.cyan(), colored_msg);
 }
 
 fn print_fix_suggestion(name: &str, _message: &str) {
@@ -391,7 +398,9 @@ fn print_fix_suggestion(name: &str, _message: &str) {
         }
         "Internet" => {
             println!("   • Check default route: ip route show default");
-            println!("   • Ping gateway: ping -c 3 $(ip route | grep default | awk '{{print $3}}')");
+            println!(
+                "   • Ping gateway: ping -c 3 $(ip route | grep default | awk '{{print $3}}')"
+            );
             println!("   • Verify DNS: nslookup google.com");
         }
         "HORUS Registry" => {
@@ -424,10 +433,7 @@ fn print_fix_suggestion(name: &str, _message: &str) {
 // === Network Checks ===
 
 fn check_localhost() -> NetCheckResult {
-    match TcpStream::connect_timeout(
-        &"127.0.0.1:0".parse().unwrap(),
-        Duration::from_millis(100),
-    ) {
+    match TcpStream::connect_timeout(&"127.0.0.1:0".parse().unwrap(), Duration::from_millis(100)) {
         // Connection refused is expected (no server), but means network works
         Err(e) if e.kind() == std::io::ErrorKind::ConnectionRefused => {
             NetCheckResult::ok("Localhost", "Loopback OK")
@@ -503,17 +509,18 @@ fn check_internet() -> NetCheckResult {
     let start = Instant::now();
 
     // Try to connect to a well-known service
-    let targets = [
-        ("1.1.1.1:443", "Cloudflare"),
-        ("8.8.8.8:443", "Google"),
-    ];
+    let targets = [("1.1.1.1:443", "Cloudflare"), ("8.8.8.8:443", "Google")];
 
     for (addr, name) in &targets {
         if let Ok(addr) = addr.parse::<SocketAddr>() {
             match TcpStream::connect_timeout(&addr, Duration::from_secs(5)) {
                 Ok(_) => {
                     let latency = start.elapsed().as_secs_f64() * 1000.0;
-                    return NetCheckResult::ok_with_latency("Internet", &format!("{} reachable", name), latency);
+                    return NetCheckResult::ok_with_latency(
+                        "Internet",
+                        &format!("{} reachable", name),
+                        latency,
+                    );
                 }
                 Err(_) => continue,
             }
@@ -536,7 +543,9 @@ fn check_horus_registry() -> NetCheckResult {
                         let latency = start.elapsed().as_secs_f64() * 1000.0;
                         NetCheckResult::ok_with_latency("HORUS Registry", "Connected", latency)
                     }
-                    Err(_) => NetCheckResult::warning("HORUS Registry", "DNS OK but connection failed"),
+                    Err(_) => {
+                        NetCheckResult::warning("HORUS Registry", "DNS OK but connection failed")
+                    }
                 }
             } else {
                 NetCheckResult::warning("HORUS Registry", "No addresses resolved")
@@ -557,17 +566,17 @@ fn check_stun() -> NetCheckResult {
     socket.set_write_timeout(Some(Duration::from_secs(3))).ok();
 
     // STUN binding request (simplified - just checking if we can reach STUN servers)
-    let stun_servers = [
-        "stun.l.google.com:19302",
-        "stun1.l.google.com:19302",
-    ];
+    let stun_servers = ["stun.l.google.com:19302", "stun1.l.google.com:19302"];
 
     for server in &stun_servers {
         if let Ok(addrs) = server.to_socket_addrs() {
             for addr in addrs {
                 // Simple connectivity check
                 if socket.connect(addr).is_ok() {
-                    return NetCheckResult::ok("STUN/NAT", &format!("Reachable ({})", server.split(':').next().unwrap_or("stun")));
+                    return NetCheckResult::ok(
+                        "STUN/NAT",
+                        &format!("Reachable ({})", server.split(':').next().unwrap_or("stun")),
+                    );
                 }
             }
         }
@@ -631,8 +640,7 @@ fn parse_endpoint(endpoint: &str) -> Result<SocketAddr, String> {
 
 fn tcp_ping(addr: &SocketAddr, timeout: Duration) -> Result<Duration, String> {
     let start = Instant::now();
-    TcpStream::connect_timeout(addr, timeout)
-        .map_err(|e| e.to_string())?;
+    TcpStream::connect_timeout(addr, timeout).map_err(|e| e.to_string())?;
     Ok(start.elapsed())
 }
 
@@ -645,12 +653,8 @@ fn get_local_ip() -> Option<String> {
 
 fn is_private_ip(ip: &IpAddr) -> bool {
     match ip {
-        IpAddr::V4(v4) => {
-            v4.is_private() || v4.is_loopback() || v4.is_link_local()
-        }
-        IpAddr::V6(v6) => {
-            v6.is_loopback()
-        }
+        IpAddr::V4(v4) => v4.is_private() || v4.is_loopback() || v4.is_link_local(),
+        IpAddr::V6(v6) => v6.is_loopback(),
     }
 }
 
@@ -671,9 +675,9 @@ pub fn run_signal_server(
     println!();
 
     // Parse bind address
-    let bind_addr: SocketAddr = format!("{}:{}", bind, port)
-        .parse()
-        .map_err(|e| horus_core::error::HorusError::Config(format!("Invalid bind address: {}", e)))?;
+    let bind_addr: SocketAddr = format!("{}:{}", bind, port).parse().map_err(|e| {
+        horus_core::error::HorusError::Config(format!("Invalid bind address: {}", e))
+    })?;
 
     // Build configuration
     let config = SignalingServerConfig {
@@ -695,8 +699,9 @@ pub fn run_signal_server(
     println!();
 
     // Create runtime and run server
-    let rt = tokio::runtime::Runtime::new()
-        .map_err(|e| horus_core::error::HorusError::Config(format!("Failed to create runtime: {}", e)))?;
+    let rt = tokio::runtime::Runtime::new().map_err(|e| {
+        horus_core::error::HorusError::Config(format!("Failed to create runtime: {}", e))
+    })?;
 
     rt.block_on(async {
         let server = SignalingServer::new(config);
@@ -720,7 +725,10 @@ pub fn run_signal_server(
             }
             Err(e) => {
                 println!("{} Server error: {}", "✗".red(), e);
-                Err(horus_core::error::HorusError::Config(format!("Server error: {}", e)))
+                Err(horus_core::error::HorusError::Config(format!(
+                    "Server error: {}",
+                    e
+                )))
             }
         }
     })

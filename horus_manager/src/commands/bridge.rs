@@ -3912,8 +3912,7 @@ pub async fn bridge_ros2_parameters(
     // Create HORUS links for parameter communication
     let horus_param_topic = format!("params/{}", node_clean);
     let horus_param_req: Topic<Vec<u8>> = Topic::new(&format!("{}/request", horus_param_topic))?;
-    let horus_param_resp: Topic<Vec<u8>> =
-        Topic::new(&format!("{}/response", horus_param_topic))?;
+    let horus_param_resp: Topic<Vec<u8>> = Topic::new(&format!("{}/response", horus_param_topic))?;
 
     log::debug!("HORUS param links created for: {}", horus_param_topic);
 

@@ -1536,7 +1536,10 @@ fn discover_topics_from_presence() -> Vec<SharedMemoryInfo> {
                 entry.0.push(presence.name.clone());
             }
             // Capture type name if available
-            if entry.2.is_none() && !pub_topic.type_name.is_empty() && pub_topic.type_name != "unknown" {
+            if entry.2.is_none()
+                && !pub_topic.type_name.is_empty()
+                && pub_topic.type_name != "unknown"
+            {
                 entry.2 = Some(pub_topic.type_name.clone());
             }
         }
@@ -1550,7 +1553,10 @@ fn discover_topics_from_presence() -> Vec<SharedMemoryInfo> {
                 entry.1.push(presence.name.clone());
             }
             // Capture type name if available
-            if entry.2.is_none() && !sub_topic.type_name.is_empty() && sub_topic.type_name != "unknown" {
+            if entry.2.is_none()
+                && !sub_topic.type_name.is_empty()
+                && sub_topic.type_name != "unknown"
+            {
                 entry.2 = Some(sub_topic.type_name.clone());
             }
         }
@@ -1571,7 +1577,11 @@ fn discover_topics_from_presence() -> Vec<SharedMemoryInfo> {
                 publishers,
                 subscribers,
                 message_rate_hz: 0.0, // Can't measure without SHM
-                status: if has_activity { TopicStatus::Active } else { TopicStatus::Stale },
+                status: if has_activity {
+                    TopicStatus::Active
+                } else {
+                    TopicStatus::Stale
+                },
                 age_string: "network".to_string(), // Indicate this is from presence, not SHM
             }
         })

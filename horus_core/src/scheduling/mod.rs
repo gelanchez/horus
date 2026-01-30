@@ -77,8 +77,8 @@ pub mod async_io {
 }
 
 pub use config::{
-    ConfigValue, ExecutionMode, FaultConfig, MonitoringConfig, RealTimeConfig,
-    RecordingConfigYaml, ResourceConfig, SchedulerConfig, TimingConfig,
+    ConfigValue, ExecutionMode, FaultConfig, MonitoringConfig, RealTimeConfig, RecordingConfigYaml,
+    ResourceConfig, SchedulerConfig, TimingConfig,
 };
 pub use safety_monitor::{SafetyMonitor, SafetyState, SafetyStats, WCETEnforcer, Watchdog};
 pub use scheduler::{DegradationSeverity, RtDegradation, RtFeature, Scheduler};

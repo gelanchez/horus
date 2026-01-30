@@ -20,11 +20,10 @@
 
 use horus::prelude::Topic;
 use horus_benchmarks::{
-    detect_platform, set_cpu_affinity, write_json_report, BenchmarkConfig,
-    BenchmarkReport, BenchmarkResult, DeterminismMetrics, Statistics, ThroughputMetrics,
+    detect_platform, set_cpu_affinity, write_json_report, BenchmarkConfig, BenchmarkReport,
+    BenchmarkResult, DeterminismMetrics, Statistics, ThroughputMetrics,
 };
 use serde::{Deserialize, Serialize};
-use serde_arrays;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::thread;
@@ -34,7 +33,7 @@ const MEASUREMENT_DURATION_SECS: u64 = 5;
 const WARMUP_DURATION_SECS: u64 = 1;
 
 /// Benchmark payload (64 bytes total)
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, Default)]
 struct ScalabilityMsg {
     producer_id: u32,
     seq: u64,
@@ -44,18 +43,6 @@ struct ScalabilityMsg {
     padding1: [u8; 32],
     #[serde(with = "serde_arrays")]
     padding2: [u8; 16],
-}
-
-impl Default for ScalabilityMsg {
-    fn default() -> Self {
-        Self {
-            producer_id: 0,
-            seq: 0,
-            timestamp: 0,
-            padding1: [0u8; 32],
-            padding2: [0u8; 16],
-        }
-    }
 }
 
 impl horus_core::core::LogSummary for ScalabilityMsg {
@@ -93,7 +80,10 @@ fn main() {
 
     // Detect platform
     let platform = detect_platform();
-    println!("Platform: {} ({} logical cores)", platform.cpu.model, platform.cpu.logical_cores);
+    println!(
+        "Platform: {} ({} logical cores)",
+        platform.cpu.model, platform.cpu.logical_cores
+    );
     println!("Max threads to test: {}", max_threads);
     println!();
 
@@ -101,14 +91,14 @@ fn main() {
 
     // Test configurations: (producers, consumers)
     let configs: Vec<(usize, usize)> = vec![
-        (1, 1),   // SPSC baseline
-        (2, 1),   // 2 producers
-        (4, 1),   // 4 producers
-        (1, 2),   // 2 consumers
-        (1, 4),   // 4 consumers
-        (2, 2),   // 2x2 balanced
-        (4, 4),   // 4x4 balanced
-        (8, 8),   // 8x8 if available
+        (1, 1), // SPSC baseline
+        (2, 1), // 2 producers
+        (4, 1), // 4 producers
+        (1, 2), // 2 consumers
+        (1, 4), // 4 consumers
+        (2, 2), // 2x2 balanced
+        (4, 4), // 4x4 balanced
+        (8, 8), // 8x8 if available
     ]
     .into_iter()
     .filter(|(p, c)| p + c <= max_threads)

@@ -22,15 +22,9 @@ pub fn run_status(verbose: bool) -> HorusResult<()> {
 
     let daemon_running = check_daemon_running();
     if daemon_running {
-        println!(
-            "  {} Husarnet daemon is running",
-            "✓".green()
-        );
+        println!("  {} Husarnet daemon is running", "✓".green());
     } else {
-        println!(
-            "  {} Husarnet daemon is NOT running",
-            "✗".red()
-        );
+        println!("  {} Husarnet daemon is NOT running", "✗".red());
         println!("  {}", "Run: sudo systemctl start husarnet".yellow());
         return Ok(());
     }
@@ -60,22 +54,20 @@ pub fn run_status(verbose: bool) -> HorusResult<()> {
 
             // Extract key info
             if let Some(ref json) = json {
-                if let Some(websetup_address) = json.get("websetup_address").and_then(|v| v.as_str())
+                if let Some(websetup_address) =
+                    json.get("websetup_address").and_then(|v| v.as_str())
                 {
                     println!("  Websetup address: {}", websetup_address.cyan());
                 }
                 if let Some(is_joined) = json.get("is_joined").and_then(|v| v.as_bool()) {
                     if is_joined {
-                        println!(
-                            "  {} Joined to a Husarnet network",
-                            "✓".green()
-                        );
+                        println!("  {} Joined to a Husarnet network", "✓".green());
                     } else {
+                        println!("  {} Not joined to any network", "⚠".yellow());
                         println!(
-                            "  {} Not joined to any network",
-                            "⚠".yellow()
+                            "  {}",
+                            "Use 'husarnet join <joincode>' to join a network".yellow()
                         );
-                        println!("  {}", "Use 'husarnet join <joincode>' to join a network".yellow());
                     }
                 }
             }
@@ -101,11 +93,11 @@ pub fn run_status(verbose: bool) -> HorusResult<()> {
             );
         }
         None => {
+            println!("  {} hnet0 interface not found", "⚠".yellow());
             println!(
-                "  {} hnet0 interface not found",
-                "⚠".yellow()
+                "  {}",
+                "This is normal if not joined to a network yet".dimmed()
             );
-            println!("  {}", "This is normal if not joined to a network yet".dimmed());
         }
     }
 
@@ -151,7 +143,11 @@ pub fn run_peers(json: bool) -> HorusResult<()> {
     println!("{}", "─".repeat(60));
 
     for peer in &peers {
-        let status_icon = if peer.is_active { "●".green() } else { "○".dimmed() };
+        let status_icon = if peer.is_active {
+            "●".green()
+        } else {
+            "○".dimmed()
+        };
         let status_text = if peer.is_active { "active" } else { "inactive" };
 
         println!(
@@ -203,7 +199,11 @@ pub fn run_test(target: Option<String>, count: u32, timeout_ms: u64) -> HorusRes
 
     println!("{}", "Husarnet Connectivity Test".cyan().bold());
     println!("{}", "═".repeat(60));
-    println!("Testing {} peer(s) with {} packets each...\n", test_peers.len(), count);
+    println!(
+        "Testing {} peer(s) with {} packets each...\n",
+        test_peers.len(),
+        count
+    );
 
     let timeout = Duration::from_millis(timeout_ms);
 
@@ -219,14 +219,11 @@ pub fn run_test(target: Option<String>, count: u32, timeout_ms: u64) -> HorusRes
         let target_addr = SocketAddr::new(IpAddr::V6(peer.ipv6), 9847);
 
         for _ in 0..count {
-            match test_udp_connectivity(target_addr, timeout) {
-                Ok(rtt) => {
-                    successes += 1;
-                    total_rtt += rtt;
-                    min_rtt = min_rtt.min(rtt);
-                    max_rtt = max_rtt.max(rtt);
-                }
-                Err(_) => {}
+            if let Ok(rtt) = test_udp_connectivity(target_addr, timeout) {
+                successes += 1;
+                total_rtt += rtt;
+                min_rtt = min_rtt.min(rtt);
+                max_rtt = max_rtt.max(rtt);
             }
         }
 
@@ -289,7 +286,8 @@ pub fn run_doctor() -> HorusResult<()> {
             println!("  {} hnet0 found: {}", "✓".green(), addr);
         }
         None => {
-            warnings.push("hnet0 interface not found (normal if not joined to network)".to_string());
+            warnings
+                .push("hnet0 interface not found (normal if not joined to network)".to_string());
             println!("  {} hnet0 not found", "⚠".yellow());
         }
     }
@@ -320,8 +318,13 @@ pub fn run_doctor() -> HorusResult<()> {
     match get_husarnet_peers() {
         Ok(peers) => {
             let active = peers.iter().filter(|p| p.is_active).count();
-            println!("  {} {} peers ({} active)", "✓".green(), peers.len(), active);
-            if peers.len() > 0 && active == 0 {
+            println!(
+                "  {} {} peers ({} active)",
+                "✓".green(),
+                peers.len(),
+                active
+            );
+            if !peers.is_empty() && active == 0 {
                 warnings.push("All peers are inactive - check network connectivity".to_string());
             }
         }
@@ -345,7 +348,10 @@ pub fn run_doctor() -> HorusResult<()> {
     println!("{}", "Summary".cyan().bold());
 
     if issues.is_empty() && warnings.is_empty() {
-        println!("\n  {} Husarnet is properly configured!", "✓".green().bold());
+        println!(
+            "\n  {} Husarnet is properly configured!",
+            "✓".green().bold()
+        );
         println!(
             "  {}",
             "HORUS will automatically use Husarnet for topic@* discovery.".dimmed()

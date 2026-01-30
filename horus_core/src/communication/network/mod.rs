@@ -18,7 +18,6 @@
 /// - Real io_uring zero-copy (3-5µs latency)
 /// - QUIC transport (0-RTT, reliable)
 /// - Smart transport selection (auto-picks best backend)
-
 // Developer-friendly network error handling
 pub mod network_error;
 
@@ -166,7 +165,6 @@ pub use quic::{
     QuicStats, QuicStreamPriority, QuicTransport,
 };
 
-
 #[cfg(all(feature = "quic", feature = "tls"))]
 pub use quic::{get_or_create_cert, get_or_create_cert_with_config};
 
@@ -191,16 +189,38 @@ pub use cloud::{
 // mDNS re-exports (all from consolidated mdns module)
 #[cfg(feature = "mdns")]
 pub use mdns::{
-    // Core mDNS
-    resolve_mdns_hostname, resolve_mdns_hostname_with_timeout, HorusMdns, MdnsCacheStats,
-    ServiceInfo as MdnsServiceInfo, BROWSE_TIMEOUT, HORUS_SERVICE_TYPE, MDNS_TIMEOUT,
     // Discovery API
-    discover, discover_full, discover_full_with_options, discover_with_options, find_node,
-    find_nodes_with_topic, nodes_to_json, to_json, watch, watch_with_interval, DiscoveredNode,
-    DiscoveryEvent, DiscoveryOptions, DiscoveryResult, DiscoveryWatcher,
+    discover,
+    discover_full,
+    discover_full_with_options,
+    discover_with_options,
+    find_node,
+    find_nodes_with_topic,
+    nodes_to_json,
+    // Core mDNS
+    resolve_mdns_hostname,
+    resolve_mdns_hostname_with_timeout,
     // Registration API
-    sanitize_hostname, GlobalMdnsManager, MdnsNodeRegistration, MdnsRegistrationBuilder,
-    MdnsRegistrationConfig, DEFAULT_HORUS_PORT,
+    sanitize_hostname,
+    to_json,
+    watch,
+    watch_with_interval,
+    DiscoveredNode,
+    DiscoveryEvent,
+    DiscoveryOptions,
+    DiscoveryResult,
+    DiscoveryWatcher,
+    GlobalMdnsManager,
+    HorusMdns,
+    MdnsCacheStats,
+    MdnsNodeRegistration,
+    MdnsRegistrationBuilder,
+    MdnsRegistrationConfig,
+    ServiceInfo as MdnsServiceInfo,
+    BROWSE_TIMEOUT,
+    DEFAULT_HORUS_PORT,
+    HORUS_SERVICE_TYPE,
+    MDNS_TIMEOUT,
 };
 
 // Husarnet re-exports

@@ -137,7 +137,7 @@ pub fn median(sorted_samples: &[u64]) -> f64 {
         return 0.0;
     }
     let len = sorted_samples.len();
-    if len % 2 == 0 {
+    if len.is_multiple_of(2) {
         (sorted_samples[len / 2 - 1] as f64 + sorted_samples[len / 2] as f64) / 2.0
     } else {
         sorted_samples[len / 2] as f64
@@ -426,17 +426,40 @@ impl NormalityAnalysis {
         println!("╔══════════════════════════════════════════════════════════════════╗");
         println!("║                    NORMALITY ANALYSIS                            ║");
         println!("╠══════════════════════════════════════════════════════════════════╣");
-        println!("║ Sample size:      {:>8}                                       ║", self.sample_size);
-        println!("║ Skewness:         {:>8.4} (0 = symmetric)                      ║", self.skewness);
-        println!("║ Excess Kurtosis:  {:>8.4} (0 = normal tails)                   ║", self.kurtosis);
+        println!(
+            "║ Sample size:      {:>8}                                       ║",
+            self.sample_size
+        );
+        println!(
+            "║ Skewness:         {:>8.4} (0 = symmetric)                      ║",
+            self.skewness
+        );
+        println!(
+            "║ Excess Kurtosis:  {:>8.4} (0 = normal tails)                   ║",
+            self.kurtosis
+        );
         println!("╠══════════════════════════════════════════════════════════════════╣");
-        println!("║ Jarque-Bera:      {:>8.2} (p={:.4})                           ║",
-            self.jarque_bera_stat, self.jarque_bera_pvalue);
-        println!("║ Anderson-Darling: {:>8.4}                                       ║", self.anderson_darling_stat);
-        println!("║ D'Agostino K²:    {:>8.4}                                       ║", self.dagostino_k2);
+        println!(
+            "║ Jarque-Bera:      {:>8.2} (p={:.4})                           ║",
+            self.jarque_bera_stat, self.jarque_bera_pvalue
+        );
+        println!(
+            "║ Anderson-Darling: {:>8.4}                                       ║",
+            self.anderson_darling_stat
+        );
+        println!(
+            "║ D'Agostino K²:    {:>8.4}                                       ║",
+            self.dagostino_k2
+        );
         println!("╠══════════════════════════════════════════════════════════════════╣");
-        println!("║ Assessment:       {}                                        ║",
-            if self.is_likely_normal { "LIKELY NORMAL" } else { "NON-NORMAL   " });
+        println!(
+            "║ Assessment:       {}                                        ║",
+            if self.is_likely_normal {
+                "LIKELY NORMAL"
+            } else {
+                "NON-NORMAL   "
+            }
+        );
         println!("╠══════════════════════════════════════════════════════════════════╣");
         println!("║ Recommendation:                                                  ║");
         // Word wrap the recommendation
@@ -511,10 +534,7 @@ fn anderson_darling_statistic(values: &[f64], mean: f64, std_dev: f64) -> f64 {
     sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
 
     // Standardize values
-    let z: Vec<f64> = sorted
-        .iter()
-        .map(|&x| (x - mean) / std_dev)
-        .collect();
+    let z: Vec<f64> = sorted.iter().map(|&x| (x - mean) / std_dev).collect();
 
     // Calculate A² statistic
     let mut sum = 0.0;
@@ -701,7 +721,11 @@ mod tests {
         // A uniform distribution has negative excess kurtosis
         let samples: Vec<u64> = (100..200).collect();
         let kurt = excess_kurtosis(&samples);
-        assert!(kurt < 0.0, "Uniform should have negative kurtosis, got {}", kurt);
+        assert!(
+            kurt < 0.0,
+            "Uniform should have negative kurtosis, got {}",
+            kurt
+        );
     }
 
     #[test]
@@ -737,7 +761,11 @@ mod tests {
     fn test_standard_normal_cdf() {
         // CDF at 0 should be 0.5 for standard normal
         let cdf_0 = standard_normal_cdf(0.0);
-        assert!((cdf_0 - 0.5).abs() < 0.01, "CDF(0) should be ~0.5, got {}", cdf_0);
+        assert!(
+            (cdf_0 - 0.5).abs() < 0.01,
+            "CDF(0) should be ~0.5, got {}",
+            cdf_0
+        );
 
         // CDF should be monotonically increasing
         let cdf_neg = standard_normal_cdf(-2.0);
@@ -755,10 +783,19 @@ mod tests {
         // For df=2, survival function is e^(-x/2)
         let survival = chi2_survival(2.0, 2.0);
         let expected = (-1.0_f64).exp(); // e^(-1)
-        assert!((survival - expected).abs() < 0.01, "Expected {}, got {}", expected, survival);
+        assert!(
+            (survival - expected).abs() < 0.01,
+            "Expected {}, got {}",
+            expected,
+            survival
+        );
 
         // Survival at 0 should be 1
         let survival_0 = chi2_survival(0.0, 2.0);
-        assert!((survival_0 - 1.0).abs() < 0.01, "Survival(0) should be ~1, got {}", survival_0);
+        assert!(
+            (survival_0 - 1.0).abs() < 0.01,
+            "Survival(0) should be ~1, got {}",
+            survival_0
+        );
     }
 }

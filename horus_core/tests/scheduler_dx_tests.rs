@@ -56,11 +56,20 @@ fn test_new_creates_scheduler() {
     let mut scheduler = Scheduler::new();
     let counter = Arc::new(AtomicU32::new(0));
 
-    scheduler.add(TickCounterNode::new("test_node", counter.clone())).order(0).done();
+    scheduler
+        .add(TickCounterNode::new("test_node", counter.clone()))
+        .order(0)
+        .done();
 
     let result = scheduler.run_for(Duration::from_millis(100));
-    assert!(result.is_ok(), "Scheduler::new() should create a working scheduler");
-    assert!(counter.load(Ordering::SeqCst) > 0, "Node should have ticked");
+    assert!(
+        result.is_ok(),
+        "Scheduler::new() should create a working scheduler"
+    );
+    assert!(
+        counter.load(Ordering::SeqCst) > 0,
+        "Node should have ticked"
+    );
 }
 
 #[test]
@@ -70,7 +79,10 @@ fn test_new_detects_capabilities() {
 
     // On any system, capabilities() should return Some after new()
     let caps = scheduler.capabilities();
-    assert!(caps.is_some(), "Scheduler::new() should detect capabilities");
+    assert!(
+        caps.is_some(),
+        "Scheduler::new() should detect capabilities"
+    );
 
     let caps = caps.unwrap();
     // Core count should always be detectable
@@ -96,7 +108,10 @@ fn test_new_with_capacity() {
     let mut scheduler = Scheduler::new().with_capacity(100);
     let counter = Arc::new(AtomicU32::new(0));
 
-    scheduler.add(TickCounterNode::new("cap_node", counter.clone())).order(0).done();
+    scheduler
+        .add(TickCounterNode::new("cap_node", counter.clone()))
+        .order(0)
+        .done();
 
     // Use 100ms to be reliable under parallel test load
     let result = scheduler.run_for(Duration::from_millis(100));
@@ -113,11 +128,20 @@ fn test_simulation_creates_deterministic_scheduler() {
     let mut scheduler = SchedulerBuilder::simulation().build().unwrap();
     let counter = Arc::new(AtomicU32::new(0));
 
-    scheduler.add(TickCounterNode::new("sim_node", counter.clone())).order(0).done();
+    scheduler
+        .add(TickCounterNode::new("sim_node", counter.clone()))
+        .order(0)
+        .done();
 
     let result = scheduler.run_for(Duration::from_millis(100));
-    assert!(result.is_ok(), "SchedulerBuilder::simulation().build().unwrap() should create a working scheduler");
-    assert!(counter.load(Ordering::SeqCst) > 0, "Node should have ticked");
+    assert!(
+        result.is_ok(),
+        "SchedulerBuilder::simulation().build().unwrap() should create a working scheduler"
+    );
+    assert!(
+        counter.load(Ordering::SeqCst) > 0,
+        "Node should have ticked"
+    );
 }
 
 #[test]
@@ -127,11 +151,17 @@ fn test_simulation_has_no_rt_features() {
 
     // Capabilities should be None (intentionally disabled for determinism)
     let caps = scheduler.capabilities();
-    assert!(caps.is_none(), "simulation() should not detect RT capabilities");
+    assert!(
+        caps.is_none(),
+        "simulation() should not detect RT capabilities"
+    );
 
     // No degradations (RT wasn't attempted)
     let degradations = scheduler.degradations();
-    assert!(degradations.is_empty(), "simulation() should have no degradations");
+    assert!(
+        degradations.is_empty(),
+        "simulation() should have no degradations"
+    );
 }
 
 #[test]
@@ -154,7 +184,10 @@ fn test_simulation_has_blackbox() {
     let scheduler = SchedulerBuilder::simulation().build().unwrap();
 
     // The scheduler should have recording capabilities enabled
-    assert!(scheduler.get_name().contains("Simulation"), "Should be named SimulationScheduler");
+    assert!(
+        scheduler.get_name().contains("Simulation"),
+        "Should be named SimulationScheduler"
+    );
 
     // Verify BlackBox is actually present (8MB buffer)
     assert!(
@@ -167,7 +200,10 @@ fn test_simulation_has_blackbox() {
 fn test_simulation_is_simulation_mode() {
     // simulation() must enable deterministic mode
     let scheduler = SchedulerBuilder::simulation().build().unwrap();
-    assert!(scheduler.is_simulation_mode(), "simulation() must enable deterministic mode");
+    assert!(
+        scheduler.is_simulation_mode(),
+        "simulation() must enable deterministic mode"
+    );
 }
 
 // =============================================================================
@@ -180,11 +216,20 @@ fn test_prototype_creates_dev_scheduler() {
     let mut scheduler = SchedulerBuilder::prototype().build().unwrap();
     let counter = Arc::new(AtomicU32::new(0));
 
-    scheduler.add(TickCounterNode::new("proto_node", counter.clone())).order(0).done();
+    scheduler
+        .add(TickCounterNode::new("proto_node", counter.clone()))
+        .order(0)
+        .done();
 
     let result = scheduler.run_for(Duration::from_millis(100));
-    assert!(result.is_ok(), "SchedulerBuilder::prototype().build().unwrap() should create a working scheduler");
-    assert!(counter.load(Ordering::SeqCst) > 0, "Node should have ticked");
+    assert!(
+        result.is_ok(),
+        "SchedulerBuilder::prototype().build().unwrap() should create a working scheduler"
+    );
+    assert!(
+        counter.load(Ordering::SeqCst) > 0,
+        "Node should have ticked"
+    );
 }
 
 #[test]
@@ -194,7 +239,10 @@ fn test_prototype_has_no_capability_detection() {
 
     // No capabilities detected (intentionally skipped)
     let caps = scheduler.capabilities();
-    assert!(caps.is_none(), "prototype() should skip capability detection");
+    assert!(
+        caps.is_none(),
+        "prototype() should skip capability detection"
+    );
 }
 
 #[test]
@@ -203,7 +251,10 @@ fn test_prototype_has_safety_monitor() {
     let scheduler = SchedulerBuilder::prototype().build().unwrap();
 
     // Verify by checking name
-    assert!(scheduler.get_name().contains("Prototype"), "Should be named PrototypeScheduler");
+    assert!(
+        scheduler.get_name().contains("Prototype"),
+        "Should be named PrototypeScheduler"
+    );
 }
 
 #[test]
@@ -214,15 +265,21 @@ fn test_prototype_fast_startup() {
     let elapsed = start.elapsed();
 
     // Startup should be fast (under 100ms on any system)
-    assert!(elapsed < Duration::from_millis(100),
-        "prototype() should start quickly, took {:?}", elapsed);
+    assert!(
+        elapsed < Duration::from_millis(100),
+        "prototype() should start quickly, took {:?}",
+        elapsed
+    );
 }
 
 #[test]
 fn test_prototype_is_not_deterministic() {
     // prototype() is NOT deterministic (uses wall clock)
     let scheduler = SchedulerBuilder::prototype().build().unwrap();
-    assert!(!scheduler.is_simulation_mode(), "prototype() should NOT be deterministic");
+    assert!(
+        !scheduler.is_simulation_mode(),
+        "prototype() should NOT be deterministic"
+    );
 }
 
 // =============================================================================
@@ -240,7 +297,10 @@ fn test_builder_default_build() {
     let mut scheduler = result.unwrap();
     let counter = Arc::new(AtomicU32::new(0));
 
-    scheduler.add(TickCounterNode::new("builder_node", counter.clone())).order(0).done();
+    scheduler
+        .add(TickCounterNode::new("builder_node", counter.clone()))
+        .order(0)
+        .done();
 
     // Use 100ms to be reliable under parallel test load
     let result = scheduler.run_for(Duration::from_millis(100));
@@ -269,7 +329,10 @@ fn test_builder_with_capacity() {
         .expect("build should succeed");
 
     let counter = Arc::new(AtomicU32::new(0));
-    scheduler.add(TickCounterNode::new("cap_builder_node", counter.clone())).order(0).done();
+    scheduler
+        .add(TickCounterNode::new("cap_builder_node", counter.clone()))
+        .order(0)
+        .done();
 
     let result = scheduler.run_for(Duration::from_millis(100));
     assert!(result.is_ok());
@@ -284,7 +347,10 @@ fn test_builder_deterministic() {
         .build()
         .expect("build should succeed");
 
-    assert!(scheduler.is_simulation_mode(), "deterministic() should enable determinism");
+    assert!(
+        scheduler.is_simulation_mode(),
+        "deterministic() should enable determinism"
+    );
 }
 
 #[test]
@@ -328,11 +394,14 @@ fn test_builder_strict_mode_graceful() {
     // builder().strict() without RT requirements should still build
     let scheduler = Scheduler::builder()
         .name("StrictNonRT")
-        .strict()  // Strict mode, but no RT features requested
+        .strict() // Strict mode, but no RT features requested
         .build();
 
     // Should succeed because no RT features were requested
-    assert!(scheduler.is_ok(), "strict() without RT features should succeed");
+    assert!(
+        scheduler.is_ok(),
+        "strict() without RT features should succeed"
+    );
 }
 
 #[test]
@@ -366,7 +435,10 @@ fn test_builder_preset_simulation() {
         .build()
         .expect("simulation preset should build");
 
-    assert!(scheduler.is_simulation_mode(), "simulation preset should be deterministic");
+    assert!(
+        scheduler.is_simulation_mode(),
+        "simulation preset should be deterministic"
+    );
 }
 
 #[test]
@@ -431,8 +503,8 @@ fn test_graceful_degradation_on_non_rt() {
 fn test_strict_mode_rejects_degradation() {
     // builder().strict() with RT features should fail on non-RT systems
     let _result = Scheduler::builder()
-        .rt_priority(99)  // Request RT priority
-        .strict()          // Don't allow degradation
+        .rt_priority(99) // Request RT priority
+        .strict() // Don't allow degradation
         .build();
 
     // On non-RT systems (most dev machines), this should fail
@@ -446,7 +518,10 @@ fn test_strict_mode_rejects_degradation() {
     #[cfg(not(target_os = "linux"))]
     {
         // Non-Linux should always fail for RT features
-        assert!(result.is_err(), "strict() with rt_priority() should fail on non-Linux");
+        assert!(
+            result.is_err(),
+            "strict() with rt_priority() should fail on non-Linux"
+        );
     }
 }
 
@@ -484,22 +559,29 @@ fn test_scheduler_names() {
     // Each constructor should set appropriate default names
 
     let new_scheduler = Scheduler::new();
-    assert!(!new_scheduler.get_name().is_empty(), "new() should have a name");
+    assert!(
+        !new_scheduler.get_name().is_empty(),
+        "new() should have a name"
+    );
 
     let sim_scheduler = SchedulerBuilder::simulation().build().unwrap();
-    assert!(sim_scheduler.get_name().contains("Simulation"),
-        "simulation() should have 'Simulation' in name");
+    assert!(
+        sim_scheduler.get_name().contains("Simulation"),
+        "simulation() should have 'Simulation' in name"
+    );
 
     let proto_scheduler = SchedulerBuilder::prototype().build().unwrap();
-    assert!(proto_scheduler.get_name().contains("Prototype"),
-        "prototype() should have 'Prototype' in name");
+    assert!(
+        proto_scheduler.get_name().contains("Prototype"),
+        "prototype() should have 'Prototype' in name"
+    );
 
-    let builder_scheduler = Scheduler::builder()
-        .name("CustomName")
-        .build()
-        .unwrap();
-    assert_eq!(builder_scheduler.get_name(), "CustomName",
-        "builder().name() should override default");
+    let builder_scheduler = Scheduler::builder().name("CustomName").build().unwrap();
+    assert_eq!(
+        builder_scheduler.get_name(),
+        "CustomName",
+        "builder().name() should override default"
+    );
 }
 
 // =============================================================================
@@ -513,13 +595,22 @@ fn test_status_returns_formatted_string() {
     let status = scheduler.status();
 
     // Should contain the scheduler name
-    assert!(status.contains("SCHEDULER STATUS:"), "status() should have header");
+    assert!(
+        status.contains("SCHEDULER STATUS:"),
+        "status() should have header"
+    );
 
     // Should contain execution mode section
-    assert!(status.contains("Execution Mode:"), "status() should show execution mode");
+    assert!(
+        status.contains("Execution Mode:"),
+        "status() should show execution mode"
+    );
 
     // Should contain safety features section
-    assert!(status.contains("Safety Features:"), "status() should show safety features");
+    assert!(
+        status.contains("Safety Features:"),
+        "status() should show safety features"
+    );
 }
 
 #[test]
@@ -529,8 +620,14 @@ fn test_status_shows_capabilities() {
     let status = scheduler.status();
 
     // new() detects capabilities, so status should show platform info
-    assert!(status.contains("Platform:"), "status() should show platform for new()");
-    assert!(status.contains("RT Features:"), "status() should show RT features");
+    assert!(
+        status.contains("Platform:"),
+        "status() should show platform for new()"
+    );
+    assert!(
+        status.contains("RT Features:"),
+        "status() should show RT features"
+    );
 }
 
 #[test]
@@ -540,11 +637,16 @@ fn test_status_no_capabilities_for_simulation() {
     let status = scheduler.status();
 
     // Should show "capabilities not detected" since simulation skips detection
-    assert!(status.contains("capabilities not detected"),
-        "simulation() status should indicate no capability detection");
+    assert!(
+        status.contains("capabilities not detected"),
+        "simulation() status should indicate no capability detection"
+    );
 
     // Should show simulation mode enabled
-    assert!(status.contains("[x] Simulation Mode"), "should show simulation mode enabled");
+    assert!(
+        status.contains("[x] Simulation Mode"),
+        "should show simulation mode enabled"
+    );
 }
 
 #[test]
@@ -559,9 +661,15 @@ fn test_status_shows_safety_features() {
     let status = scheduler.status();
 
     // Should show safety monitor enabled
-    assert!(status.contains("[x] Safety Monitor"), "should show safety monitor enabled");
+    assert!(
+        status.contains("[x] Safety Monitor"),
+        "should show safety monitor enabled"
+    );
     // Should show blackbox enabled
-    assert!(status.contains("[x] BlackBox Recorder"), "should show blackbox enabled");
+    assert!(
+        status.contains("[x] BlackBox Recorder"),
+        "should show blackbox enabled"
+    );
 }
 
 #[test]
@@ -743,7 +851,9 @@ fn test_safety_stats_initial_values() {
     // Initial safety stats should have zero violations
     let scheduler = Scheduler::new();
 
-    let stats = scheduler.safety_stats().expect("SafetyMonitor should be enabled");
+    let stats = scheduler
+        .safety_stats()
+        .expect("SafetyMonitor should be enabled");
     assert_eq!(stats.wcet_overruns, 0);
     assert_eq!(stats.deadline_misses, 0);
     assert_eq!(stats.watchdog_expirations, 0);
@@ -785,6 +895,8 @@ fn test_builder_with_safety_monitor() {
         .build()
         .expect("Builder should succeed");
 
-    let stats = scheduler.safety_stats().expect("SafetyMonitor should be enabled");
+    let stats = scheduler
+        .safety_stats()
+        .expect("SafetyMonitor should be enabled");
     assert_eq!(stats.wcet_overruns, 0);
 }

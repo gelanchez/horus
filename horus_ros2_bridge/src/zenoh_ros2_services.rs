@@ -108,21 +108,12 @@ pub fn apply_namespace_to_service(service_name: &str, namespace: &str) -> String
 /// ROS2 Service Request Header
 ///
 /// Matches the rmw_request_id_t structure in ROS2
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Ros2RequestHeader {
     /// GUID of the requester (16 bytes)
     pub writer_guid: [u8; 16],
     /// Sequence number of the request
     pub sequence_number: i64,
-}
-
-impl Default for Ros2RequestHeader {
-    fn default() -> Self {
-        Self {
-            writer_guid: [0u8; 16],
-            sequence_number: 0,
-        }
-    }
 }
 
 impl Ros2RequestHeader {
@@ -184,7 +175,6 @@ pub fn deserialize_cdr<T: DeserializeOwned>(data: &[u8]) -> Result<T, Ros2Servic
         .map(|(value, _bytes_read)| value)
         .map_err(|e| Ros2ServiceError::SerializationError(e.to_string()))
 }
-
 
 // ============================================================================
 // Error Types
@@ -568,7 +558,7 @@ impl ServiceRegistry {
         let handlers = self.handlers.read();
 
         if let Some(handler) = handlers.get(service_name) {
-            handler(request_data).map_err(|e| Ros2ServiceError::HandlerError(e))
+            handler(request_data).map_err(Ros2ServiceError::HandlerError)
         } else {
             Err(Ros2ServiceError::ServiceNotFound(service_name.to_string()))
         }

@@ -148,7 +148,9 @@ impl ParameterTopicType {
 /// ROS2 Parameter types (from rcl_interfaces/msg/ParameterType)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[repr(u8)]
+#[derive(Default)]
 pub enum ParameterType {
+    #[default]
     NotSet = 0,
     Bool = 1,
     Integer = 2,
@@ -159,12 +161,6 @@ pub enum ParameterType {
     IntegerArray = 7,
     DoubleArray = 8,
     StringArray = 9,
-}
-
-impl Default for ParameterType {
-    fn default() -> Self {
-        Self::NotSet
-    }
 }
 
 impl ParameterType {
@@ -649,16 +645,12 @@ pub struct SetParametersAtomicallyResponse {
 /// Parameter event types
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[repr(u8)]
+#[derive(Default)]
 pub enum ParameterEventType {
+    #[default]
     Changed = 0,
     Added = 1,
     Deleted = 2,
-}
-
-impl Default for ParameterEventType {
-    fn default() -> Self {
-        Self::Changed
-    }
 }
 
 /// ROS2 Time structure
@@ -1018,17 +1010,18 @@ impl LocalParameterStore {
             }
 
             // Validate type if not dynamic
-            if !desc.dynamic_typing && desc.param_type != ParameterType::NotSet as u8 {
-                if desc.param_type != param.value.param_type {
-                    return Ok(SetParameterResult {
-                        successful: false,
-                        reason: format!(
-                            "Type mismatch: expected {:?}, got {:?}",
-                            ParameterType::from_code(desc.param_type),
-                            ParameterType::from_code(param.value.param_type)
-                        ),
-                    });
-                }
+            if !desc.dynamic_typing
+                && desc.param_type != ParameterType::NotSet as u8
+                && desc.param_type != param.value.param_type
+            {
+                return Ok(SetParameterResult {
+                    successful: false,
+                    reason: format!(
+                        "Type mismatch: expected {:?}, got {:?}",
+                        ParameterType::from_code(desc.param_type),
+                        ParameterType::from_code(param.value.param_type)
+                    ),
+                });
             }
 
             // Validate ranges
@@ -1083,18 +1076,19 @@ impl LocalParameterStore {
                         reason: format!("Parameter '{}' is read-only", param.name),
                     };
                 }
-                if !desc.dynamic_typing && desc.param_type != ParameterType::NotSet as u8 {
-                    if desc.param_type != param.value.param_type {
-                        return SetParameterResult {
-                            successful: false,
-                            reason: format!(
-                                "Type mismatch for '{}': expected {:?}, got {:?}",
-                                param.name,
-                                ParameterType::from_code(desc.param_type),
-                                ParameterType::from_code(param.value.param_type)
-                            ),
-                        };
-                    }
+                if !desc.dynamic_typing
+                    && desc.param_type != ParameterType::NotSet as u8
+                    && desc.param_type != param.value.param_type
+                {
+                    return SetParameterResult {
+                        successful: false,
+                        reason: format!(
+                            "Type mismatch for '{}': expected {:?}, got {:?}",
+                            param.name,
+                            ParameterType::from_code(desc.param_type),
+                            ParameterType::from_code(param.value.param_type)
+                        ),
+                    };
                 }
                 if let Err(reason) = self.validate_ranges(&param.value, desc) {
                     return SetParameterResult {
@@ -1232,7 +1226,7 @@ impl LocalParameterStore {
                 }
                 if range.step > 0 {
                     let offset = value.integer_value - range.from_value;
-                    if offset as u64 % range.step != 0 {
+                    if !(offset as u64).is_multiple_of(range.step) {
                         return Err(format!(
                             "Value {} not on step grid (step={})",
                             value.integer_value, range.step

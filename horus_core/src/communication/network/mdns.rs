@@ -101,8 +101,8 @@ impl HorusMdns {
     /// This starts the mDNS daemon which will handle multicast DNS queries
     /// and responses in a background thread.
     pub fn new() -> HorusResult<Self> {
-        let daemon = ServiceDaemon::new()
-            .map_err(|e| format!("Failed to create mDNS daemon: {}", e))?;
+        let daemon =
+            ServiceDaemon::new().map_err(|e| format!("Failed to create mDNS daemon: {}", e))?;
 
         Ok(Self {
             daemon,
@@ -151,7 +151,7 @@ impl HorusMdns {
             HORUS_SERVICE_TYPE,
             instance_name,
             &host_name,
-            "",  // Empty string for auto-detect IP addresses
+            "", // Empty string for auto-detect IP addresses
             port,
             &properties[..],
         )
@@ -541,9 +541,7 @@ fn get_local_hostname() -> HorusResult<String> {
     let mut buf = [0u8; 256];
 
     // SAFETY: gethostname writes to the buffer and returns 0 on success
-    let result = unsafe {
-        libc::gethostname(buf.as_mut_ptr() as *mut libc::c_char, buf.len())
-    };
+    let result = unsafe { libc::gethostname(buf.as_mut_ptr() as *mut libc::c_char, buf.len()) };
 
     if result != 0 {
         return Err(crate::error::HorusError::Communication(
@@ -552,9 +550,7 @@ fn get_local_hostname() -> HorusResult<String> {
     }
 
     // Find the null terminator and convert to string
-    let hostname = unsafe {
-        CStr::from_ptr(buf.as_ptr() as *const libc::c_char)
-    };
+    let hostname = unsafe { CStr::from_ptr(buf.as_ptr() as *const libc::c_char) };
 
     hostname
         .to_str()
@@ -843,10 +839,7 @@ impl DiscoveryWatcher {
                         }
                     }
                     Err(e) => {
-                        let _ = sender.send(DiscoveryEvent::Error(format!(
-                            "Browse failed: {}",
-                            e
-                        )));
+                        let _ = sender.send(DiscoveryEvent::Error(format!("Browse failed: {}", e)));
                     }
                 }
 

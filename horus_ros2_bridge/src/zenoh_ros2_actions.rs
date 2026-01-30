@@ -219,8 +219,10 @@ impl std::fmt::Display for GoalId {
 /// ROS2 Goal Status values (from action_msgs/GoalStatus)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[repr(i8)]
+#[derive(Default)]
 pub enum GoalStatus {
     /// Unknown status (should not be seen in normal operation)
+    #[default]
     Unknown = 0,
     /// The goal has been accepted and is awaiting execution
     Accepted = 1,
@@ -264,12 +266,6 @@ impl GoalStatus {
             6 => GoalStatus::Aborted,
             _ => GoalStatus::Unknown,
         }
-    }
-}
-
-impl Default for GoalStatus {
-    fn default() -> Self {
-        GoalStatus::Unknown
     }
 }
 
@@ -606,8 +602,10 @@ impl CancelGoalRequest {
 /// Cancel Goal Response error codes
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[repr(i8)]
+#[derive(Default)]
 pub enum CancelGoalErrorCode {
     /// No error
+    #[default]
     None = 0,
     /// Goal was rejected (unknown goal)
     Rejected = 1,
@@ -615,12 +613,6 @@ pub enum CancelGoalErrorCode {
     UnknownGoal = 2,
     /// Goal is not cancelable
     GoalNotCancelable = 3,
-}
-
-impl Default for CancelGoalErrorCode {
-    fn default() -> Self {
-        CancelGoalErrorCode::None
-    }
 }
 
 /// Cancel Goal Response (action_msgs/CancelGoal_Response)

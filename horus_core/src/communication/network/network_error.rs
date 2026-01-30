@@ -369,7 +369,9 @@ impl NetworkError {
             message: format!("TLS handshake failed with {}", ep),
             endpoint: Some(ep.clone()),
             cause: None,
-            suggestion: "Check that certificates are valid and both sides support compatible TLS versions.".to_string(),
+            suggestion:
+                "Check that certificates are valid and both sides support compatible TLS versions."
+                    .to_string(),
             cli_hint: Some(format!("horus net check {} --tls", ep)),
             context: vec![("cause".to_string(), cause.into())],
         }
@@ -433,10 +435,7 @@ impl NetworkError {
                 res, lim
             ),
             cli_hint: Some("ulimit -a && horus net doctor".to_string()),
-            context: vec![
-                ("resource".to_string(), res),
-                ("limit".to_string(), lim),
-            ],
+            context: vec![("resource".to_string(), res), ("limit".to_string(), lim)],
         }
     }
 
@@ -543,7 +542,9 @@ impl NetworkError {
             NetworkErrorCode::NetworkUnreachable | NetworkErrorCode::HostUnreachable => {
                 Some("horus net trace <endpoint>".to_string())
             }
-            NetworkErrorCode::DnsResolutionFailed => Some("horus net doctor --check-dns".to_string()),
+            NetworkErrorCode::DnsResolutionFailed => {
+                Some("horus net doctor --check-dns".to_string())
+            }
             NetworkErrorCode::PortBindFailed | NetworkErrorCode::PortInUse => {
                 Some("horus net check --local-ports".to_string())
             }
@@ -552,10 +553,14 @@ impl NetworkError {
             }
             NetworkErrorCode::NatTraversalFailed
             | NetworkErrorCode::SymmetricNatDetected
-            | NetworkErrorCode::StunBindingFailed => Some("horus net doctor --check-nat".to_string()),
+            | NetworkErrorCode::StunBindingFailed => {
+                Some("horus net doctor --check-nat".to_string())
+            }
             NetworkErrorCode::TlsHandshakeFailed
             | NetworkErrorCode::CertificateInvalid
-            | NetworkErrorCode::CertificateExpired => Some("horus net doctor --check-tls".to_string()),
+            | NetworkErrorCode::CertificateExpired => {
+                Some("horus net doctor --check-tls".to_string())
+            }
             _ => Some("horus net doctor".to_string()),
         }
     }
@@ -664,7 +669,15 @@ fn format_error_report_impl(error: &NetworkError, colored: bool) -> String {
     ));
     report.push_str(&format!(
         "{}│{} {}HORUS Network Error:{} {}{:41}{} {}│{}\n",
-        red, reset, bold, reset, red, error.code.code(), reset, red, reset
+        red,
+        reset,
+        bold,
+        reset,
+        red,
+        error.code.code(),
+        reset,
+        red,
+        reset
     ));
     report.push_str(&format!(
         "{}├─────────────────────────────────────────────────────────────────┤{}\n",
@@ -732,7 +745,13 @@ fn format_error_report_impl(error: &NetworkError, colored: bool) -> String {
     ));
     report.push_str(&format!(
         "{}│{} 📖 {}{:60}{} {}│{}\n",
-        blue, reset, blue, error.code.doc_url(), reset, blue, reset
+        blue,
+        reset,
+        blue,
+        error.code.doc_url(),
+        reset,
+        blue,
+        reset
     ));
     report.push_str(&format!(
         "{}╰─────────────────────────────────────────────────────────────────╯{}\n",
@@ -812,7 +831,10 @@ pub mod errors {
             "Port {} is being used by another process. Use 'lsof -i :{}' to identify it.",
             port, port
         ))
-        .with_cli_hint(format!("lsof -i :{} && horus net check --local-ports", port))
+        .with_cli_hint(format!(
+            "lsof -i :{} && horus net check --local-ports",
+            port
+        ))
     }
 
     /// Invalid configuration
@@ -874,11 +896,20 @@ mod tests {
     #[test]
     fn test_error_categories() {
         assert_eq!(NetworkErrorCode::ConnectionFailed.category(), "Connection");
-        assert_eq!(NetworkErrorCode::DnsResolutionFailed.category(), "Discovery");
+        assert_eq!(
+            NetworkErrorCode::DnsResolutionFailed.category(),
+            "Discovery"
+        );
         assert_eq!(NetworkErrorCode::PortBindFailed.category(), "Transport");
         assert_eq!(NetworkErrorCode::InvalidPacket.category(), "Protocol");
-        assert_eq!(NetworkErrorCode::NatTraversalFailed.category(), "NAT/Firewall");
-        assert_eq!(NetworkErrorCode::InvalidEndpoint.category(), "Configuration");
+        assert_eq!(
+            NetworkErrorCode::NatTraversalFailed.category(),
+            "NAT/Firewall"
+        );
+        assert_eq!(
+            NetworkErrorCode::InvalidEndpoint.category(),
+            "Configuration"
+        );
         assert_eq!(NetworkErrorCode::ResourceExhausted.category(), "Resource");
         assert_eq!(NetworkErrorCode::TlsHandshakeFailed.category(), "Security");
     }

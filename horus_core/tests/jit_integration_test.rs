@@ -240,7 +240,10 @@ fn test_mixed_scheduler_with_jit_and_regular_nodes() {
         }
     }
 
-    scheduler.add(RegularComputeNode { counter: 0 }).order(1).done();
+    scheduler
+        .add(RegularComputeNode { counter: 0 })
+        .order(1)
+        .done();
 
     // Run both nodes - JIT node uses native code, regular node uses tick()
     let result = scheduler.run_for(Duration::from_millis(50));

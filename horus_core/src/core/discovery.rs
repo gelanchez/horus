@@ -52,7 +52,11 @@ impl LogSummary for NodeAnnouncement {
 
 impl NodeAnnouncement {
     /// Create a started announcement
-    pub fn started(name: &str, publishers: &[TopicMetadata], subscribers: &[TopicMetadata]) -> Self {
+    pub fn started(
+        name: &str,
+        publishers: &[TopicMetadata],
+        subscribers: &[TopicMetadata],
+    ) -> Self {
         Self {
             name: name.to_string(),
             pid: std::process::id(),

@@ -20,7 +20,6 @@
 /// // Announce that we publish a topic
 /// discovery.announce("motor/cmd", 9870).await?;
 /// ```
-
 use crate::communication::network::protocol::{HorusPacket, MessageType};
 use crate::error::HorusResult;
 #[cfg(feature = "husarnet")]
@@ -134,7 +133,10 @@ impl HybridDiscovery {
         if config.enable_multicast {
             match Self::setup_multicast() {
                 Ok(socket) => {
-                    info!("[HybridDiscovery] LAN multicast enabled on {}", MULTICAST_ADDR);
+                    info!(
+                        "[HybridDiscovery] LAN multicast enabled on {}",
+                        MULTICAST_ADDR
+                    );
                     multicast_socket = Some(socket);
                 }
                 Err(e) => {
@@ -211,10 +213,8 @@ impl HybridDiscovery {
             let mut buffer = Vec::new();
             packet.encode(&mut buffer);
 
-            let multicast_addr = SocketAddr::new(
-                IpAddr::V4(MULTICAST_ADDR.parse().unwrap()),
-                MULTICAST_PORT,
-            );
+            let multicast_addr =
+                SocketAddr::new(IpAddr::V4(MULTICAST_ADDR.parse().unwrap()), MULTICAST_PORT);
             let _ = socket.send_to(&buffer, multicast_addr);
         }
 
@@ -267,10 +267,8 @@ impl HybridDiscovery {
 
         // Announce via multicast
         if let Some(ref socket) = self.multicast_socket {
-            let multicast_addr = SocketAddr::new(
-                IpAddr::V4(MULTICAST_ADDR.parse().unwrap()),
-                MULTICAST_PORT,
-            );
+            let multicast_addr =
+                SocketAddr::new(IpAddr::V4(MULTICAST_ADDR.parse().unwrap()), MULTICAST_PORT);
             let _ = socket.send_to(&buffer, multicast_addr);
         }
 
@@ -349,10 +347,8 @@ impl HybridDiscovery {
         let running = Arc::clone(&self.running);
 
         std::thread::spawn(move || {
-            let multicast_addr = SocketAddr::new(
-                IpAddr::V4(MULTICAST_ADDR.parse().unwrap()),
-                MULTICAST_PORT,
-            );
+            let multicast_addr =
+                SocketAddr::new(IpAddr::V4(MULTICAST_ADDR.parse().unwrap()), MULTICAST_PORT);
             let mut buffer = vec![0u8; 65536];
 
             while running.load(std::sync::atomic::Ordering::Relaxed) {
@@ -461,9 +457,18 @@ impl HybridDiscovery {
     /// Get discovery summary for debugging
     pub fn summary(&self) -> DiscoverySummary {
         let peers = self.peers.read().unwrap();
-        let multicast_count = peers.values().filter(|p| p.source == DiscoverySource::Multicast).count();
-        let husarnet_count = peers.values().filter(|p| p.source == DiscoverySource::Husarnet).count();
-        let mdns_count = peers.values().filter(|p| p.source == DiscoverySource::Mdns).count();
+        let multicast_count = peers
+            .values()
+            .filter(|p| p.source == DiscoverySource::Multicast)
+            .count();
+        let husarnet_count = peers
+            .values()
+            .filter(|p| p.source == DiscoverySource::Husarnet)
+            .count();
+        let mdns_count = peers
+            .values()
+            .filter(|p| p.source == DiscoverySource::Mdns)
+            .count();
 
         DiscoverySummary {
             total_peers: peers.len(),

@@ -191,7 +191,6 @@ where
                 }
             }
 
-
             Endpoint::Cloud { topic, mode } => {
                 // Cloud transport requires WebSocket connection to cloud/relay server
                 // or VPN address resolution
@@ -313,9 +312,7 @@ where
                 }
             }
 
-            TransportType::Udp => {
-                Self::create_batch_udp(topic, addr)
-            }
+            TransportType::Udp => Self::create_batch_udp(topic, addr),
 
             TransportType::Tcp => {
                 // TCP is handled via Router backend
@@ -427,7 +424,8 @@ where
     pub fn send(&self, msg: &T) -> HorusResult<()> {
         match self {
             #[cfg(unix)]
-            NetworkBackend::UnixSocket(backend) => backend.send(msg),            #[cfg(target_os = "linux")]
+            NetworkBackend::UnixSocket(backend) => backend.send(msg),
+            #[cfg(target_os = "linux")]
             NetworkBackend::BatchUdp(backend) => {
                 let data = bincode::serialize(msg).map_err(|e| {
                     crate::error::HorusError::Communication(format!("Serialization error: {}", e))
@@ -478,7 +476,8 @@ where
     pub fn recv(&mut self) -> Option<T> {
         match self {
             #[cfg(unix)]
-            NetworkBackend::UnixSocket(backend) => backend.recv(),            #[cfg(target_os = "linux")]
+            NetworkBackend::UnixSocket(backend) => backend.recv(),
+            #[cfg(target_os = "linux")]
             NetworkBackend::BatchUdp(backend) => {
                 let mut receiver = match backend.receiver.lock() {
                     Ok(r) => r,
@@ -508,7 +507,8 @@ where
     pub fn transport_type(&self) -> &'static str {
         match self {
             #[cfg(unix)]
-            NetworkBackend::UnixSocket(_) => "unix_socket",            #[cfg(target_os = "linux")]
+            NetworkBackend::UnixSocket(_) => "unix_socket",
+            #[cfg(target_os = "linux")]
             NetworkBackend::BatchUdp(_) => "batch_udp",
             NetworkBackend::Multicast(_) => "multicast",
             NetworkBackend::Router(_) => "router",

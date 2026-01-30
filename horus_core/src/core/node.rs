@@ -471,7 +471,6 @@ impl NodeInfo {
             // Update uptime
             self.metrics.uptime_seconds = self.creation_time.elapsed().as_secs_f64();
         }
-
     }
 
     /// Record node shutdown

@@ -65,14 +65,27 @@ pub struct PointXYZRGB {
 impl PointXYZRGB {
     /// Create a new colored point
     pub fn new(x: f32, y: f32, z: f32, r: u8, g: u8, b: u8) -> Self {
-        Self { x, y, z, r, g, b, a: 255 }
+        Self {
+            x,
+            y,
+            z,
+            r,
+            g,
+            b,
+            a: 255,
+        }
     }
 
     /// Create from XYZ with white color
     pub fn from_xyz(xyz: PointXYZ) -> Self {
         Self {
-            x: xyz.x, y: xyz.y, z: xyz.z,
-            r: 255, g: 255, b: 255, a: 255,
+            x: xyz.x,
+            y: xyz.y,
+            z: xyz.z,
+            r: 255,
+            g: 255,
+            b: 255,
+            a: 255,
         }
     }
 
@@ -83,7 +96,11 @@ impl PointXYZRGB {
 
     /// Get as PointXYZ
     pub fn xyz(&self) -> PointXYZ {
-        PointXYZ { x: self.x, y: self.y, z: self.z }
+        PointXYZ {
+            x: self.x,
+            y: self.y,
+            z: self.z,
+        }
     }
 }
 
@@ -114,14 +131,20 @@ impl PointXYZI {
     /// Create from XYZ with zero intensity
     pub fn from_xyz(xyz: PointXYZ) -> Self {
         Self {
-            x: xyz.x, y: xyz.y, z: xyz.z,
+            x: xyz.x,
+            y: xyz.y,
+            z: xyz.z,
             intensity: 0.0,
         }
     }
 
     /// Get as PointXYZ
     pub fn xyz(&self) -> PointXYZ {
-        PointXYZ { x: self.x, y: self.y, z: self.z }
+        PointXYZ {
+            x: self.x,
+            y: self.y,
+            z: self.z,
+        }
     }
 }
 

@@ -57,8 +57,8 @@ pub mod prelude {
     // ============================================
     // Communication (IPC) - Unified Topic API
     // ============================================
-    pub use horus_core::communication::Topic;
     pub use horus_core::communication::PodMessage;
+    pub use horus_core::communication::Topic;
 
     // ============================================
     // Scheduling
@@ -81,26 +81,26 @@ pub mod prelude {
         create_shared_blackbox,
         BlackBox,
         BlackBoxEvent,
-        SharedBlackBox,
         // Checkpointing
         Checkpoint,
         CheckpointManager,
         CheckpointMetadata,
-        NodeCheckpoint,
         // Circuit breaker
         CircuitBreaker,
         CircuitState,
         // Redundancy/TMR voting
         FaultStats,
+        NodeCheckpoint,
         RedundancyManager,
         RedundantValue,
-        VoteResult,
-        Voter,
-        VotingStrategy,
         // Safety monitoring
         SafetyMonitor,
         SafetyState,
         SafetyStats,
+        SharedBlackBox,
+        VoteResult,
+        Voter,
+        VotingStrategy,
         WCETEnforcer,
         Watchdog,
     };
@@ -117,7 +117,9 @@ pub mod prelude {
     // ============================================
     // NOTE: Internal types (TierClassifier, RuntimeProfiler, DependencyGraph, ExecutionTier)
     // are not exported - use horus_core::scheduling directly if needed for advanced use.
-    pub use horus_core::scheduling::{NodeProfile, NodeTier, OfflineProfiler, ProfileData, ProfileError};
+    pub use horus_core::scheduling::{
+        NodeProfile, NodeTier, OfflineProfiler, ProfileData, ProfileError,
+    };
 
     // ============================================
     // Record/Replay
@@ -147,14 +149,29 @@ pub mod prelude {
     // Real-Time Configuration & Nodes
     // ============================================
     pub use horus_core::core::{
-        // RtConfig - System-level RT configuration
-        prefault_stack, prefault_stack_linear, RtApplyResult, RtConfig, RtConfigBuilder,
-        RtDegradation, RtKernelInfo, RtScheduler,
         // CPU affinity and isolation helpers
-        detect_isolated_cpus, detect_nohz_full_cpus, get_rt_recommended_cpus, pin_thread_to_core,
-        RtCpuInfo,
+        detect_isolated_cpus,
+        detect_nohz_full_cpus,
+        get_rt_recommended_cpus,
+        pin_thread_to_core,
+        // RtConfig - System-level RT configuration
+        prefault_stack,
+        prefault_stack_linear,
         // RtNode - Node-level RT constraints
-        DeadlineMissPolicy, RtClass, RtNode, RtNodeWrapper, RtPriority, RtStats, WCETViolation,
+        DeadlineMissPolicy,
+        RtApplyResult,
+        RtClass,
+        RtConfig,
+        RtConfigBuilder,
+        RtCpuInfo,
+        RtDegradation,
+        RtKernelInfo,
+        RtNode,
+        RtNodeWrapper,
+        RtPriority,
+        RtScheduler,
+        RtStats,
+        WCETViolation,
     };
 
     // ============================================
@@ -341,29 +358,47 @@ pub mod prelude {
     // ============================================
     pub use horus_core::behavior_trees::{
         ActionNode, BTNode, BehaviorTree, BehaviorTreeBuilder, BehaviorTreeError, Blackboard,
-        BlackboardValue, ConditionNode, DecoratorNode, DecoratorType, NodeId, NodeStatus,
-        NodeType, ParallelNode, ParallelPolicy, ReactiveSelectorNode, ReactiveSequenceNode,
-        SelectorNode, SequenceNode, SharedBehaviorTree, TickContext, TreeVisualizer,
+        BlackboardValue, ConditionNode, DecoratorNode, DecoratorType, NodeId, NodeStatus, NodeType,
+        ParallelNode, ParallelPolicy, ReactiveSelectorNode, ReactiveSequenceNode, SelectorNode,
+        SequenceNode, SharedBehaviorTree, TickContext, TreeVisualizer,
     };
 
     // ============================================
     // Mission Planner (DAG-based goal sequencing)
     // ============================================
     pub use horus_core::mission_planner::{
-        ExecutionContext, ExecutionStatus, GoalFailurePolicy, GoalSpec, GoalState,
-        MissionEvent, MissionMetrics, MissionMode, MissionPlanner, MissionPlannerBuilder,
-        MissionPlannerConfig, MissionPlannerError, MissionSpec, MissionState, Priority,
-        RetryPolicy, SharedMissionPlanner, TaskCondition, TaskExecutor, TaskSpec, TaskState,
+        ExecutionContext,
+        ExecutionStatus,
+        GoalFailurePolicy,
         // ID types (aliased to avoid collision with actions::GoalId)
-        GoalId as MissionGoalId, MissionId, TaskId,
+        GoalId as MissionGoalId,
+        GoalSpec,
+        GoalState,
+        MissionEvent,
+        MissionId,
+        MissionMetrics,
+        MissionMode,
+        MissionPlanner,
+        MissionPlannerBuilder,
+        MissionPlannerConfig,
+        MissionPlannerError,
+        MissionSpec,
+        MissionState,
+        Priority,
+        RetryPolicy,
+        SharedMissionPlanner,
+        TaskCondition,
+        TaskExecutor,
+        TaskId,
+        TaskSpec,
+        TaskState,
     };
 
     // ============================================
     // Driver & Plugin System
     // ============================================
     pub use horus_core::driver::{
-        Actuator, Driver, DriverCategory, DriverStatus, DriversConfig, Sensor,
-        SingleDriverConfig,
+        Actuator, Driver, DriverCategory, DriverStatus, DriversConfig, Sensor, SingleDriverConfig,
     };
     pub use horus_core::plugin::{
         AutoDetectable, BackendHealth, BackendId, BackendInfo, DriverPlugin, HotReloadable,

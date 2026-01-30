@@ -21,15 +21,15 @@
 //! let ptr = tensor.data_ptr();
 //! ```
 
-pub mod dlpack;
 pub mod device;
+pub mod dlpack;
 pub mod tensor;
 
 // Re-export main types at crate root
 pub use device::Device;
 pub use dlpack::{DLDataType, DLDevice, DLManagedTensor, DLTensor};
-pub use tensor::{TensorDtype, TensorDescriptor};
+pub use tensor::{TensorDescriptor, TensorDtype};
 
 // Re-export from horus_core for convenience (will be moved here later)
-pub use horus_core::memory::tensor_pool::{TensorPool, TensorPoolConfig, TensorPoolStats};
 pub use horus_core::memory::tensor_handle::TensorHandle;
+pub use horus_core::memory::tensor_pool::{TensorPool, TensorPoolConfig, TensorPoolStats};

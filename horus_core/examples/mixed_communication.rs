@@ -202,23 +202,13 @@ fn main() -> Result<()> {
     let mut scheduler = Scheduler::new();
 
     // Add nodes for low-latency control (Topic will auto-select SPSC backend)
-    scheduler.add(ControlNode::new()?)
-        .order(10)
-        .done();
-    scheduler.add(ActuatorNode::new()?)
-        .order(10)
-        .done();
+    scheduler.add(ControlNode::new()?).order(10).done();
+    scheduler.add(ActuatorNode::new()?).order(10).done();
 
     // Add nodes for broadcast (Topic will auto-select MPMC backend)
-    scheduler.add(TelemetryNode::new()?)
-        .order(20)
-        .done();
-    scheduler.add(LoggerNode::new()?)
-        .order(100)
-        .done();
-    scheduler.add(AnalyticsNode::new()?)
-        .order(100)
-        .done();
+    scheduler.add(TelemetryNode::new()?).order(20).done();
+    scheduler.add(LoggerNode::new()?).order(100).done();
+    scheduler.add(AnalyticsNode::new()?).order(100).done();
 
     println!("Running scheduler with 5 nodes (Topic auto-selects optimal backend)...\n");
 

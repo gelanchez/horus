@@ -697,15 +697,21 @@ impl QuicTransport {
     ) -> io::Result<()> {
         match qos {
             QuicQosProfile::Reliable => {
-                self.stats.reliable_messages_sent.fetch_add(1, Ordering::Relaxed);
+                self.stats
+                    .reliable_messages_sent
+                    .fetch_add(1, Ordering::Relaxed);
                 self.send(addr, data).await
             }
             QuicQosProfile::BestEffort => {
-                self.stats.best_effort_messages_sent.fetch_add(1, Ordering::Relaxed);
+                self.stats
+                    .best_effort_messages_sent
+                    .fetch_add(1, Ordering::Relaxed);
                 self.send_datagram(addr, data).await
             }
             QuicQosProfile::ReliableOrdered => {
-                self.stats.ordered_messages_sent.fetch_add(1, Ordering::Relaxed);
+                self.stats
+                    .ordered_messages_sent
+                    .fetch_add(1, Ordering::Relaxed);
                 self.send_ordered(addr, data).await
             }
         }
@@ -737,13 +743,19 @@ impl QuicTransport {
                 self.stats.critical_messages.fetch_add(1, Ordering::Relaxed);
             }
             QuicStreamPriority::High => {
-                self.stats.high_priority_messages.fetch_add(1, Ordering::Relaxed);
+                self.stats
+                    .high_priority_messages
+                    .fetch_add(1, Ordering::Relaxed);
             }
             QuicStreamPriority::Normal => {
-                self.stats.normal_priority_messages.fetch_add(1, Ordering::Relaxed);
+                self.stats
+                    .normal_priority_messages
+                    .fetch_add(1, Ordering::Relaxed);
             }
             QuicStreamPriority::Low | QuicStreamPriority::Background => {
-                self.stats.low_priority_messages.fetch_add(1, Ordering::Relaxed);
+                self.stats
+                    .low_priority_messages
+                    .fetch_add(1, Ordering::Relaxed);
             }
         }
 
@@ -805,23 +817,33 @@ impl QuicTransport {
                 self.stats.critical_messages.fetch_add(1, Ordering::Relaxed);
             }
             QuicStreamPriority::High => {
-                self.stats.high_priority_messages.fetch_add(1, Ordering::Relaxed);
+                self.stats
+                    .high_priority_messages
+                    .fetch_add(1, Ordering::Relaxed);
             }
             QuicStreamPriority::Normal => {
-                self.stats.normal_priority_messages.fetch_add(1, Ordering::Relaxed);
+                self.stats
+                    .normal_priority_messages
+                    .fetch_add(1, Ordering::Relaxed);
             }
             QuicStreamPriority::Low | QuicStreamPriority::Background => {
-                self.stats.low_priority_messages.fetch_add(1, Ordering::Relaxed);
+                self.stats
+                    .low_priority_messages
+                    .fetch_add(1, Ordering::Relaxed);
             }
         }
 
         match qos {
             QuicQosProfile::Reliable => {
-                self.stats.reliable_messages_sent.fetch_add(1, Ordering::Relaxed);
+                self.stats
+                    .reliable_messages_sent
+                    .fetch_add(1, Ordering::Relaxed);
                 self.send_with_priority(addr, data, priority).await
             }
             QuicQosProfile::ReliableOrdered => {
-                self.stats.ordered_messages_sent.fetch_add(1, Ordering::Relaxed);
+                self.stats
+                    .ordered_messages_sent
+                    .fetch_add(1, Ordering::Relaxed);
                 self.send_ordered_with_priority(addr, data, priority).await
             }
             QuicQosProfile::BestEffort => {
@@ -896,7 +918,9 @@ impl QuicTransport {
             .await
             .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
-        self.stats.datagrams_received.fetch_add(1, Ordering::Relaxed);
+        self.stats
+            .datagrams_received
+            .fetch_add(1, Ordering::Relaxed);
 
         // Parse length prefix
         if datagram.len() < 4 {
@@ -1096,11 +1120,13 @@ where
     T: serde::Serialize + serde::de::DeserializeOwned + Send + Sync + Clone + 'static,
 {
     /// Create a new QUIC backend (blocking)
-    pub fn new_blocking(topic: &str, remote_addr: SocketAddr, config: QuicConfig) -> io::Result<Self> {
+    pub fn new_blocking(
+        topic: &str,
+        remote_addr: SocketAddr,
+        config: QuicConfig,
+    ) -> io::Result<Self> {
         let runtime = tokio::runtime::Handle::try_current()
-            .or_else(|_| {
-                tokio::runtime::Runtime::new().map(|rt| rt.handle().clone())
-            })?;
+            .or_else(|_| tokio::runtime::Runtime::new().map(|rt| rt.handle().clone()))?;
 
         // Create client transport
         let bind_addr: SocketAddr = if remote_addr.is_ipv4() {
@@ -1113,7 +1139,9 @@ where
 
         Ok(Self {
             transport: Arc::new(transport),
-            recv_buffer: Arc::new(tokio::sync::RwLock::new(std::collections::VecDeque::with_capacity(1024))),
+            recv_buffer: Arc::new(tokio::sync::RwLock::new(
+                std::collections::VecDeque::with_capacity(1024),
+            )),
             topic: topic.to_string(),
             remote_addr,
             runtime,
@@ -1132,9 +1160,7 @@ where
         config: QuicConfig,
     ) -> io::Result<Self> {
         let runtime = tokio::runtime::Handle::try_current()
-            .or_else(|_| {
-                tokio::runtime::Runtime::new().map(|rt| rt.handle().clone())
-            })?;
+            .or_else(|_| tokio::runtime::Runtime::new().map(|rt| rt.handle().clone()))?;
 
         // Generate self-signed cert for server
         let (cert_chain, private_key) = generate_self_signed_cert()?;
@@ -1148,7 +1174,9 @@ where
 
         Ok(Self {
             transport: Arc::new(transport),
-            recv_buffer: Arc::new(tokio::sync::RwLock::new(std::collections::VecDeque::with_capacity(1024))),
+            recv_buffer: Arc::new(tokio::sync::RwLock::new(
+                std::collections::VecDeque::with_capacity(1024),
+            )),
             topic: topic.to_string(),
             remote_addr: bind_addr, // For server, this is the local addr
             runtime,
@@ -1186,9 +1214,7 @@ where
         use super::certificate_manager::CertificateManager;
 
         let runtime = tokio::runtime::Handle::try_current()
-            .or_else(|_| {
-                tokio::runtime::Runtime::new().map(|rt| rt.handle().clone())
-            })?;
+            .or_else(|_| tokio::runtime::Runtime::new().map(|rt| rt.handle().clone()))?;
 
         // Get or create persistent certificates
         let manager = CertificateManager::new()?;
@@ -1203,7 +1229,9 @@ where
 
         Ok(Self {
             transport: Arc::new(transport),
-            recv_buffer: Arc::new(tokio::sync::RwLock::new(std::collections::VecDeque::with_capacity(1024))),
+            recv_buffer: Arc::new(tokio::sync::RwLock::new(
+                std::collections::VecDeque::with_capacity(1024),
+            )),
             topic: topic.to_string(),
             remote_addr: bind_addr,
             runtime,
@@ -1244,9 +1272,7 @@ where
         use super::certificate_manager::CertificateManager;
 
         let runtime = tokio::runtime::Handle::try_current()
-            .or_else(|_| {
-                tokio::runtime::Runtime::new().map(|rt| rt.handle().clone())
-            })?;
+            .or_else(|_| tokio::runtime::Runtime::new().map(|rt| rt.handle().clone()))?;
 
         // Get or create certificates with custom config
         let manager = CertificateManager::builder()
@@ -1265,7 +1291,9 @@ where
 
         Ok(Self {
             transport: Arc::new(transport),
-            recv_buffer: Arc::new(tokio::sync::RwLock::new(std::collections::VecDeque::with_capacity(1024))),
+            recv_buffer: Arc::new(tokio::sync::RwLock::new(
+                std::collections::VecDeque::with_capacity(1024),
+            )),
             topic: topic.to_string(),
             remote_addr: bind_addr,
             runtime,
@@ -1275,10 +1303,11 @@ where
 
     /// Send a message over QUIC
     pub fn send(&self, msg: &T) -> io::Result<()> {
-        let data = bincode::serialize(msg)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        let data =
+            bincode::serialize(msg).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
-        self.runtime.block_on(self.transport.send(self.remote_addr, &data))
+        self.runtime
+            .block_on(self.transport.send(self.remote_addr, &data))
     }
 
     /// Receive a message (non-blocking)
@@ -1355,7 +1384,11 @@ pub struct QuicBackend<T>(std::marker::PhantomData<T>);
 
 #[cfg(not(feature = "quic"))]
 impl<T> QuicBackend<T> {
-    pub fn new_blocking(_topic: &str, _remote_addr: SocketAddr, _config: QuicConfig) -> io::Result<Self> {
+    pub fn new_blocking(
+        _topic: &str,
+        _remote_addr: SocketAddr,
+        _config: QuicConfig,
+    ) -> io::Result<Self> {
         Err(io::Error::new(
             io::ErrorKind::Unsupported,
             "QUIC requires the 'quic' feature",
@@ -1549,13 +1582,25 @@ mod tests {
 
     #[test]
     fn test_stream_priority_from_value() {
-        assert_eq!(QuicStreamPriority::from_value(0), QuicStreamPriority::Critical);
-        assert_eq!(QuicStreamPriority::from_value(10), QuicStreamPriority::Critical);
+        assert_eq!(
+            QuicStreamPriority::from_value(0),
+            QuicStreamPriority::Critical
+        );
+        assert_eq!(
+            QuicStreamPriority::from_value(10),
+            QuicStreamPriority::Critical
+        );
         assert_eq!(QuicStreamPriority::from_value(32), QuicStreamPriority::High);
         assert_eq!(QuicStreamPriority::from_value(50), QuicStreamPriority::High);
-        assert_eq!(QuicStreamPriority::from_value(100), QuicStreamPriority::Normal);
+        assert_eq!(
+            QuicStreamPriority::from_value(100),
+            QuicStreamPriority::Normal
+        );
         assert_eq!(QuicStreamPriority::from_value(200), QuicStreamPriority::Low);
-        assert_eq!(QuicStreamPriority::from_value(250), QuicStreamPriority::Background);
+        assert_eq!(
+            QuicStreamPriority::from_value(250),
+            QuicStreamPriority::Background
+        );
     }
 
     #[test]
@@ -1647,7 +1692,9 @@ mod tests {
 
         // Increment and verify
         stats.reliable_messages_sent.fetch_add(5, Ordering::Relaxed);
-        stats.best_effort_messages_sent.fetch_add(10, Ordering::Relaxed);
+        stats
+            .best_effort_messages_sent
+            .fetch_add(10, Ordering::Relaxed);
         stats.critical_messages.fetch_add(2, Ordering::Relaxed);
 
         assert_eq!(stats.reliable_messages_sent.load(Ordering::Relaxed), 5);

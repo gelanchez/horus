@@ -136,7 +136,10 @@ fn run_coordinator(args: &[String]) {
     println!();
 
     let platform = detect_platform();
-    println!("Platform: {} ({} cores)", platform.cpu.model, platform.cpu.logical_cores);
+    println!(
+        "Platform: {} ({} cores)",
+        platform.cpu.model, platform.cpu.logical_cores
+    );
     println!("Iterations: {}", iterations);
     println!("Warmup: {}", DEFAULT_WARMUP);
     println!();
@@ -146,11 +149,7 @@ fn run_coordinator(args: &[String]) {
     // Test AdaptiveTopic (auto-selects optimal backend)
     println!("[AdaptiveTopic] Running cross-process benchmark...");
 
-    let result = run_cross_process_test(
-        "AdaptiveTopic",
-        iterations,
-        &platform,
-    );
+    let result = run_cross_process_test("AdaptiveTopic", iterations, &platform);
 
     print_result(&result);
     report.add_result(result);
@@ -163,10 +162,7 @@ fn run_coordinator(args: &[String]) {
     for result in &report.results {
         println!(
             "║ {:12} │ median: {:>7.0}ns │ p99: {:>7}ns │ CV: {:.3}",
-            result.name,
-            result.statistics.median,
-            result.statistics.p99,
-            result.determinism.cv
+            result.name, result.statistics.median, result.statistics.p99, result.determinism.cv
         );
     }
     println!("╚══════════════════════════════════════════════════════════════════╝");
@@ -311,7 +307,8 @@ fn run_producer(args: &[String]) {
     let _ = set_cpu_affinity(0);
 
     // Create producer using AdaptiveTopic
-    let producer: Topic<TimestampedMsg> = Topic::new(topic_name).expect("Failed to create producer");
+    let producer: Topic<TimestampedMsg> =
+        Topic::new(topic_name).expect("Failed to create producer");
 
     // Warmup
     for i in 0..DEFAULT_WARMUP {
@@ -365,10 +362,12 @@ fn run_consumer(args: &[String]) {
     let _ = set_cpu_affinity(1);
 
     // Create consumer using AdaptiveTopic
-    let consumer: Topic<TimestampedMsg> = Topic::new(topic_name).expect("Failed to create consumer");
+    let consumer: Topic<TimestampedMsg> =
+        Topic::new(topic_name).expect("Failed to create consumer");
 
     // Create result publisher
-    let result_tx: Topic<ResultMsg> = Topic::new(result_topic).expect("Failed to create result topic");
+    let result_tx: Topic<ResultMsg> =
+        Topic::new(result_topic).expect("Failed to create result topic");
 
     let mut latencies = Vec::with_capacity(iterations);
     let mut warmup_count = 0;

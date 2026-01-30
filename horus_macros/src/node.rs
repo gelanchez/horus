@@ -43,21 +43,21 @@ struct DataSection {
 
 /// Tick implementation
 struct TickSection {
-    _tick_token: Ident, // "tick" keyword
+    _tick_token: Ident,      // "tick" keyword
     _ctx_arg: Option<Ident>, // Parsed but not used - tick() no longer takes ctx
     body: Block,
 }
 
 /// Optional init implementation
 struct InitSection {
-    _init_token: Ident, // "init" keyword
+    _init_token: Ident,      // "init" keyword
     _ctx_arg: Option<Ident>, // Parsed for backwards compatibility but not used - init() no longer takes ctx
     body: Block,
 }
 
 /// Optional shutdown implementation
 struct ShutdownSection {
-    _shutdown_token: Ident, // "shutdown" keyword
+    _shutdown_token: Ident,  // "shutdown" keyword
     _ctx_arg: Option<Ident>, // Parsed for backwards compatibility but not used - shutdown() no longer takes ctx
     body: Block,
 }

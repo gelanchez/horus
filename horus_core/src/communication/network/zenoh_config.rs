@@ -847,8 +847,10 @@ impl ZenohCloudConfig {
     /// Non-mDNS version - just returns configured routers
     #[cfg(not(feature = "mdns"))]
     pub fn discover_routers(&self) -> Result<Vec<String>, String> {
-        Err("mDNS feature not enabled. Compile with --features mdns to enable auto-discovery"
-            .to_string())
+        Err(
+            "mDNS feature not enabled. Compile with --features mdns to enable auto-discovery"
+                .to_string(),
+        )
     }
 
     /// Non-mDNS version - just returns self unchanged
@@ -909,7 +911,11 @@ pub fn discover_zenoh_routers_mdns(
                         };
 
                         if !routers.contains(&endpoint) {
-                            log::info!("Discovered Zenoh router: {} ({})", info.get_fullname(), endpoint);
+                            log::info!(
+                                "Discovered Zenoh router: {} ({})",
+                                info.get_fullname(),
+                                endpoint
+                            );
                             routers.push(endpoint);
                         }
                     }
@@ -947,10 +953,7 @@ pub fn discover_zenoh_routers_mdns(
         log::warn!("Failed to stop mDNS browse: {}", e);
     }
 
-    log::info!(
-        "mDNS discovery complete: found {} router(s)",
-        routers.len()
-    );
+    log::info!("mDNS discovery complete: found {} router(s)", routers.len());
 
     Ok(routers)
 }
@@ -1395,8 +1398,8 @@ mod tests {
 
     #[test]
     fn test_zenoh_cloud_config_all_routers() {
-        let config = ZenohCloudConfig::new()
-            .with_routers(&["tcp/a:7447", "tcp/b:7447", "tcp/c:7447"]);
+        let config =
+            ZenohCloudConfig::new().with_routers(&["tcp/a:7447", "tcp/b:7447", "tcp/c:7447"]);
         let all = config.all_routers();
         assert_eq!(all.len(), 3);
         assert_eq!(all[0], "tcp/a:7447");
@@ -1406,8 +1409,8 @@ mod tests {
 
     #[test]
     fn test_zenoh_cloud_config_to_zenoh_config() {
-        let cloud_config = ZenohCloudConfig::self_hosted("tcp/router.local:7447")
-            .with_namespace("robot1");
+        let cloud_config =
+            ZenohCloudConfig::self_hosted("tcp/router.local:7447").with_namespace("robot1");
         let zenoh_config = cloud_config.to_zenoh_config();
 
         assert_eq!(zenoh_config.mode, ZenohMode::Client);
@@ -1417,8 +1420,7 @@ mod tests {
 
     #[test]
     fn test_zenoh_cloud_config_to_zenoh_config_with_all_routers() {
-        let cloud_config = ZenohCloudConfig::new()
-            .with_routers(&["tcp/a:7447", "tcp/b:7447"]);
+        let cloud_config = ZenohCloudConfig::new().with_routers(&["tcp/a:7447", "tcp/b:7447"]);
         let zenoh_config = cloud_config.to_zenoh_config_with_all_routers();
 
         assert_eq!(zenoh_config.connect.len(), 2);
@@ -1515,11 +1517,17 @@ mod tests {
         quality.mark_connected("tcp/router1:7447");
 
         assert!(quality.is_good());
-        assert_eq!(quality.connected_router, Some("tcp/router1:7447".to_string()));
+        assert_eq!(
+            quality.connected_router,
+            Some("tcp/router1:7447".to_string())
+        );
 
         quality.record_failover("tcp/router2:7447");
         assert_eq!(quality.failover_count, 1);
-        assert_eq!(quality.connected_router, Some("tcp/router2:7447".to_string()));
+        assert_eq!(
+            quality.connected_router,
+            Some("tcp/router2:7447".to_string())
+        );
         assert!(matches!(quality.state, ConnectionQualityState::Connecting));
     }
 
@@ -1528,7 +1536,10 @@ mod tests {
         assert_eq!(format!("{}", ConnectionQualityState::Good), "Good");
         assert_eq!(format!("{}", ConnectionQualityState::Degraded), "Degraded");
         assert_eq!(format!("{}", ConnectionQualityState::Failed), "Failed");
-        assert_eq!(format!("{}", ConnectionQualityState::Connecting), "Connecting");
+        assert_eq!(
+            format!("{}", ConnectionQualityState::Connecting),
+            "Connecting"
+        );
         assert_eq!(
             format!("{}", ConnectionQualityState::Disconnected),
             "Disconnected"

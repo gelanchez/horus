@@ -96,15 +96,17 @@ fn test_scheduler_with_rt_nodes() {
     let mut scheduler = Scheduler::new();
 
     // Add RT node with fluent API
-    scheduler.add(CriticalControlNode::new("motor_control", 50)) // 50μs execution
-        .order(0)                    // Highest priority
-        .rt()                        // Mark as real-time
-        .wcet_us(100)               // 100μs WCET budget
-        .deadline_ms(1)             // 1ms deadline
+    scheduler
+        .add(CriticalControlNode::new("motor_control", 50)) // 50μs execution
+        .order(0) // Highest priority
+        .rt() // Mark as real-time
+        .wcet_us(100) // 100μs WCET budget
+        .deadline_ms(1) // 1ms deadline
         .done();
 
     // Add another RT node
-    scheduler.add(CriticalControlNode::new("sensor_fusion", 30)) // 30μs execution
+    scheduler
+        .add(CriticalControlNode::new("sensor_fusion", 30)) // 30μs execution
         .order(1)
         .rt()
         .wcet_us(50)
@@ -112,7 +114,8 @@ fn test_scheduler_with_rt_nodes() {
         .done();
 
     // Add a regular node
-    scheduler.add(CriticalControlNode::new("logger", 10))
+    scheduler
+        .add(CriticalControlNode::new("logger", 10))
         .order(10)
         .done();
 
@@ -127,14 +130,16 @@ fn test_scheduler_with_safety_critical_config() {
     let mut scheduler = Scheduler::new().with_config(SchedulerConfig::safety_critical());
 
     // Add critical nodes
-    scheduler.add(CriticalControlNode::new("flight_control", 80))
+    scheduler
+        .add(CriticalControlNode::new("flight_control", 80))
         .order(0)
         .rt()
         .wcet_us(100)
         .deadline_ms(1)
         .done();
 
-    scheduler.add(CriticalControlNode::new("navigation", 60))
+    scheduler
+        .add(CriticalControlNode::new("navigation", 60))
         .order(1)
         .rt()
         .wcet_us(80)
@@ -158,10 +163,11 @@ fn test_wcet_violation_detection() {
 
     // Add node that will violate WCET
     // Execution time (100μs) > WCET budget (50μs)
-    scheduler.add(CriticalControlNode::new("violator", 100))
+    scheduler
+        .add(CriticalControlNode::new("violator", 100))
         .order(0)
         .rt()
-        .wcet_us(50)      // WCET budget too small
+        .wcet_us(50) // WCET budget too small
         .deadline_ms(1)
         .done();
 
@@ -181,11 +187,12 @@ fn test_deadline_miss_detection() {
     let mut scheduler = Scheduler::new().with_config(config);
 
     // Add node with tight deadline that might be missed
-    scheduler.add(CriticalControlNode::new("tight_deadline", 900))
+    scheduler
+        .add(CriticalControlNode::new("tight_deadline", 900))
         .order(0)
         .rt()
         .wcet_us(1000)
-        .deadline_us(500)  // Deadline smaller than execution time
+        .deadline_us(500) // Deadline smaller than execution time
         .done();
 
     // This should detect deadline misses
@@ -198,25 +205,29 @@ fn test_mixed_rt_and_normal_nodes() {
     let mut scheduler = Scheduler::new();
 
     // Mix of RT and normal nodes
-    scheduler.add(CriticalControlNode::new("rt_critical", 50))
+    scheduler
+        .add(CriticalControlNode::new("rt_critical", 50))
         .order(0)
         .rt()
         .wcet_us(100)
         .deadline_ms(1)
         .done();
 
-    scheduler.add(CriticalControlNode::new("normal_processing", 200))
+    scheduler
+        .add(CriticalControlNode::new("normal_processing", 200))
         .order(5)
         .done();
 
-    scheduler.add(CriticalControlNode::new("rt_sensor", 30))
+    scheduler
+        .add(CriticalControlNode::new("rt_sensor", 30))
         .order(1)
         .rt()
         .wcet_us(50)
         .deadline_ms(2)
         .done();
 
-    scheduler.add(CriticalControlNode::new("background_task", 500))
+    scheduler
+        .add(CriticalControlNode::new("background_task", 500))
         .order(20)
         .done();
 
@@ -236,7 +247,8 @@ fn test_watchdog_functionality() {
     let mut scheduler = Scheduler::new().with_config(config);
 
     // Add RT node that will be monitored by watchdog
-    scheduler.add(CriticalControlNode::new("watchdog_monitored", 10))
+    scheduler
+        .add(CriticalControlNode::new("watchdog_monitored", 10))
         .order(0)
         .rt()
         .wcet_us(50)
@@ -254,14 +266,16 @@ fn test_high_performance_rt_config() {
     let mut scheduler = Scheduler::new().with_config(SchedulerConfig::high_performance());
 
     // Add ultra-fast control nodes
-    scheduler.add(CriticalControlNode::new("traction_control", 10))
+    scheduler
+        .add(CriticalControlNode::new("traction_control", 10))
         .order(0)
         .rt()
         .wcet_us(20)
-        .deadline_us(100)  // 10kHz control loop
+        .deadline_us(100) // 10kHz control loop
         .done();
 
-    scheduler.add(CriticalControlNode::new("stability_control", 15))
+    scheduler
+        .add(CriticalControlNode::new("stability_control", 15))
         .order(1)
         .rt()
         .wcet_us(25)

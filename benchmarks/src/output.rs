@@ -66,7 +66,8 @@ impl BenchmarkReport {
                     message_size: result.message_size,
                     current_median_ns: result.statistics.median,
                     baseline_median_ns: baseline_result.statistics.median,
-                    change_percent: ((result.statistics.median - baseline_result.statistics.median)
+                    change_percent: ((result.statistics.median
+                        - baseline_result.statistics.median)
                         / baseline_result.statistics.median)
                         * 100.0,
                     current_p99_ns: result.statistics.p99,
@@ -75,8 +76,7 @@ impl BenchmarkReport {
                         - baseline_result.statistics.p99 as f64)
                         / baseline_result.statistics.p99 as f64)
                         * 100.0,
-                    regression: result.statistics.median
-                        > baseline_result.statistics.median * 1.05, // 5% threshold
+                    regression: result.statistics.median > baseline_result.statistics.median * 1.05, // 5% threshold
                 });
             }
         }
@@ -172,10 +172,7 @@ pub struct ResultComparison {
 }
 
 /// Write benchmark report as JSON
-pub fn write_json_report<P: AsRef<Path>>(
-    report: &BenchmarkReport,
-    path: P,
-) -> std::io::Result<()> {
+pub fn write_json_report<P: AsRef<Path>>(report: &BenchmarkReport, path: P) -> std::io::Result<()> {
     let file = File::create(path)?;
     let writer = BufWriter::new(file);
     serde_json::to_writer_pretty(writer, report)?;
@@ -183,10 +180,7 @@ pub fn write_json_report<P: AsRef<Path>>(
 }
 
 /// Write benchmark results as CSV for spreadsheet analysis
-pub fn write_csv_report<P: AsRef<Path>>(
-    report: &BenchmarkReport,
-    path: P,
-) -> std::io::Result<()> {
+pub fn write_csv_report<P: AsRef<Path>>(report: &BenchmarkReport, path: P) -> std::io::Result<()> {
     let file = File::create(path)?;
     let mut writer = BufWriter::new(file);
 

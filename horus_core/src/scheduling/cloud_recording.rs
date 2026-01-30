@@ -54,8 +54,7 @@ fn simple_hash(data: &[u8]) -> u32 {
 
 /// Base64 encoding table (standard alphabet)
 #[cfg(feature = "cloud-azure")]
-const BASE64_CHARS: &[u8; 64] =
-    b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+const BASE64_CHARS: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 /// Simple base64 encoder for Azure block IDs
 /// Azure Block IDs must be base64-encoded and <= 64 bytes before encoding
@@ -1136,9 +1135,8 @@ impl CloudBackend for GcsBackend {
         // Get and remove the upload data
         let upload_data = self.uploads.write().remove(upload_id);
 
-        let (stored_path, mut parts) = upload_data.ok_or_else(|| {
-            CloudError::UploadFailed(format!("Unknown upload ID: {}", upload_id))
-        })?;
+        let (stored_path, mut parts) = upload_data
+            .ok_or_else(|| CloudError::UploadFailed(format!("Unknown upload ID: {}", upload_id)))?;
 
         // Verify cloud_path matches
         if stored_path != cloud_path {
@@ -1170,7 +1168,9 @@ impl CloudBackend for GcsBackend {
                     &UploadType::Simple(Media::new(name)),
                 )
                 .await
-                .map_err(|e| CloudError::UploadFailed(format!("GCS multipart complete failed: {}", e)))?;
+                .map_err(|e| {
+                    CloudError::UploadFailed(format!("GCS multipart complete failed: {}", e))
+                })?;
             Ok(())
         })
     }
@@ -1349,41 +1349,45 @@ impl AzureBackend {
             .map_err(|e| CloudError::Storage(format!("Failed to create tokio runtime: {}", e)))?;
 
         // Try connection string first, then account/key
-        let (effective_account, storage_credentials) =
-            if let Ok(conn_str) = std::env::var("AZURE_STORAGE_CONNECTION_STRING") {
-                // Parse connection string format:
-                // DefaultEndpointsProtocol=https;AccountName=xxx;AccountKey=yyy;EndpointSuffix=...
-                let mut parsed_account = None;
-                let mut parsed_key = None;
+        let (effective_account, storage_credentials) = if let Ok(conn_str) =
+            std::env::var("AZURE_STORAGE_CONNECTION_STRING")
+        {
+            // Parse connection string format:
+            // DefaultEndpointsProtocol=https;AccountName=xxx;AccountKey=yyy;EndpointSuffix=...
+            let mut parsed_account = None;
+            let mut parsed_key = None;
 
-                for part in conn_str.split(';') {
-                    let part = part.trim();
-                    if let Some(value) = part.strip_prefix("AccountName=") {
-                        parsed_account = Some(value.to_string());
-                    } else if let Some(value) = part.strip_prefix("AccountKey=") {
-                        parsed_key = Some(value.to_string());
-                    }
+            for part in conn_str.split(';') {
+                let part = part.trim();
+                if let Some(value) = part.strip_prefix("AccountName=") {
+                    parsed_account = Some(value.to_string());
+                } else if let Some(value) = part.strip_prefix("AccountKey=") {
+                    parsed_key = Some(value.to_string());
                 }
+            }
 
-                let acct = parsed_account.ok_or_else(|| {
-                    CloudError::Auth("AccountName not found in connection string".to_string())
-                })?;
-                let key = parsed_key.ok_or_else(|| {
-                    CloudError::Auth("AccountKey not found in connection string".to_string())
-                })?;
+            let acct = parsed_account.ok_or_else(|| {
+                CloudError::Auth("AccountName not found in connection string".to_string())
+            })?;
+            let key = parsed_key.ok_or_else(|| {
+                CloudError::Auth("AccountKey not found in connection string".to_string())
+            })?;
 
-                (acct.clone(), azure_storage::StorageCredentials::access_key(acct, key))
-            } else if let Ok(key) = std::env::var("AZURE_STORAGE_KEY") {
-                (
-                    account.to_string(),
-                    azure_storage::StorageCredentials::access_key(account, key),
-                )
-            } else {
-                return Err(CloudError::Auth(
+            (
+                acct.clone(),
+                azure_storage::StorageCredentials::access_key(acct, key),
+            )
+        } else if let Ok(key) = std::env::var("AZURE_STORAGE_KEY") {
+            (
+                account.to_string(),
+                azure_storage::StorageCredentials::access_key(account, key),
+            )
+        } else {
+            return Err(CloudError::Auth(
                     "Azure credentials not found. Set AZURE_STORAGE_CONNECTION_STRING or AZURE_STORAGE_KEY"
                         .into(),
                 ));
-            };
+        };
 
         let blob_service_client = azure_storage_blobs::prelude::BlobServiceClient::new(
             &effective_account,
@@ -1464,7 +1468,9 @@ impl CloudBackend for AzureBackend {
             uploads
                 .get(upload_id)
                 .map(|(path, _)| path.clone())
-                .ok_or_else(|| CloudError::UploadFailed(format!("Unknown upload ID: {}", upload_id)))?
+                .ok_or_else(|| {
+                    CloudError::UploadFailed(format!("Unknown upload ID: {}", upload_id))
+                })?
         };
 
         // Upload the block to Azure
@@ -1505,9 +1511,8 @@ impl CloudBackend for AzureBackend {
         // Get and remove the upload data
         let upload_data = self.uploads.write().remove(upload_id);
 
-        let (stored_path, block_ids) = upload_data.ok_or_else(|| {
-            CloudError::UploadFailed(format!("Unknown upload ID: {}", upload_id))
-        })?;
+        let (stored_path, block_ids) = upload_data
+            .ok_or_else(|| CloudError::UploadFailed(format!("Unknown upload ID: {}", upload_id)))?;
 
         // Verify cloud_path matches
         if stored_path != cloud_path {
@@ -1521,7 +1526,7 @@ impl CloudBackend for AzureBackend {
         let blob_name = cloud_path.to_string();
 
         self.runtime.block_on(async {
-            use azure_storage_blobs::prelude::{BlockId, BlockList, BlobBlockType};
+            use azure_storage_blobs::prelude::{BlobBlockType, BlockId, BlockList};
             let block_list = BlockList {
                 blocks: block_ids
                     .into_iter()
@@ -1533,7 +1538,9 @@ impl CloudBackend for AzureBackend {
                 .blob_client(&blob_name)
                 .put_block_list(block_list)
                 .await
-                .map_err(|e| CloudError::UploadFailed(format!("Azure put_block_list failed: {}", e)))?;
+                .map_err(|e| {
+                    CloudError::UploadFailed(format!("Azure put_block_list failed: {}", e))
+                })?;
             Ok(())
         })
     }
@@ -1584,13 +1591,9 @@ impl CloudBackend for AzureBackend {
                     CloudError::DownloadFailed(format!("Azure range download failed: {}", e))
                 })?;
                 // ResponseBody needs to be collected into bytes
-                let bytes = chunk
-                    .data
-                    .collect()
-                    .await
-                    .map_err(|e| {
-                        CloudError::DownloadFailed(format!("Failed to collect Azure response: {}", e))
-                    })?;
+                let bytes = chunk.data.collect().await.map_err(|e| {
+                    CloudError::DownloadFailed(format!("Failed to collect Azure response: {}", e))
+                })?;
                 data.extend_from_slice(&bytes);
             }
             Ok(data)

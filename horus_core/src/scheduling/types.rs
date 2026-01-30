@@ -4,10 +4,10 @@
 
 use std::time::{Duration, Instant};
 
-use crate::core::{Node, NodeInfo};
 use super::fault_tolerance::CircuitBreaker;
 use super::jit::CompiledDataflow;
 use super::record_replay::NodeRecorder;
+use crate::core::{Node, NodeInfo};
 
 /// Node control command for IPC-based lifecycle management
 #[derive(Debug, Clone, PartialEq)]

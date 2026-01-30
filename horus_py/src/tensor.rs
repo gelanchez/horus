@@ -341,8 +341,8 @@ impl PyTensorHandle {
                 }
             }
             Err(_) => Err(PyRuntimeError::new_err(
-                "DLPack export requires numpy. Install numpy."
-            ))
+                "DLPack export requires numpy. Install numpy.",
+            )),
         }
     }
 
@@ -389,30 +389,46 @@ impl PyTensorHandle {
             let arr = np.call_method1("from_dlpack", (obj,))?;
 
             // Get array info
-            let shape: Vec<u64> = arr.getattr("shape")?.extract::<Vec<i64>>()?
-                .iter().map(|&x| x as u64).collect();
+            let shape: Vec<u64> = arr
+                .getattr("shape")?
+                .extract::<Vec<i64>>()?
+                .iter()
+                .map(|&x| x as u64)
+                .collect();
             let dtype_str: String = arr.getattr("dtype")?.call_method0("__str__")?.extract()?;
 
             // Create a pool and allocate tensor
             let pool = get_or_create_pool(1, None)?;
             let dtype = parse_dtype(&dtype_str)?;
-            let handle = TensorHandle::alloc(Arc::clone(&pool), &shape, dtype, TensorDevice::Cpu)
-                .map_err(|e| PyRuntimeError::new_err(format!("Allocation failed: {}", e)))?;
+            let handle =
+                TensorHandle::alloc(Arc::clone(&pool), &shape, dtype, TensorDevice::Cpu)
+                    .map_err(|e| PyRuntimeError::new_err(format!("Allocation failed: {}", e)))?;
 
             // Copy data
             let np_copy = np.getattr("copyto")?;
-            let dest_arr = np.call_method1("asarray", (PyTensorHandle { handle: Some(handle.clone()) },))?;
+            let dest_arr = np.call_method1(
+                "asarray",
+                (PyTensorHandle {
+                    handle: Some(handle.clone()),
+                },),
+            )?;
             np_copy.call1((dest_arr, arr))?;
 
-            Ok(Self { handle: Some(handle) })
+            Ok(Self {
+                handle: Some(handle),
+            })
         } else if device_type == 2 {
             // CUDA - use torch
             let torch = py.import("torch")?;
             let t = torch.call_method1("from_dlpack", (obj,))?;
 
             // Get tensor info
-            let shape: Vec<u64> = t.getattr("shape")?.extract::<Vec<i64>>()?
-                .iter().map(|&x| x as u64).collect();
+            let shape: Vec<u64> = t
+                .getattr("shape")?
+                .extract::<Vec<i64>>()?
+                .iter()
+                .map(|&x| x as u64)
+                .collect();
             let dtype_str: String = t.getattr("dtype")?.call_method0("__str__")?.extract()?;
             let dtype_str = dtype_str.replace("torch.", "");
 
@@ -423,7 +439,12 @@ impl PyTensorHandle {
                 1 => TensorDevice::Cuda1,
                 2 => TensorDevice::Cuda2,
                 3 => TensorDevice::Cuda3,
-                _ => return Err(PyValueError::new_err(format!("Unsupported CUDA device: {}", device_id))),
+                _ => {
+                    return Err(PyValueError::new_err(format!(
+                        "Unsupported CUDA device: {}",
+                        device_id
+                    )))
+                }
             };
 
             // Create pool and allocate
@@ -432,12 +453,22 @@ impl PyTensorHandle {
                 .map_err(|e| PyRuntimeError::new_err(format!("Allocation failed: {}", e)))?;
 
             // Copy via torch
-            let dest_t = torch.call_method1("as_tensor", (PyTensorHandle { handle: Some(handle.clone()) },))?;
+            let dest_t = torch.call_method1(
+                "as_tensor",
+                (PyTensorHandle {
+                    handle: Some(handle.clone()),
+                },),
+            )?;
             dest_t.call_method1("copy_", (t,))?;
 
-            Ok(Self { handle: Some(handle) })
+            Ok(Self {
+                handle: Some(handle),
+            })
         } else {
-            Err(PyValueError::new_err(format!("Unsupported device type: {}", device_type)))
+            Err(PyValueError::new_err(format!(
+                "Unsupported device type: {}",
+                device_type
+            )))
         }
     }
 
@@ -941,11 +972,11 @@ fn dtype_to_dlpack(dtype: TensorDtype) -> (u8, u8, u16) {
 /// - 2 = kDLCUDA
 fn device_to_dlpack(device: TensorDevice) -> (i32, i32) {
     match device {
-        TensorDevice::Cpu => (1, 0),    // kDLCPU = 1
-        TensorDevice::Cuda0 => (2, 0),  // kDLCUDA = 2, device 0
-        TensorDevice::Cuda1 => (2, 1),  // kDLCUDA = 2, device 1
-        TensorDevice::Cuda2 => (2, 2),  // kDLCUDA = 2, device 2
-        TensorDevice::Cuda3 => (2, 3),  // kDLCUDA = 2, device 3
+        TensorDevice::Cpu => (1, 0),   // kDLCPU = 1
+        TensorDevice::Cuda0 => (2, 0), // kDLCUDA = 2, device 0
+        TensorDevice::Cuda1 => (2, 1), // kDLCUDA = 2, device 1
+        TensorDevice::Cuda2 => (2, 2), // kDLCUDA = 2, device 2
+        TensorDevice::Cuda3 => (2, 3), // kDLCUDA = 2, device 3
     }
 }
 

@@ -34,7 +34,12 @@ impl Node for TestNode {
     }
 
     fn shutdown(&mut self) -> Result<()> {
-        hlog!(info, "{} shutdown after {} ticks", self.name, self.tick_count);
+        hlog!(
+            info,
+            "{} shutdown after {} ticks",
+            self.name,
+            self.tick_count
+        );
         Ok(())
     }
 }
@@ -57,8 +62,14 @@ fn test_safety_critical_config() {
     // Apply safety-critical robot configuration
     let mut scheduler = Scheduler::new().with_config(SchedulerConfig::safety_critical());
 
-    scheduler.add(TestNode::new("safety_monitor")).order(0).done();
-    scheduler.add(TestNode::new("emergency_stop")).order(0).done();
+    scheduler
+        .add(TestNode::new("safety_monitor"))
+        .order(0)
+        .done();
+    scheduler
+        .add(TestNode::new("emergency_stop"))
+        .order(0)
+        .done();
 
     let result = scheduler.run_for(std::time::Duration::from_millis(50));
     assert!(result.is_ok());
@@ -110,7 +121,10 @@ fn test_custom_exotic_robot_config() {
     let mut scheduler = Scheduler::new().with_config(config);
 
     scheduler.add(TestNode::new("bio_sensor")).order(0).done();
-    scheduler.add(TestNode::new("quantum_controller")).order(1).done();
+    scheduler
+        .add(TestNode::new("quantum_controller"))
+        .order(1)
+        .done();
 
     let result = scheduler.run_for(std::time::Duration::from_millis(100));
     assert!(result.is_ok());
@@ -159,7 +173,10 @@ fn test_swarm_config() {
     let mut scheduler = Scheduler::new().with_config(SchedulerConfig::standard());
 
     scheduler.add(TestNode::new("swarm_comm")).order(0).done();
-    scheduler.add(TestNode::new("swarm_behavior")).order(1).done();
+    scheduler
+        .add(TestNode::new("swarm_behavior"))
+        .order(1)
+        .done();
 
     let result = scheduler.run_for(std::time::Duration::from_millis(100));
     assert!(result.is_ok());
@@ -170,8 +187,14 @@ fn test_soft_robotics_config() {
     // Apply soft robotics configuration using standard config
     let mut scheduler = Scheduler::new().with_config(SchedulerConfig::standard());
 
-    scheduler.add(TestNode::new("pressure_sensor")).order(0).done();
-    scheduler.add(TestNode::new("soft_actuator")).order(1).done();
+    scheduler
+        .add(TestNode::new("pressure_sensor"))
+        .order(0)
+        .done();
+    scheduler
+        .add(TestNode::new("soft_actuator"))
+        .order(1)
+        .done();
 
     let result = scheduler.run_for(std::time::Duration::from_millis(100));
     assert!(result.is_ok());
@@ -183,7 +206,10 @@ fn test_high_performance_optimizer_nodes() {
     let mut scheduler = Scheduler::new().with_config(SchedulerConfig::high_performance());
 
     scheduler.add(TestNode::new("perf_sensor")).order(0).done();
-    scheduler.add(TestNode::new("perf_optimizer")).order(1).done();
+    scheduler
+        .add(TestNode::new("perf_optimizer"))
+        .order(1)
+        .done();
 
     let result = scheduler.run_for(std::time::Duration::from_millis(100));
     assert!(result.is_ok());

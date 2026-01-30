@@ -647,7 +647,11 @@ impl HealthMonitor {
     /// Process a heartbeat response from peer
     pub fn process_heartbeat_response(&self, response: HeartbeatResponse) -> Option<Duration> {
         // Find the matching request
-        let sent_at = self.pending_heartbeats.write().unwrap().remove(&response.sequence)?;
+        let sent_at = self
+            .pending_heartbeats
+            .write()
+            .unwrap()
+            .remove(&response.sequence)?;
 
         // Calculate RTT
         let rtt = response.received_at.duration_since(sent_at);
@@ -671,7 +675,13 @@ impl HealthMonitor {
 
     /// Handle a heartbeat timeout
     pub fn handle_heartbeat_timeout(&self, sequence: u64) {
-        if self.pending_heartbeats.write().unwrap().remove(&sequence).is_some() {
+        if self
+            .pending_heartbeats
+            .write()
+            .unwrap()
+            .remove(&sequence)
+            .is_some()
+        {
             let failures = self.consecutive_failures.fetch_add(1, Ordering::Relaxed) + 1;
             self.quality.record_loss();
 
@@ -739,9 +749,7 @@ impl HealthMonitor {
             packets_lost: quality.packets_lost.load(Ordering::Relaxed),
             bytes_sent: quality.bytes_sent.load(Ordering::Relaxed),
             bytes_received: quality.bytes_received.load(Ordering::Relaxed),
-            time_since_last_heartbeat: last_hb
-                .map(|t| t.elapsed())
-                .unwrap_or(Duration::MAX),
+            time_since_last_heartbeat: last_hb.map(|t| t.elapsed()).unwrap_or(Duration::MAX),
             consecutive_failures: self.consecutive_failures.load(Ordering::Relaxed) as u32,
             active_alerts: active_alerts.iter().filter(|a| a.active).count(),
             uptime: started.map(|t| t.elapsed()).unwrap_or_default(),
@@ -767,10 +775,7 @@ impl HealthMonitor {
 
     /// Clear resolved alerts
     pub fn clear_resolved_alerts(&self) {
-        self.active_alerts
-            .write()
-            .unwrap()
-            .retain(|a| a.active);
+        self.active_alerts.write().unwrap().retain(|a| a.active);
     }
 
     /// Export metrics in Prometheus format
@@ -798,14 +803,20 @@ impl HealthMonitor {
             self.fire_alert(
                 AlertType::CriticalLatency,
                 &format!("{:.1}ms", rtt.as_secs_f64() * 1000.0),
-                &format!("{:.1}ms", self.config.rtt_critical_threshold.as_secs_f64() * 1000.0),
+                &format!(
+                    "{:.1}ms",
+                    self.config.rtt_critical_threshold.as_secs_f64() * 1000.0
+                ),
                 "Critical latency detected",
             );
         } else if rtt >= self.config.rtt_warning_threshold {
             self.fire_alert(
                 AlertType::HighLatency,
                 &format!("{:.1}ms", rtt.as_secs_f64() * 1000.0),
-                &format!("{:.1}ms", self.config.rtt_warning_threshold.as_secs_f64() * 1000.0),
+                &format!(
+                    "{:.1}ms",
+                    self.config.rtt_warning_threshold.as_secs_f64() * 1000.0
+                ),
                 "High latency detected",
             );
         }
@@ -815,14 +826,20 @@ impl HealthMonitor {
             self.fire_alert(
                 AlertType::CriticalJitter,
                 &format!("{:.1}ms", jitter.as_secs_f64() * 1000.0),
-                &format!("{:.1}ms", self.config.jitter_critical_threshold.as_secs_f64() * 1000.0),
+                &format!(
+                    "{:.1}ms",
+                    self.config.jitter_critical_threshold.as_secs_f64() * 1000.0
+                ),
                 "Critical jitter detected",
             );
         } else if jitter >= self.config.jitter_warning_threshold {
             self.fire_alert(
                 AlertType::HighJitter,
                 &format!("{:.1}ms", jitter.as_secs_f64() * 1000.0),
-                &format!("{:.1}ms", self.config.jitter_warning_threshold.as_secs_f64() * 1000.0),
+                &format!(
+                    "{:.1}ms",
+                    self.config.jitter_warning_threshold.as_secs_f64() * 1000.0
+                ),
                 "High jitter detected",
             );
         }
@@ -924,7 +941,10 @@ impl HealthMonitor {
         }
 
         // Update last alert time
-        self.last_alert_times.write().unwrap().insert(alert_type, now);
+        self.last_alert_times
+            .write()
+            .unwrap()
+            .insert(alert_type, now);
 
         let alert = HealthAlert {
             alert_type,

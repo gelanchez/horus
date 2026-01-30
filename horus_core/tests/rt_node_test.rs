@@ -227,8 +227,14 @@ fn test_rt_node_basic() {
     let mut scheduler = Scheduler::new().with_config(SchedulerConfig::standard());
 
     // Add RT nodes as regular nodes (RtNodeWrapper handles the conversion)
-    scheduler.add(MotorControlNode::new("motor_ctrl")).order(0).done();
-    scheduler.add(SensorFusionNode::new("sensor_fusion")).order(1).done();
+    scheduler
+        .add(MotorControlNode::new("motor_ctrl"))
+        .order(0)
+        .done();
+    scheduler
+        .add(SensorFusionNode::new("sensor_fusion"))
+        .order(1)
+        .done();
     scheduler.add(LoggingNode::new("logger")).order(10).done();
 
     // Run for a short duration
@@ -267,8 +273,14 @@ fn test_rt_node_with_safety_critical_config() {
     // Use safety-critical configuration (all RT features enabled)
     let mut scheduler = Scheduler::new().with_config(SchedulerConfig::safety_critical());
 
-    scheduler.add(MotorControlNode::new("critical_motor")).order(0).done();
-    scheduler.add(SensorFusionNode::new("critical_sensor")).order(1).done();
+    scheduler
+        .add(MotorControlNode::new("critical_motor"))
+        .order(0)
+        .done();
+    scheduler
+        .add(SensorFusionNode::new("critical_sensor"))
+        .order(1)
+        .done();
 
     // Run briefly (safety-critical config runs at 1kHz)
     let result = scheduler.run_for(Duration::from_millis(50));

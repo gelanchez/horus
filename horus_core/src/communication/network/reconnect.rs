@@ -35,7 +35,6 @@
 ///     │    Failed       │──────────────────────────────────────────────┘
 ///     └─────────────────┘   reset() or manual reconnect
 /// ```
-
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
@@ -169,7 +168,11 @@ impl std::fmt::Display for FailureReason {
                 write!(f, "Connection refused by {}", endpoint)
             }
             Self::Timeout { endpoint, timeout } => {
-                write!(f, "Connection to {} timed out after {:?}", endpoint, timeout)
+                write!(
+                    f,
+                    "Connection to {} timed out after {:?}",
+                    endpoint, timeout
+                )
             }
             Self::AuthenticationFailed { endpoint, error } => {
                 write!(f, "Authentication failed for {}: {}", endpoint, error)
@@ -300,11 +303,7 @@ impl ConnectionQuality {
             self.rtt_us.store(smoothed, Ordering::Relaxed);
 
             // Update variance: |sample - smoothed|
-            let diff = if sample_us > smoothed {
-                sample_us - smoothed
-            } else {
-                smoothed - sample_us
-            };
+            let diff = sample_us.abs_diff(smoothed);
             let current_var = self.rtt_variance_us.load(Ordering::Relaxed);
             let new_var = (current_var * 3 + diff) / 4;
             self.rtt_variance_us.store(new_var, Ordering::Relaxed);
@@ -809,10 +808,7 @@ pub enum RetryResult<T> {
     /// Operation was cancelled
     Cancelled,
     /// All retries exhausted
-    Exhausted {
-        attempts: usize,
-        last_error: String,
-    },
+    Exhausted { attempts: usize, last_error: String },
     /// Operation timed out
     TimedOut {
         elapsed: Duration,
@@ -1468,7 +1464,9 @@ mod tests {
 
         // High RTT, high loss = poor/critical
         quality.rtt_us.store(300_000, Ordering::Relaxed); // 300ms
-        quality.packet_loss_percent_x100.store(1500, Ordering::Relaxed); // 15%
+        quality
+            .packet_loss_percent_x100
+            .store(1500, Ordering::Relaxed); // 15%
         assert!(quality.quality_score() < 30);
     }
 
@@ -1578,16 +1576,14 @@ mod tests {
         let attempt_count = Arc::new(AtomicUsize::new(0));
         let count_clone = Arc::clone(&attempt_count);
 
-        let result: RetryResult<i32> = RetryExecutor::testing()
-            .max_retries(5)
-            .execute(move || {
-                let attempt = count_clone.fetch_add(1, Ordering::SeqCst) + 1;
-                if attempt < 3 {
-                    Err(format!("Attempt {} failed", attempt))
-                } else {
-                    Ok(42)
-                }
-            });
+        let result: RetryResult<i32> = RetryExecutor::testing().max_retries(5).execute(move || {
+            let attempt = count_clone.fetch_add(1, Ordering::SeqCst) + 1;
+            if attempt < 3 {
+                Err(format!("Attempt {} failed", attempt))
+            } else {
+                Ok(42)
+            }
+        });
 
         assert!(result.is_success());
         assert_eq!(result.success(), Some(42));
@@ -1599,12 +1595,10 @@ mod tests {
         let attempt_count = Arc::new(AtomicUsize::new(0));
         let count_clone = Arc::clone(&attempt_count);
 
-        let result: RetryResult<i32> = RetryExecutor::testing()
-            .max_retries(3)
-            .execute(move || {
-                count_clone.fetch_add(1, Ordering::SeqCst);
-                Err::<i32, _>("always fails")
-            });
+        let result: RetryResult<i32> = RetryExecutor::testing().max_retries(3).execute(move || {
+            count_clone.fetch_add(1, Ordering::SeqCst);
+            Err::<i32, _>("always fails")
+        });
 
         assert!(matches!(result, RetryResult::Exhausted { .. }));
         if let RetryResult::Exhausted {

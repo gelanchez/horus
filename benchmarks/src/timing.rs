@@ -22,7 +22,11 @@ pub fn rdtsc() -> u64 {
 pub fn rdtsc() -> u64 {
     // Fallback: use Instant-based timing (less precise)
     Instant::now()
-        .duration_since(std::time::UNIX_EPOCH.checked_add(Duration::from_secs(0)).unwrap_or(std::time::UNIX_EPOCH))
+        .duration_since(
+            std::time::UNIX_EPOCH
+                .checked_add(Duration::from_secs(0))
+                .unwrap_or(std::time::UNIX_EPOCH),
+        )
         .as_nanos() as u64
 }
 
@@ -206,7 +210,8 @@ impl PrecisionTimer {
     pub fn elapsed_ns(&self, start_cycles: u64) -> u64 {
         let end = rdtscp();
         let cycles = end.wrapping_sub(start_cycles);
-        self.calibration.cycles_to_ns(cycles.saturating_sub(self.calibration.overhead_cycles))
+        self.calibration
+            .cycles_to_ns(cycles.saturating_sub(self.calibration.overhead_cycles))
     }
 
     /// Measure a closure and return elapsed nanoseconds
@@ -230,7 +235,8 @@ impl PrecisionTimer {
 
         for _ in 0..iterations {
             let start = self.start();
-            std::hint::black_box(f());
+            f();
+            std::hint::black_box(());
             latencies.push(self.elapsed_ns(start));
         }
 
@@ -293,7 +299,8 @@ impl InstantTimer {
 
         for _ in 0..iterations {
             let start = Instant::now();
-            std::hint::black_box(f());
+            f();
+            std::hint::black_box(());
             latencies.push(start.elapsed().as_nanos() as u64);
         }
 
@@ -318,8 +325,16 @@ mod tests {
         let cal = calibrate_rdtsc(50); // 50ms calibration
 
         // Sanity checks
-        assert!(cal.freq_hz > 100_000_000.0, "Frequency too low: {}", cal.freq_hz);
-        assert!(cal.freq_hz < 10_000_000_000.0, "Frequency too high: {}", cal.freq_hz);
+        assert!(
+            cal.freq_hz > 100_000_000.0,
+            "Frequency too low: {}",
+            cal.freq_hz
+        );
+        assert!(
+            cal.freq_hz < 10_000_000_000.0,
+            "Frequency too high: {}",
+            cal.freq_hz
+        );
         assert!(cal.ns_per_cycle > 0.0);
         assert!(cal.cycles_per_ns > 0.0);
     }

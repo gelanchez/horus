@@ -99,7 +99,10 @@ fn main() {
         platform.cpu.model, platform.cpu.logical_cores
     );
     println!("Iterations: {}", iterations);
-    println!("Message size: {} bytes", std::mem::size_of::<BenchmarkPayload>());
+    println!(
+        "Message size: {} bytes",
+        std::mem::size_of::<BenchmarkPayload>()
+    );
     println!();
 
     // Set CPU affinity
@@ -185,15 +188,15 @@ fn main() {
         .filter(|r| r.name.starts_with("HORUS"))
         .collect();
 
-    if let Some(best_horus) = horus_results
-        .iter()
-        .min_by(|a, b| a.statistics.median.partial_cmp(&b.statistics.median).unwrap())
-    {
+    if let Some(best_horus) = horus_results.iter().min_by(|a, b| {
+        a.statistics
+            .median
+            .partial_cmp(&b.statistics.median)
+            .unwrap()
+    }) {
         println!(
             "║ Best HORUS:     {:>8.0}ns median, {:>8}ns p99 ({})",
-            best_horus.statistics.median,
-            best_horus.statistics.p99,
-            best_horus.name
+            best_horus.statistics.median, best_horus.statistics.p99, best_horus.name
         );
 
         // Compare against reference values
@@ -207,14 +210,8 @@ fn main() {
 
         println!("║                                                                  ║");
         println!("║ Speedup vs DDS Implementations:                                  ║");
-        println!(
-            "║   vs CycloneDDS:  {:>6.1}x faster",
-            vs_cyclone
-        );
-        println!(
-            "║   vs FastDDS:     {:>6.1}x faster",
-            vs_fastdds
-        );
+        println!("║   vs CycloneDDS:  {:>6.1}x faster", vs_cyclone);
+        println!("║   vs FastDDS:     {:>6.1}x faster", vs_fastdds);
         println!(
             "║   vs iceoryx:     {:>6.1}x slower (iceoryx is C++, we're Rust)",
             vs_iceoryx
@@ -491,10 +488,7 @@ fn create_reference_result(
 fn print_result(name: &str, result: &BenchmarkResult) {
     println!(
         "║ {:15} │ median: {:>7.0}ns │ p99: {:>7}ns │ CV: {:.4}",
-        name,
-        result.statistics.median,
-        result.statistics.p99,
-        result.determinism.cv
+        name, result.statistics.median, result.statistics.p99, result.determinism.cv
     );
 }
 

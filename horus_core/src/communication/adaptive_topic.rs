@@ -30,13 +30,13 @@
 //! let msg = topic.recv()?;
 //! ```
 
-use std::mem;
 use std::marker::PhantomData;
+use std::mem;
 use std::sync::atomic::{AtomicU32, AtomicU64, AtomicU8, Ordering};
 use std::sync::Arc;
 use std::thread::ThreadId;
 
-use serde::{Serialize, de::DeserializeOwned};
+use serde::{de::DeserializeOwned, Serialize};
 
 use crate::communication::pod::{is_pod, PodMessage};
 use crate::error::{HorusError, HorusResult};
@@ -76,7 +76,9 @@ fn cold() {}
 /// Use for: error paths, rare conditions, buffer-full checks
 #[inline(always)]
 fn unlikely(b: bool) -> bool {
-    if b { cold() }
+    if b {
+        cold()
+    }
     b
 }
 
@@ -85,7 +87,9 @@ fn unlikely(b: bool) -> bool {
 #[inline(always)]
 #[allow(dead_code)]
 fn likely(b: bool) -> bool {
-    if !b { cold() }
+    if !b {
+        cold()
+    }
     b
 }
 
@@ -230,7 +234,8 @@ impl ParticipantEntry {
     /// Update lease expiration timestamp
     #[inline]
     pub fn refresh_lease(&self, now_ms: u64, timeout_ms: u64) {
-        self.lease_expires_ms.store(now_ms + timeout_ms, Ordering::Release);
+        self.lease_expires_ms
+            .store(now_ms + timeout_ms, Ordering::Release);
     }
 
     /// Clear this entry (use atomic for thread safety)
@@ -380,13 +385,7 @@ impl AdaptiveTopicHeader {
     }
 
     /// Initialize a new header
-    pub fn init(
-        &mut self,
-        type_size: u32,
-        type_align: u32,
-        is_pod: bool,
-        capacity: u32,
-    ) {
+    pub fn init(&mut self, type_size: u32, type_align: u32, is_pod: bool, capacity: u32) {
         // Ensure capacity is power of 2 for fast modulo
         let capacity = capacity.next_power_of_two();
 
@@ -394,9 +393,12 @@ impl AdaptiveTopicHeader {
         self.version = ADAPTIVE_VERSION;
         self.type_size = type_size;
         self.type_align = type_align;
-        self.is_pod.store(if is_pod { POD_YES } else { POD_NO }, Ordering::Release);
-        self.backend_mode.store(AdaptiveBackendMode::Unknown as u8, Ordering::Release);
-        self.migration_lock.store(MIGRATION_UNLOCKED, Ordering::Release);
+        self.is_pod
+            .store(if is_pod { POD_YES } else { POD_NO }, Ordering::Release);
+        self.backend_mode
+            .store(AdaptiveBackendMode::Unknown as u8, Ordering::Release);
+        self.migration_lock
+            .store(MIGRATION_UNLOCKED, Ordering::Release);
         self._flags = 0;
         self.creator_pid = std::process::id();
         self.creator_thread_id_hash = hash_thread_id(std::thread::current().id());
@@ -415,7 +417,8 @@ impl AdaptiveTopicHeader {
         self.subscriber_count.store(0, Ordering::Release);
         self.total_participants.store(0, Ordering::Release);
         self.lease_timeout_ms = DEFAULT_LEASE_TIMEOUT_MS as u32;
-        self.last_topology_change_ms.store(current_time_ms(), Ordering::Release);
+        self.last_topology_change_ms
+            .store(current_time_ms(), Ordering::Release);
 
         // Clear all participant entries
         for p in &self.participants {
@@ -447,8 +450,7 @@ impl AdaptiveTopicHeader {
 
         // Check all active participants are in the same process
         for p in &self.participants {
-            if p.active.load(Ordering::Acquire) != 0
-                && p.pid.load(Ordering::Acquire) != current_pid
+            if p.active.load(Ordering::Acquire) != 0 && p.pid.load(Ordering::Acquire) != current_pid
             {
                 return false;
             }
@@ -544,7 +546,8 @@ impl AdaptiveTopicHeader {
                 if old_role & 1 == 0 {
                     // Wasn't a producer before, increment count
                     self.publisher_count.fetch_add(1, Ordering::AcqRel);
-                    self.last_topology_change_ms.store(now_ms, Ordering::Release);
+                    self.last_topology_change_ms
+                        .store(now_ms, Ordering::Release);
                 }
                 p.refresh_lease(now_ms, timeout_ms);
                 return Ok(i);
@@ -584,7 +587,8 @@ impl AdaptiveTopicHeader {
                     p.refresh_lease(now_ms, timeout_ms);
                     self.publisher_count.fetch_add(1, Ordering::AcqRel);
                     self.total_participants.fetch_add(1, Ordering::AcqRel);
-                    self.last_topology_change_ms.store(now_ms, Ordering::Release);
+                    self.last_topology_change_ms
+                        .store(now_ms, Ordering::Release);
                     return Ok(i);
                 }
             }
@@ -613,7 +617,8 @@ impl AdaptiveTopicHeader {
                 if old_role & 2 == 0 {
                     // Wasn't a consumer before, increment count
                     self.subscriber_count.fetch_add(1, Ordering::AcqRel);
-                    self.last_topology_change_ms.store(now_ms, Ordering::Release);
+                    self.last_topology_change_ms
+                        .store(now_ms, Ordering::Release);
                 }
                 p.refresh_lease(now_ms, timeout_ms);
                 return Ok(i);
@@ -653,7 +658,8 @@ impl AdaptiveTopicHeader {
                     p.refresh_lease(now_ms, timeout_ms);
                     self.subscriber_count.fetch_add(1, Ordering::AcqRel);
                     self.total_participants.fetch_add(1, Ordering::AcqRel);
-                    self.last_topology_change_ms.store(now_ms, Ordering::Release);
+                    self.last_topology_change_ms
+                        .store(now_ms, Ordering::Release);
                     return Ok(i);
                 }
             }
@@ -680,7 +686,8 @@ impl AdaptiveTopicHeader {
     /// Release migration lock
     #[inline]
     pub fn unlock_migration(&self) {
-        self.migration_lock.store(MIGRATION_UNLOCKED, Ordering::Release);
+        self.migration_lock
+            .store(MIGRATION_UNLOCKED, Ordering::Release);
     }
 
     /// Detect the optimal backend based on current topology
@@ -751,7 +758,8 @@ impl AdaptiveTopicHeader {
         }
 
         if cleaned > 0 {
-            self.last_topology_change_ms.store(now_ms, Ordering::Release);
+            self.last_topology_change_ms
+                .store(now_ms, Ordering::Release);
         }
 
         cleaned
@@ -1128,7 +1136,6 @@ pub struct AdaptiveMetrics {
 struct LocalState {
     // ========== FIRST CACHE LINE (0-63 bytes) - HOT PATH ==========
     // Fields ordered by ACCESS SEQUENCE in send()
-
     /// Cached backend mode - FIRST field because it's checked FIRST in send()
     /// Putting this at offset 0 ensures mode check loads the cache line immediately
     cached_mode: AdaptiveBackendMode, // offset 0 (1 byte)
@@ -1168,7 +1175,6 @@ struct LocalState {
     // Padding bytes 56-63 for cache line alignment
 
     // ========== SECOND CACHE LINE (64+ bytes) - COLD PATH ==========
-
     /// Our slot index in the participant array (-1 if not registered)
     slot_index: i32, // offset 56 actually (no padding needed after *const)
 
@@ -1634,7 +1640,7 @@ impl<T: Clone + Send + Sync + Serialize + DeserializeOwned + 'static> AdaptiveTo
             // Sampled maintenance - only every N messages (cold path)
             // UNLIKELY: Only triggers every 1024 messages
             local.msg_counter = local.msg_counter.wrapping_add(1);
-            if unlikely(local.msg_counter % LEASE_REFRESH_INTERVAL == 0) {
+            if unlikely(local.msg_counter.is_multiple_of(LEASE_REFRESH_INTERVAL)) {
                 self.refresh_lease();
                 self.check_migration();
             }
@@ -1666,7 +1672,12 @@ impl<T: Clone + Send + Sync + Serialize + DeserializeOwned + 'static> AdaptiveTo
                 // Try to claim this slot atomically
                 if header
                     .sequence_or_head
-                    .compare_exchange_weak(head, head.wrapping_add(1), Ordering::AcqRel, Ordering::Relaxed)
+                    .compare_exchange_weak(
+                        head,
+                        head.wrapping_add(1),
+                        Ordering::AcqRel,
+                        Ordering::Relaxed,
+                    )
                     .is_ok()
                 {
                     // Successfully claimed slot 'head', write message
@@ -1677,7 +1688,7 @@ impl<T: Clone + Send + Sync + Serialize + DeserializeOwned + 'static> AdaptiveTo
 
                     // Sampled maintenance (cold path)
                     local.msg_counter = local.msg_counter.wrapping_add(1);
-                    if local.msg_counter % LEASE_REFRESH_INTERVAL == 0 {
+                    if local.msg_counter.is_multiple_of(LEASE_REFRESH_INTERVAL) {
                         self.refresh_lease();
                         self.check_migration();
                     }
@@ -1712,7 +1723,12 @@ impl<T: Clone + Send + Sync + Serialize + DeserializeOwned + 'static> AdaptiveTo
                 // Try to claim this slot atomically
                 if header
                     .sequence_or_head
-                    .compare_exchange_weak(head, head.wrapping_add(1), Ordering::AcqRel, Ordering::Relaxed)
+                    .compare_exchange_weak(
+                        head,
+                        head.wrapping_add(1),
+                        Ordering::AcqRel,
+                        Ordering::Relaxed,
+                    )
                     .is_ok()
                 {
                     // Successfully claimed slot 'head', write message
@@ -1723,7 +1739,7 @@ impl<T: Clone + Send + Sync + Serialize + DeserializeOwned + 'static> AdaptiveTo
 
                     // Sampled maintenance (cold path)
                     local.msg_counter = local.msg_counter.wrapping_add(1);
-                    if local.msg_counter % LEASE_REFRESH_INTERVAL == 0 {
+                    if local.msg_counter.is_multiple_of(LEASE_REFRESH_INTERVAL) {
                         self.refresh_lease();
                         self.check_migration();
                     }
@@ -1760,7 +1776,7 @@ impl<T: Clone + Send + Sync + Serialize + DeserializeOwned + 'static> AdaptiveTo
             header.sequence_or_head.store(new_seq, Ordering::Release);
 
             local.msg_counter = local.msg_counter.wrapping_add(1);
-            if local.msg_counter % LEASE_REFRESH_INTERVAL == 0 {
+            if local.msg_counter.is_multiple_of(LEASE_REFRESH_INTERVAL) {
                 self.refresh_lease();
                 self.check_migration();
             }
@@ -1786,7 +1802,7 @@ impl<T: Clone + Send + Sync + Serialize + DeserializeOwned + 'static> AdaptiveTo
 
         // Sampled maintenance
         local.msg_counter = local.msg_counter.wrapping_add(1);
-        if local.msg_counter % LEASE_REFRESH_INTERVAL == 0 {
+        if local.msg_counter.is_multiple_of(LEASE_REFRESH_INTERVAL) {
             self.refresh_lease();
             self.check_migration();
         } else {
@@ -1817,9 +1833,13 @@ impl<T: Clone + Send + Sync + Serialize + DeserializeOwned + 'static> AdaptiveTo
             // Unified cross-process POD send path: SpscShm, MpscShm, SpmcShm, MpmcShm, PodShm
             // Uses fetch_add for all to prevent race conditions when cached_mode is stale
             // (e.g., process A thinks SpscShm but process B joined and mode migrated to MpscShm)
-            AdaptiveBackendMode::SpscShm | AdaptiveBackendMode::PodShm | AdaptiveBackendMode::MpscShm
-            | AdaptiveBackendMode::SpmcShm | AdaptiveBackendMode::MpmcShm
-                if is_pod && is_cross_process => {
+            AdaptiveBackendMode::SpscShm
+            | AdaptiveBackendMode::PodShm
+            | AdaptiveBackendMode::MpscShm
+            | AdaptiveBackendMode::SpmcShm
+            | AdaptiveBackendMode::MpmcShm
+                if is_pod && is_cross_process =>
+            {
                 let mask = local.cached_capacity_mask;
                 let capacity = local.cached_capacity;
 
@@ -1874,7 +1894,10 @@ impl<T: Clone + Send + Sync + Serialize + DeserializeOwned + 'static> AdaptiveTo
                 }
 
                 unsafe {
-                    let slot_ptr = self.storage.as_ptr().add(Self::HEADER_SIZE + index * slot_size);
+                    let slot_ptr = self
+                        .storage
+                        .as_ptr()
+                        .add(Self::HEADER_SIZE + index * slot_size);
                     let len_ptr = slot_ptr.add(8) as *mut u64;
                     std::ptr::write_volatile(len_ptr, serialized.len() as u64);
                     let data_ptr = slot_ptr.add(16) as *mut u8;
@@ -1934,8 +1957,10 @@ impl<T: Clone + Send + Sync + Serialize + DeserializeOwned + 'static> AdaptiveTo
         }
 
         // Sampled metrics update
-        if local.msg_counter % LEASE_REFRESH_INTERVAL == 0 {
-            self.metrics.messages_sent.fetch_add(LEASE_REFRESH_INTERVAL as u64, Ordering::Relaxed);
+        if local.msg_counter.is_multiple_of(LEASE_REFRESH_INTERVAL) {
+            self.metrics
+                .messages_sent
+                .fetch_add(LEASE_REFRESH_INTERVAL as u64, Ordering::Relaxed);
             self.metrics.last_epoch.store(
                 header.migration_epoch.load(Ordering::Relaxed),
                 Ordering::Relaxed,
@@ -2033,7 +2058,7 @@ impl<T: Clone + Send + Sync + Serialize + DeserializeOwned + 'static> AdaptiveTo
                 // Sampled maintenance - only every N messages (cold path)
                 // UNLIKELY: Only triggers every 1024 messages
                 local.msg_counter = local.msg_counter.wrapping_add(1);
-                if unlikely(local.msg_counter % LEASE_REFRESH_INTERVAL == 0) {
+                if unlikely(local.msg_counter.is_multiple_of(LEASE_REFRESH_INTERVAL)) {
                     self.refresh_lease();
                     self.check_migration();
                 }
@@ -2071,7 +2096,7 @@ impl<T: Clone + Send + Sync + Serialize + DeserializeOwned + 'static> AdaptiveTo
 
             // Sampled maintenance (cold path)
             local.msg_counter = local.msg_counter.wrapping_add(1);
-            if local.msg_counter % LEASE_REFRESH_INTERVAL == 0 {
+            if local.msg_counter.is_multiple_of(LEASE_REFRESH_INTERVAL) {
                 self.refresh_lease();
                 self.check_migration();
             }
@@ -2100,7 +2125,12 @@ impl<T: Clone + Send + Sync + Serialize + DeserializeOwned + 'static> AdaptiveTo
                 // Try to claim this slot atomically
                 if header
                     .tail
-                    .compare_exchange_weak(tail, tail.wrapping_add(1), Ordering::AcqRel, Ordering::Relaxed)
+                    .compare_exchange_weak(
+                        tail,
+                        tail.wrapping_add(1),
+                        Ordering::AcqRel,
+                        Ordering::Relaxed,
+                    )
                     .is_ok()
                 {
                     // Successfully claimed slot 'tail', read message
@@ -2111,7 +2141,7 @@ impl<T: Clone + Send + Sync + Serialize + DeserializeOwned + 'static> AdaptiveTo
 
                     // Sampled maintenance (cold path)
                     local.msg_counter = local.msg_counter.wrapping_add(1);
-                    if local.msg_counter % LEASE_REFRESH_INTERVAL == 0 {
+                    if local.msg_counter.is_multiple_of(LEASE_REFRESH_INTERVAL) {
                         self.refresh_lease();
                         self.check_migration();
                     }
@@ -2144,7 +2174,12 @@ impl<T: Clone + Send + Sync + Serialize + DeserializeOwned + 'static> AdaptiveTo
                 // Try to claim this slot atomically
                 if header
                     .tail
-                    .compare_exchange_weak(tail, tail.wrapping_add(1), Ordering::AcqRel, Ordering::Relaxed)
+                    .compare_exchange_weak(
+                        tail,
+                        tail.wrapping_add(1),
+                        Ordering::AcqRel,
+                        Ordering::Relaxed,
+                    )
                     .is_ok()
                 {
                     let msg = unsafe {
@@ -2153,7 +2188,7 @@ impl<T: Clone + Send + Sync + Serialize + DeserializeOwned + 'static> AdaptiveTo
                     };
 
                     local.msg_counter = local.msg_counter.wrapping_add(1);
-                    if local.msg_counter % LEASE_REFRESH_INTERVAL == 0 {
+                    if local.msg_counter.is_multiple_of(LEASE_REFRESH_INTERVAL) {
                         self.refresh_lease();
                         self.check_migration();
                     }
@@ -2181,7 +2216,7 @@ impl<T: Clone + Send + Sync + Serialize + DeserializeOwned + 'static> AdaptiveTo
             header.tail.fetch_add(1, Ordering::Release);
 
             local.msg_counter = local.msg_counter.wrapping_add(1);
-            if local.msg_counter % LEASE_REFRESH_INTERVAL == 0 {
+            if local.msg_counter.is_multiple_of(LEASE_REFRESH_INTERVAL) {
                 self.refresh_lease();
                 self.check_migration();
             }
@@ -2221,7 +2256,7 @@ impl<T: Clone + Send + Sync + Serialize + DeserializeOwned + 'static> AdaptiveTo
             header.tail.store(new_tail, Ordering::Release);
 
             local.msg_counter = local.msg_counter.wrapping_add(1);
-            if unlikely(local.msg_counter % LEASE_REFRESH_INTERVAL == 0) {
+            if unlikely(local.msg_counter.is_multiple_of(LEASE_REFRESH_INTERVAL)) {
                 self.refresh_lease();
                 self.check_migration();
             }
@@ -2271,7 +2306,7 @@ impl<T: Clone + Send + Sync + Serialize + DeserializeOwned + 'static> AdaptiveTo
                     local.local_tail = tail.wrapping_add(1);
 
                     local.msg_counter = local.msg_counter.wrapping_add(1);
-                    if unlikely(local.msg_counter % LEASE_REFRESH_INTERVAL == 0) {
+                    if unlikely(local.msg_counter.is_multiple_of(LEASE_REFRESH_INTERVAL)) {
                         self.refresh_lease();
                         self.check_migration();
                     }
@@ -2283,7 +2318,9 @@ impl<T: Clone + Send + Sync + Serialize + DeserializeOwned + 'static> AdaptiveTo
         }
 
         // FAST PATH: PodShm cross-process - Generic POD with fetch_add
-        if local.role.can_recv() && !local.is_same_process && local.cached_mode == AdaptiveBackendMode::PodShm
+        if local.role.can_recv()
+            && !local.is_same_process
+            && local.cached_mode == AdaptiveBackendMode::PodShm
         {
             // Use cached header pointer to avoid Arc dereference
             let header = unsafe { &*local.cached_header_ptr };
@@ -2305,7 +2342,7 @@ impl<T: Clone + Send + Sync + Serialize + DeserializeOwned + 'static> AdaptiveTo
             local.local_tail = new_tail;
 
             local.msg_counter = local.msg_counter.wrapping_add(1);
-            if unlikely(local.msg_counter % LEASE_REFRESH_INTERVAL == 0) {
+            if unlikely(local.msg_counter.is_multiple_of(LEASE_REFRESH_INTERVAL)) {
                 self.refresh_lease();
                 self.check_migration();
             }
@@ -2331,7 +2368,7 @@ impl<T: Clone + Send + Sync + Serialize + DeserializeOwned + 'static> AdaptiveTo
 
         // Sampled maintenance
         local.msg_counter = local.msg_counter.wrapping_add(1);
-        if local.msg_counter % LEASE_REFRESH_INTERVAL == 0 {
+        if local.msg_counter.is_multiple_of(LEASE_REFRESH_INTERVAL) {
             self.refresh_lease();
             self.check_migration();
         } else {
@@ -2416,9 +2453,12 @@ impl<T: Clone + Send + Sync + Serialize + DeserializeOwned + 'static> AdaptiveTo
                 local.local_tail = new_tail;
                 msg
             }
-            AdaptiveBackendMode::PodShm | AdaptiveBackendMode::MpscShm
-            | AdaptiveBackendMode::SpmcShm | AdaptiveBackendMode::MpmcShm
-                if is_pod && is_cross_process => {
+            AdaptiveBackendMode::PodShm
+            | AdaptiveBackendMode::MpscShm
+            | AdaptiveBackendMode::SpmcShm
+            | AdaptiveBackendMode::MpmcShm
+                if is_pod && is_cross_process =>
+            {
                 // Cross-process POD with multi-producer/consumer - use fetch_add for safety
                 let mask = local.cached_capacity_mask;
                 let index = (tail & mask) as usize;
@@ -2484,8 +2524,10 @@ impl<T: Clone + Send + Sync + Serialize + DeserializeOwned + 'static> AdaptiveTo
         };
 
         // Sampled metrics update
-        if local.msg_counter % LEASE_REFRESH_INTERVAL == 0 {
-            self.metrics.messages_received.fetch_add(LEASE_REFRESH_INTERVAL as u64, Ordering::Relaxed);
+        if local.msg_counter.is_multiple_of(LEASE_REFRESH_INTERVAL) {
+            self.metrics
+                .messages_received
+                .fetch_add(LEASE_REFRESH_INTERVAL as u64, Ordering::Relaxed);
             self.metrics.last_epoch.store(
                 header.migration_epoch.load(Ordering::Relaxed),
                 Ordering::Relaxed,
@@ -2602,7 +2644,9 @@ impl<T> Clone for AdaptiveTopic<T> {
 // Specialized implementation for POD types
 // Note: PodMessage types also need Serialize+DeserializeOwned to use the main impl block,
 // but they get the fast zero-copy path automatically when is_pod returns true.
-impl<T: PodMessage + Clone + Send + Sync + Serialize + DeserializeOwned + 'static> AdaptiveTopic<T> {
+impl<T: PodMessage + Clone + Send + Sync + Serialize + DeserializeOwned + 'static>
+    AdaptiveTopic<T>
+{
     /// Create an adaptive topic for POD types (uses zero-copy path)
     ///
     /// This is a convenience constructor that explicitly creates a POD-only topic.
@@ -2657,8 +2701,16 @@ mod tests {
         //       + cached_capacity_mask(8) + local_head(8) + local_tail(8) + cached_data_ptr(8)
         //       + cached_header_ptr(8)
         let size = mem::size_of::<LocalState>();
-        println!("LocalState size: {} bytes ({} cache lines)", size, (size + 63) / 64);
-        assert!(size <= 128, "LocalState should fit in 2 cache lines, got {} bytes", size);
+        println!(
+            "LocalState size: {} bytes ({} cache lines)",
+            size,
+            (size + 63) / 64
+        );
+        assert!(
+            size <= 128,
+            "LocalState should fit in 2 cache lines, got {} bytes",
+            size
+        );
     }
 
     #[test]
@@ -2750,7 +2802,9 @@ mod tests {
         let mut header = AdaptiveTopicHeader::zeroed();
         header.init(8, 4, true, 100);
         // Set initial mode to MpmcShm (default)
-        header.backend_mode.store(AdaptiveBackendMode::MpmcShm as u8, Ordering::Release);
+        header
+            .backend_mode
+            .store(AdaptiveBackendMode::MpmcShm as u8, Ordering::Release);
 
         let migrator = BackendMigrator::new(&header);
         let result = migrator.try_migrate(AdaptiveBackendMode::MpmcShm);
@@ -2761,7 +2815,9 @@ mod tests {
     fn test_migration_success() {
         let mut header = AdaptiveTopicHeader::zeroed();
         header.init(8, 4, true, 100);
-        header.backend_mode.store(AdaptiveBackendMode::Unknown as u8, Ordering::Release);
+        header
+            .backend_mode
+            .store(AdaptiveBackendMode::Unknown as u8, Ordering::Release);
 
         let migrator = BackendMigrator::new(&header);
         let result = migrator.try_migrate(AdaptiveBackendMode::SpscIntra);
@@ -2807,7 +2863,9 @@ mod tests {
         assert!(migrator.is_optimal());
 
         // Change backend to non-optimal
-        header.backend_mode.store(AdaptiveBackendMode::DirectChannel as u8, Ordering::Release);
+        header
+            .backend_mode
+            .store(AdaptiveBackendMode::DirectChannel as u8, Ordering::Release);
         assert!(!migrator.is_optimal());
     }
 
@@ -2815,7 +2873,9 @@ mod tests {
     fn test_migrator_stats() {
         let mut header = AdaptiveTopicHeader::zeroed();
         header.init(8, 4, true, 100);
-        header.backend_mode.store(AdaptiveBackendMode::SpscIntra as u8, Ordering::Release);
+        header
+            .backend_mode
+            .store(AdaptiveBackendMode::SpscIntra as u8, Ordering::Release);
         header.migration_epoch.store(42, Ordering::Release);
 
         let migrator = BackendMigrator::new(&header);
@@ -2832,7 +2892,9 @@ mod tests {
     fn test_migrate_to_optimal() {
         let mut header = AdaptiveTopicHeader::zeroed();
         header.init(8, 4, true, 100);
-        header.backend_mode.store(AdaptiveBackendMode::Unknown as u8, Ordering::Release);
+        header
+            .backend_mode
+            .store(AdaptiveBackendMode::Unknown as u8, Ordering::Release);
 
         let migrator = BackendMigrator::new(&header);
         let result = migrator.migrate_to_optimal();
@@ -2853,7 +2915,9 @@ mod tests {
     fn test_epoch_increments_on_migration() {
         let mut header = AdaptiveTopicHeader::zeroed();
         header.init(8, 4, true, 100);
-        header.backend_mode.store(AdaptiveBackendMode::Unknown as u8, Ordering::Release);
+        header
+            .backend_mode
+            .store(AdaptiveBackendMode::Unknown as u8, Ordering::Release);
 
         let migrator = BackendMigrator::new(&header);
 
@@ -2936,7 +3000,10 @@ mod tests {
 
         // Check metrics
         assert_eq!(topic.metrics().messages_sent.load(Ordering::Relaxed), 1);
-        assert_eq!(consumer.metrics().messages_received.load(Ordering::Relaxed), 1);
+        assert_eq!(
+            consumer.metrics().messages_received.load(Ordering::Relaxed),
+            1
+        );
     }
 
     #[test]
@@ -3096,7 +3163,10 @@ mod tests {
 
         // For same-process POD communication, expect reasonable latency
         // DirectChannel should be ~3ns in release, but in debug mode it's much slower
-        eprintln!("AdaptiveTopic latency: {}ns avg ({} iterations)", avg_latency_ns, iterations);
+        eprintln!(
+            "AdaptiveTopic latency: {}ns avg ({} iterations)",
+            avg_latency_ns, iterations
+        );
         eprintln!("Backend mode: {:?}", topic.mode());
 
         // Generous threshold for debug mode - mainly to catch severe regressions
@@ -3105,7 +3175,12 @@ mod tests {
         #[cfg(not(debug_assertions))]
         let threshold = 5000u128;
 
-        assert!(avg_latency_ns < threshold, "Latency {}ns exceeds {}ns threshold", avg_latency_ns, threshold);
+        assert!(
+            avg_latency_ns < threshold,
+            "Latency {}ns exceeds {}ns threshold",
+            avg_latency_ns,
+            threshold
+        );
     }
 
     #[test]
@@ -3136,8 +3211,10 @@ mod tests {
         let consumer = topic.clone();
         // After consuming, should be empty
         let received = consumer.recv();
-        assert!(received.is_none() || received == Some((iterations - 1) as u64),
-            "Topic should be empty or contain last value");
+        assert!(
+            received.is_none() || received == Some((iterations - 1) as u64),
+            "Topic should be empty or contain last value"
+        );
 
         // Log throughput for informational purposes (not an assertion)
         let ops_per_sec = (iterations as f64 * 2.0) / elapsed.as_secs_f64();

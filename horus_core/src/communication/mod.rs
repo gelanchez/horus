@@ -75,10 +75,14 @@ pub mod topic;
 pub mod traits;
 
 // Re-export commonly used types for convenience
+pub use adaptive_topic::{
+    AdaptiveBackendMode, AdaptiveMetrics, AdaptiveTopic, MigrationResult, TopicRole,
+};
 pub use config::{EndpointConfig, HorusConfig};
 pub use pod::{is_pod, PodMessage};
-pub use smart_detect::{SmartTopicHeader, DetectedPattern, RecommendedBackend, DetectionResult, smart_detect};
-pub use adaptive_topic::{AdaptiveTopic, AdaptiveBackendMode, TopicRole, AdaptiveMetrics, MigrationResult};
+pub use smart_detect::{
+    smart_detect, DetectedPattern, DetectionResult, RecommendedBackend, SmartTopicHeader,
+};
 pub use storage::AccessMode;
 pub use topic::{
     AccessPattern, Auto, BackendHint, ConnectionState, Mpmc, MpmcIntraBackend, MpscIntraBackend,

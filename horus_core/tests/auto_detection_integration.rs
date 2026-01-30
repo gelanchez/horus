@@ -8,11 +8,11 @@
 use std::time::{Duration, Instant};
 
 // Import HORUS types
-use horus_core::communication::pod::is_pod;
 use horus_core::communication::network::{
     AdaptiveBatcher, AdaptiveBatcherConfig, AdaptiveMode, BatchConfig, FrequencyTracker,
     FrequencyTrackerConfig, MessageBatcher,
 };
+use horus_core::communication::pod::is_pod;
 
 // ============================================================================
 // POD Auto-Detection Tests
@@ -78,7 +78,10 @@ fn test_pod_detection_simple_types() {
 fn test_pod_detection_arrays() {
     assert!(is_pod::<[f32; 3]>(), "Fixed array should be POD");
     assert!(is_pod::<[u8; 1024]>(), "Large fixed array should be POD");
-    assert!(is_pod::<[[f32; 3]; 4]>(), "Nested fixed array should be POD");
+    assert!(
+        is_pod::<[[f32; 3]; 4]>(),
+        "Nested fixed array should be POD"
+    );
 }
 
 #[test]
@@ -94,8 +97,14 @@ fn test_pod_detection_non_pod_types() {
     assert!(!is_pod::<String>(), "String should NOT be POD");
     assert!(!is_pod::<Vec<u8>>(), "Vec should NOT be POD");
     assert!(!is_pod::<Box<u32>>(), "Box should NOT be POD");
-    assert!(!is_pod::<LogMessage>(), "Struct with String should NOT be POD");
-    assert!(!is_pod::<SensorBatch>(), "Struct with Vec should NOT be POD");
+    assert!(
+        !is_pod::<LogMessage>(),
+        "Struct with String should NOT be POD"
+    );
+    assert!(
+        !is_pod::<SensorBatch>(),
+        "Struct with Vec should NOT be POD"
+    );
 }
 
 #[test]
@@ -117,7 +126,7 @@ fn test_frequency_tracker_high_throughput_detection() {
     let config = FrequencyTrackerConfig {
         ema_alpha: 0.5,
         min_sample_interval: Duration::from_millis(10),
-        high_freq_threshold: 100.0,  // Low threshold for testing
+        high_freq_threshold: 100.0, // Low threshold for testing
         low_freq_threshold: 10.0,
     };
     let mut tracker = FrequencyTracker::new(config);
@@ -263,7 +272,10 @@ fn test_auto_detection_workflow() {
     // Simulate a typical robotics workflow with auto-detection
 
     // 1. Check message type is POD (would use zero-copy path)
-    assert!(is_pod::<MotorCommand>(), "MotorCommand is POD - zero-copy eligible");
+    assert!(
+        is_pod::<MotorCommand>(),
+        "MotorCommand is POD - zero-copy eligible"
+    );
 
     // 2. For high-frequency control data, use adaptive batching
     let config = AdaptiveBatcherConfig::robotics();
@@ -299,12 +311,19 @@ fn test_auto_detection_workflow() {
     // Flush remaining
     let _ = batcher.flush();
 
-    assert!(commands_sent >= 40, "Should have sent ~50 commands at 1kHz over 50ms");
+    assert!(
+        commands_sent >= 40,
+        "Should have sent ~50 commands at 1kHz over 50ms"
+    );
     // Note: Frequency tracking requires enough samples over min_sample_interval.
     // In a short test, EMA may not be initialized - that's expected behavior.
     // Just verify the total message count is tracked.
     let freq = batcher.frequency();
-    assert!(freq.is_finite(), "Frequency should be a valid number (got {})", freq);
+    assert!(
+        freq.is_finite(),
+        "Frequency should be a valid number (got {})",
+        freq
+    );
 }
 
 #[test]

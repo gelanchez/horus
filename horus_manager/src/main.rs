@@ -3844,7 +3844,11 @@ except ImportError as e:
                     Ok(())
                 }
 
-                PkgCommands::Update { package, global, dry_run } => {
+                PkgCommands::Update {
+                    package,
+                    global,
+                    dry_run,
+                } => {
                     let client = registry::RegistryClient::new();
                     client
                         .update_packages(package.as_deref(), global, dry_run)
@@ -5093,7 +5097,10 @@ except ImportError as e:
                     .map_err(|e| HorusError::Config(e.to_string()))?;
 
                 if results.is_empty() {
-                    println!("{}", format!("No plugins found matching '{}'", query).yellow());
+                    println!(
+                        "{}",
+                        format!("No plugins found matching '{}'", query).yellow()
+                    );
                 } else {
                     println!(
                         "{}",
@@ -5105,8 +5112,12 @@ except ImportError as e:
                     for plugin in results {
                         let source_badge = match plugin.source {
                             horus_manager::plugins::PluginSourceType::Local => "[LOCAL]".yellow(),
-                            horus_manager::plugins::PluginSourceType::Registry => "[REGISTRY]".green(),
-                            horus_manager::plugins::PluginSourceType::CratesIo => "[CRATES.IO]".blue(),
+                            horus_manager::plugins::PluginSourceType::Registry => {
+                                "[REGISTRY]".green()
+                            }
+                            horus_manager::plugins::PluginSourceType::CratesIo => {
+                                "[CRATES.IO]".blue()
+                            }
                             horus_manager::plugins::PluginSourceType::Git => "[GIT]".magenta(),
                         };
                         println!(
@@ -5122,10 +5133,7 @@ except ImportError as e:
                         );
                         println!("    {}", plugin.description.dimmed());
                         if !plugin.features.is_empty() {
-                            println!(
-                                "    Features: {}",
-                                plugin.features.join(", ").cyan()
-                            );
+                            println!("    Features: {}", plugin.features.join(", ").cyan());
                         }
                         println!();
                     }
@@ -5133,7 +5141,10 @@ except ImportError as e:
                 Ok(())
             }
 
-            PluginCommands::Available { category: _, include_local } => {
+            PluginCommands::Available {
+                category: _,
+                include_local,
+            } => {
                 use horus_manager::plugins::PluginDiscovery;
 
                 let mut discovery = PluginDiscovery::new();
@@ -5170,12 +5181,21 @@ except ImportError as e:
                 }
 
                 for (cat, plugins) in by_category.iter() {
-                    println!("{}", format!("  {} ({} plugins)", cat, plugins.len()).yellow().bold());
+                    println!(
+                        "{}",
+                        format!("  {} ({} plugins)", cat, plugins.len())
+                            .yellow()
+                            .bold()
+                    );
                     for plugin in plugins {
                         let source = match plugin.source {
                             horus_manager::plugins::PluginSourceType::Local => "local".yellow(),
-                            horus_manager::plugins::PluginSourceType::Registry => "registry".green(),
-                            horus_manager::plugins::PluginSourceType::CratesIo => "crates.io".blue(),
+                            horus_manager::plugins::PluginSourceType::Registry => {
+                                "registry".green()
+                            }
+                            horus_manager::plugins::PluginSourceType::CratesIo => {
+                                "crates.io".blue()
+                            }
                             horus_manager::plugins::PluginSourceType::Git => "git".magenta(),
                         };
                         println!(
@@ -5188,10 +5208,7 @@ except ImportError as e:
                     println!();
                 }
 
-                println!(
-                    "{}",
-                    "Use 'horus plugins info <name>' for details".dimmed()
-                );
+                println!("{}", "Use 'horus plugins info <name>' for details".dimmed());
                 Ok(())
             }
 
@@ -5222,10 +5239,7 @@ except ImportError as e:
                         println!();
                         println!("  {}", "Compatibility".yellow());
                         println!("    HORUS:     {}", plugin.horus_compat);
-                        println!(
-                            "    Platforms: {}",
-                            plugin.platforms.join(", ")
-                        );
+                        println!("    Platforms: {}", plugin.platforms.join(", "));
                         println!(
                             "    Prebuilt:  {}",
                             if plugin.has_prebuilt { "Yes" } else { "No" }
@@ -5257,14 +5271,10 @@ except ImportError as e:
                         );
                     }
                     None => {
+                        println!("{}", format!("Plugin '{}' not found", name).red());
                         println!(
                             "{}",
-                            format!("Plugin '{}' not found", name).red()
-                        );
-                        println!(
-                            "{}",
-                            "Use 'horus plugins search <query>' to find plugins"
-                                .dimmed()
+                            "Use 'horus plugins search <query>' to find plugins".dimmed()
                         );
                     }
                 }

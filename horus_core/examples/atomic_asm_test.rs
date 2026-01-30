@@ -72,8 +72,14 @@ fn main() {
     atomic_store_release(&counter, 42);
     atomic_store_relaxed(&counter, 100);
 
-    println!("Fetch Add Release: {}", atomic_fetch_add_release(&counter, 1));
-    println!("Fetch Add Relaxed: {}", atomic_fetch_add_relaxed(&counter, 1));
+    println!(
+        "Fetch Add Release: {}",
+        atomic_fetch_add_release(&counter, 1)
+    );
+    println!(
+        "Fetch Add Relaxed: {}",
+        atomic_fetch_add_relaxed(&counter, 1)
+    );
 
     match atomic_compare_exchange(&counter, 102, 200) {
         Ok(v) => println!("CAS succeeded, old: {}", v),

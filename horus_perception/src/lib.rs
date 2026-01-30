@@ -35,8 +35,8 @@
 
 pub mod types;
 
-pub use types::detection::{Detection, Detection3D, BoundingBox2D, BoundingBox3D};
-pub use types::pointcloud::{PointXYZ, PointXYZRGB, PointXYZI, PointCloudHeader};
+pub use types::detection::{BoundingBox2D, BoundingBox3D, Detection, Detection3D};
 pub use types::landmark::{Landmark, Landmark3D, LandmarkArray};
+pub use types::pointcloud::{PointCloudHeader, PointXYZ, PointXYZI, PointXYZRGB};
 pub use types::segmentation::SegmentationMask;
 pub use types::tracking::TrackedObject;

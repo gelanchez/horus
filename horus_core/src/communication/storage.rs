@@ -365,7 +365,7 @@ impl UnifiedShmHeader {
     pub const fn calculate_data_offset(element_align: usize) -> usize {
         let header_size = UNIFIED_HEADER_SIZE;
         // Round up to next multiple of element_align
-        (header_size + element_align - 1) / element_align * element_align
+        header_size.div_ceil(element_align) * element_align
     }
 
     /// Calculate total shared memory size for a topic

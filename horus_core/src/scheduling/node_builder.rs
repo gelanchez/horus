@@ -217,7 +217,6 @@ impl NodeConfig {
         self.tier = Some(tier);
         self
     }
-
 }
 
 /// Builder for adding a node to the scheduler with fluent configuration.

@@ -8,7 +8,7 @@
 //! Uses CmdVel::with_timestamp() to avoid SystemTime::now() syscall overhead (~52ns).
 
 use horus::prelude::Topic;
-use horus_benchmarks::timing::{PrecisionTimer, rdtsc, rdtscp, serialize};
+use horus_benchmarks::timing::{rdtsc, rdtscp, serialize, PrecisionTimer};
 use horus_library::messages::cmd_vel::CmdVel;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -41,8 +41,11 @@ fn main() {
     println!("╔═══════════════════════════════════════════════════════════════════════════════╗");
     println!("║              AdaptiveTopic - All Routes Latency Benchmark                     ║");
     println!("║          Using Topic::new() ONLY - measures real smart-selection             ║");
-    println!("║  RDTSC timing: {:.2} GHz, ~{}ns overhead (vs ~70ns for Instant::now())       ║",
-             cal.freq_hz / 1e9, cal.cycles_to_ns(cal.overhead_cycles));
+    println!(
+        "║  RDTSC timing: {:.2} GHz, ~{}ns overhead (vs ~70ns for Instant::now())       ║",
+        cal.freq_hz / 1e9,
+        cal.cycles_to_ns(cal.overhead_cycles)
+    );
     println!("╠═══════════════════════════════════════════════════════════════════════════════╣");
     println!("║ Scenario          │ Target   │ Actual  │ Overhead │ Backend Selected         ║");
     println!("╠═══════════════════╪══════════╪═════════╪══════════╪══════════════════════════╣");
@@ -106,8 +109,14 @@ fn main() {
     println!("\n=== Timing Overhead Comparison ===");
     let rdtsc_overhead = cal.cycles_to_ns(cal.overhead_cycles);
     let instant_overhead = measure_instant_overhead();
-    println!("  RDTSC overhead:        ~{}ns (what we use)", rdtsc_overhead);
-    println!("  Instant::now() median: ~{}ns (70x worse!)", instant_overhead);
+    println!(
+        "  RDTSC overhead:        ~{}ns (what we use)",
+        rdtsc_overhead
+    );
+    println!(
+        "  Instant::now() median: ~{}ns (70x worse!)",
+        instant_overhead
+    );
 }
 
 fn print_row(name: &str, target: u64, actual: f64, backend: &str, expected_backend: &str) {
@@ -135,7 +144,10 @@ fn print_row(name: &str, target: u64, actual: f64, backend: &str, expected_backe
     );
 
     if !backend_ok && !expected_backend.is_empty() {
-        eprintln!("  ⚠️  WARNING: Expected {} but got {}", expected_backend, backend);
+        eprintln!(
+            "  ⚠️  WARNING: Expected {} but got {}",
+            expected_backend, backend
+        );
     }
 }
 
@@ -272,10 +284,25 @@ fn bench_spsc_intra_rdtsc(timer: &PrecisionTimer) -> (f64, String) {
         .collect();
     ns_latencies.sort_unstable();
 
-    let p50 = ns_latencies.get(ns_latencies.len() * 50 / 100).copied().unwrap_or(0);
-    let p95 = ns_latencies.get(ns_latencies.len() * 95 / 100).copied().unwrap_or(0);
-    let p99 = ns_latencies.get(ns_latencies.len() * 99 / 100).copied().unwrap_or(0);
-    eprintln!("  SpscIntra RDTSC: p50={}ns p95={}ns p99={}ns (n={})", p50, p95, p99, ns_latencies.len());
+    let p50 = ns_latencies
+        .get(ns_latencies.len() * 50 / 100)
+        .copied()
+        .unwrap_or(0);
+    let p95 = ns_latencies
+        .get(ns_latencies.len() * 95 / 100)
+        .copied()
+        .unwrap_or(0);
+    let p99 = ns_latencies
+        .get(ns_latencies.len() * 99 / 100)
+        .copied()
+        .unwrap_or(0);
+    eprintln!(
+        "  SpscIntra RDTSC: p50={}ns p95={}ns p99={}ns (n={})",
+        p50,
+        p95,
+        p99,
+        ns_latencies.len()
+    );
 
     (p50 as f64, backend)
 }
@@ -303,12 +330,18 @@ fn bench_direct_channel_detailed_rdtsc(timer: &PrecisionTimer) {
         let start = rdtsc();
         let _ = std::hint::black_box(topic.send(std::hint::black_box(msg)));
         let end = rdtscp();
-        send_latencies.push(cal.cycles_to_ns(end.wrapping_sub(start)).saturating_sub(overhead_ns));
+        send_latencies.push(
+            cal.cycles_to_ns(end.wrapping_sub(start))
+                .saturating_sub(overhead_ns),
+        );
         let _ = topic.recv();
     }
     send_latencies.sort_unstable();
     let send_p50 = send_latencies[send_latencies.len() / 2];
-    println!("  Send only:  p50={}ns (true latency, overhead subtracted)", send_p50);
+    println!(
+        "  Send only:  p50={}ns (true latency, overhead subtracted)",
+        send_p50
+    );
 
     // Measure recv-only (after send)
     for _ in 0..1000 {
@@ -320,7 +353,10 @@ fn bench_direct_channel_detailed_rdtsc(timer: &PrecisionTimer) {
         let start = rdtsc();
         let _ = std::hint::black_box(topic.recv());
         let end = rdtscp();
-        recv_latencies.push(cal.cycles_to_ns(end.wrapping_sub(start)).saturating_sub(overhead_ns));
+        recv_latencies.push(
+            cal.cycles_to_ns(end.wrapping_sub(start))
+                .saturating_sub(overhead_ns),
+        );
         let _ = topic.send(msg);
     }
     recv_latencies.sort_unstable();
@@ -335,11 +371,17 @@ fn bench_direct_channel_detailed_rdtsc(timer: &PrecisionTimer) {
         let _ = std::hint::black_box(topic.send(std::hint::black_box(msg)));
         let _ = std::hint::black_box(topic.recv());
         let end = rdtscp();
-        rt_latencies.push(cal.cycles_to_ns(end.wrapping_sub(start)).saturating_sub(overhead_ns));
+        rt_latencies.push(
+            cal.cycles_to_ns(end.wrapping_sub(start))
+                .saturating_sub(overhead_ns),
+        );
     }
     rt_latencies.sort_unstable();
     let rt_p50 = rt_latencies[rt_latencies.len() / 2];
-    println!("  Round-trip: p50={}ns (send+recv, single measurement)", rt_p50);
+    println!(
+        "  Round-trip: p50={}ns (send+recv, single measurement)",
+        rt_p50
+    );
 }
 
 /// Detailed SpscIntra breakdown (RDTSC)
@@ -383,7 +425,10 @@ fn bench_spsc_intra_detailed_rdtsc(timer: &PrecisionTimer) {
             let start = rdtsc();
             if producer.send(msg).is_ok() {
                 let end = rdtscp();
-                latencies.push(cal.cycles_to_ns(end.wrapping_sub(start)).saturating_sub(overhead_ns));
+                latencies.push(
+                    cal.cycles_to_ns(end.wrapping_sub(start))
+                        .saturating_sub(overhead_ns),
+                );
             } else {
                 while producer.send(msg).is_err() {
                     std::hint::spin_loop();
@@ -391,8 +436,14 @@ fn bench_spsc_intra_detailed_rdtsc(timer: &PrecisionTimer) {
             }
         }
         latencies.sort_unstable();
-        let p50 = latencies.get(latencies.len() * 50 / 100).copied().unwrap_or(0);
-        let p99 = latencies.get(latencies.len() * 99 / 100).copied().unwrap_or(0);
+        let p50 = latencies
+            .get(latencies.len() * 50 / 100)
+            .copied()
+            .unwrap_or(0);
+        let p99 = latencies
+            .get(latencies.len() * 99 / 100)
+            .copied()
+            .unwrap_or(0);
         println!("    Run {}: p50={}ns p99={}ns", run, p50, p99);
         thread::sleep(Duration::from_millis(5));
     }
@@ -461,7 +512,10 @@ fn bench_spsc_shm() -> (f64, String) {
         );
     }
 
-    (elapsed.as_nanos() as f64 / (received - warmup_count).max(1) as f64, backend)
+    (
+        elapsed.as_nanos() as f64 / (received - warmup_count).max(1) as f64,
+        backend,
+    )
 }
 
 /// MpscShm - Cross-process MP-1C
@@ -480,7 +534,11 @@ fn bench_mpsc_shm() -> (f64, String) {
 
     // Spawn first publisher - stagger to avoid registration race
     let mut child1 = Command::new(std::env::current_exe().unwrap())
-        .args(["--child-publisher", &topic_name, &msgs_per_child.to_string()])
+        .args([
+            "--child-publisher",
+            &topic_name,
+            &msgs_per_child.to_string(),
+        ])
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -499,15 +557,23 @@ fn bench_mpsc_shm() -> (f64, String) {
 
     // Now spawn child2 - it will see child1's registration and detect MpscShm
     let mut child2 = Command::new(std::env::current_exe().unwrap())
-        .args(["--child-publisher", &topic_name, &msgs_per_child.to_string()])
+        .args([
+            "--child-publisher",
+            &topic_name,
+            &msgs_per_child.to_string(),
+        ])
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .spawn()
         .expect("Failed to spawn child publisher 2");
 
-    eprintln!("  [MpscShm: Parent={}, Pub1={}, Pub2={}]",
-              std::process::id(), child1.id(), child2.id());
+    eprintln!(
+        "  [MpscShm: Parent={}, Pub1={}, Pub2={}]",
+        std::process::id(),
+        child1.id(),
+        child2.id()
+    );
 
     // Wait for child2 to register and trigger migration
     thread::sleep(Duration::from_millis(50));
@@ -550,10 +616,16 @@ fn bench_mpsc_shm() -> (f64, String) {
 
     let actual_measured = received.saturating_sub(warmup_count);
     if actual_measured < ITERATIONS / 4 {
-        eprintln!("  (Warning: MpscShm only measured {}/{})", actual_measured, ITERATIONS);
+        eprintln!(
+            "  (Warning: MpscShm only measured {}/{})",
+            actual_measured, ITERATIONS
+        );
     }
 
-    (elapsed.as_nanos() as f64 / actual_measured.max(1) as f64, backend)
+    (
+        elapsed.as_nanos() as f64 / actual_measured.max(1) as f64,
+        backend,
+    )
 }
 
 /// MpmcShm - Cross-process MPMC
@@ -573,7 +645,11 @@ fn bench_mpmc_shm() -> (f64, String) {
 
     // Spawn child consumer process first
     let mut child_consumer = Command::new(std::env::current_exe().unwrap())
-        .args(["--child-consumer", &topic_name, &msgs_per_consumer.to_string()])
+        .args([
+            "--child-consumer",
+            &topic_name,
+            &msgs_per_consumer.to_string(),
+        ])
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -584,7 +660,11 @@ fn bench_mpmc_shm() -> (f64, String) {
 
     // Spawn two publisher child processes
     let mut child_pub1 = Command::new(std::env::current_exe().unwrap())
-        .args(["--child-publisher", &topic_name, &msgs_per_publisher.to_string()])
+        .args([
+            "--child-publisher",
+            &topic_name,
+            &msgs_per_publisher.to_string(),
+        ])
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -592,15 +672,24 @@ fn bench_mpmc_shm() -> (f64, String) {
         .expect("Failed to spawn child publisher 1");
 
     let mut child_pub2 = Command::new(std::env::current_exe().unwrap())
-        .args(["--child-publisher", &topic_name, &msgs_per_publisher.to_string()])
+        .args([
+            "--child-publisher",
+            &topic_name,
+            &msgs_per_publisher.to_string(),
+        ])
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .spawn()
         .expect("Failed to spawn child publisher 2");
 
-    eprintln!("  [MpmcShm: Parent={}, Cons={}, Pub1={}, Pub2={}]",
-              std::process::id(), child_consumer.id(), child_pub1.id(), child_pub2.id());
+    eprintln!(
+        "  [MpmcShm: Parent={}, Cons={}, Pub1={}, Pub2={}]",
+        std::process::id(),
+        child_consumer.id(),
+        child_pub1.id(),
+        child_pub2.id()
+    );
 
     // Brief wait for children to start
     thread::sleep(Duration::from_millis(50));
@@ -627,7 +716,10 @@ fn bench_mpmc_shm() -> (f64, String) {
     let _ = child_consumer.try_wait();
 
     if received < msgs_per_consumer / 4 {
-        eprintln!("  (Warning: MpmcShm parent only received {}/{})", received, msgs_per_consumer);
+        eprintln!(
+            "  (Warning: MpmcShm parent only received {}/{})",
+            received, msgs_per_consumer
+        );
     }
 
     (elapsed.as_nanos() as f64 / received.max(1) as f64, backend)
@@ -638,7 +730,7 @@ fn measure_instant_overhead() -> u64 {
     let mut times: Vec<u64> = Vec::with_capacity(10000);
     for _ in 0..10000 {
         let start = Instant::now();
-        let _ = std::hint::black_box(());
+        std::hint::black_box(());
         times.push(start.elapsed().as_nanos() as u64);
     }
     times.sort_unstable();

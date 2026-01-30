@@ -16,43 +16,43 @@
 //! - **Reproducibility**: JSON output for regression tracking, determinism metrics
 //! - **Real-world relevance**: Robotics message types, realistic workloads
 
-pub mod stats;
-pub mod platform;
 pub mod output;
+pub mod platform;
+pub mod stats;
 pub mod timing;
 
 use serde::{Deserialize, Serialize};
 
 // Re-exports for convenience
+pub use output::{write_csv_report, write_json_report, BenchmarkReport};
+pub use platform::{detect_cpu_frequency, detect_platform, CpuInfo, PlatformInfo};
 pub use stats::{
-    bootstrap_ci, calculate_percentile, coefficient_of_variation, excess_kurtosis,
-    filter_outliers, jarque_bera_test, median, skewness, std_dev, NormalityAnalysis, Statistics,
+    bootstrap_ci, calculate_percentile, coefficient_of_variation, excess_kurtosis, filter_outliers,
+    jarque_bera_test, median, skewness, std_dev, NormalityAnalysis, Statistics,
 };
-pub use platform::{CpuInfo, PlatformInfo, detect_platform, detect_cpu_frequency};
-pub use output::{BenchmarkReport, write_json_report, write_csv_report};
-pub use timing::{rdtsc, calibrate_rdtsc, cycles_to_ns};
+pub use timing::{calibrate_rdtsc, cycles_to_ns, rdtsc};
 
 /// Standard message sizes used in robotics applications (bytes)
 pub const MESSAGE_SIZES: &[(&str, usize)] = &[
-    ("control_cmd", 16),       // CmdVel: 2x f32
-    ("motor_cmd", 64),         // Motor command with metadata
-    ("imu_reading", 128),      // Basic IMU data
-    ("sensor_fusion", 256),    // Fused sensor state
-    ("lidar_scan", 4096),      // Single LiDAR scan line
-    ("point_cloud", 65536),    // Small point cloud
+    ("control_cmd", 16),         // CmdVel: 2x f32
+    ("motor_cmd", 64),           // Motor command with metadata
+    ("imu_reading", 128),        // Basic IMU data
+    ("sensor_fusion", 256),      // Fused sensor state
+    ("lidar_scan", 4096),        // Single LiDAR scan line
+    ("point_cloud", 65536),      // Small point cloud
     ("camera_frame", 1_000_000), // 640x480 grayscale
     ("map_update", 10_000_000),  // Large map chunk
 ];
 
 /// Common frequencies in robotics systems (Hz)
 pub const FREQUENCIES: &[(&str, u32)] = &[
-    ("servo_loop", 10000),     // Fast servo control
-    ("control_loop", 1000),    // Standard control
-    ("imu_rate", 400),         // IMU sampling
-    ("planning", 100),         // Motion planning
-    ("localization", 50),      // SLAM/localization
-    ("perception", 30),        // Vision processing
-    ("lidar", 10),             // LiDAR spin rate
+    ("servo_loop", 10000),  // Fast servo control
+    ("control_loop", 1000), // Standard control
+    ("imu_rate", 400),      // IMU sampling
+    ("planning", 100),      // Motion planning
+    ("localization", 50),   // SLAM/localization
+    ("perception", 30),     // Vision processing
+    ("lidar", 10),          // LiDAR spin rate
 ];
 
 /// Benchmark configuration

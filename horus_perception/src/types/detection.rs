@@ -21,7 +21,12 @@ pub struct BoundingBox2D {
 impl BoundingBox2D {
     /// Create a new 2D bounding box
     pub fn new(x: f32, y: f32, width: f32, height: f32) -> Self {
-        Self { x, y, width, height }
+        Self {
+            x,
+            y,
+            width,
+            height,
+        }
     }
 
     /// Create from center coordinates (cx, cy, w, h) - YOLO format
@@ -97,23 +102,41 @@ impl BoundingBox3D {
     /// Create a new 3D bounding box with yaw rotation only
     pub fn new(cx: f32, cy: f32, cz: f32, length: f32, width: f32, height: f32, yaw: f32) -> Self {
         Self {
-            cx, cy, cz,
-            length, width, height,
-            roll: 0.0, pitch: 0.0, yaw,
+            cx,
+            cy,
+            cz,
+            length,
+            width,
+            height,
+            roll: 0.0,
+            pitch: 0.0,
+            yaw,
             _pad: [0.0; 3],
         }
     }
 
     /// Create with full rotation
     pub fn with_rotation(
-        cx: f32, cy: f32, cz: f32,
-        length: f32, width: f32, height: f32,
-        roll: f32, pitch: f32, yaw: f32,
+        cx: f32,
+        cy: f32,
+        cz: f32,
+        length: f32,
+        width: f32,
+        height: f32,
+        roll: f32,
+        pitch: f32,
+        yaw: f32,
     ) -> Self {
         Self {
-            cx, cy, cz,
-            length, width, height,
-            roll, pitch, yaw,
+            cx,
+            cy,
+            cz,
+            length,
+            width,
+            height,
+            roll,
+            pitch,
+            yaw,
             _pad: [0.0; 3],
         }
     }

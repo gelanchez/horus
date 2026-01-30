@@ -36,12 +36,12 @@
 //!         return (device_type, device_id)
 //! ```
 
-mod ffi;
 mod export;
+mod ffi;
 mod import;
 
-pub use ffi::{DLDataType, DLDevice, DLManagedTensor, DLTensor};
 pub use export::to_dlpack;
+pub use ffi::{DLDataType, DLDevice, DLManagedTensor, DLTensor};
 pub use import::from_dlpack;
 
 /// DLPack version supported by this implementation

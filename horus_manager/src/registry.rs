@@ -548,8 +548,15 @@ impl RegistryClient {
             if response.status() == reqwest::StatusCode::GONE {
                 let body = response.text().unwrap_or_default();
                 if let Ok(json) = serde_json::from_str::<serde_json::Value>(&body) {
-                    let reason = json.get("reason").and_then(|v| v.as_str()).unwrap_or("No reason given");
-                    return Err(anyhow!("Package {} has been yanked: {}", package_name, reason));
+                    let reason = json
+                        .get("reason")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("No reason given");
+                    return Err(anyhow!(
+                        "Package {} has been yanked: {}",
+                        package_name,
+                        reason
+                    ));
                 }
             }
             return Err(anyhow!("Package not found: {}", package_name));
@@ -705,7 +712,11 @@ impl RegistryClient {
 
         // Log signature if present
         if let Some(sig) = &pkg_signature {
-            println!("   {} Signed package (signature: {}...)", "".green(), &sig[..16.min(sig.len())]);
+            println!(
+                "   {} Signed package (signature: {}...)",
+                "".green(),
+                &sig[..16.min(sig.len())]
+            );
         }
 
         // Pre-compile if installed to global cache and is Rust/C package
@@ -1182,7 +1193,8 @@ impl RegistryClient {
     ) -> Result<()> {
         // Filter dependencies by target platform
         let current_platform = format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH);
-        let dependencies: Vec<DependencySpec> = dependencies.iter()
+        let dependencies: Vec<DependencySpec> = dependencies
+            .iter()
             .filter(|dep| {
                 match &dep.target {
                     Some(t) => t == &current_platform || t == std::env::consts::OS,
@@ -1352,11 +1364,7 @@ impl RegistryClient {
                                         "\n{} Cannot publish package with path dependencies!",
                                         "Error:".red()
                                     );
-                                    println!(
-                                        "  Path dependency: {} -> {}",
-                                        dep.name,
-                                        p.display()
-                                    );
+                                    println!("  Path dependency: {} -> {}", dep.name, p.display());
                                     println!(
                                         "\n{}",
                                         "Path dependencies are not reproducible and cannot be published."
@@ -1394,10 +1402,8 @@ impl RegistryClient {
                                     "\n{} Cannot publish package with path dependencies!",
                                     "Error:".red()
                                 );
-                                let path_val = table
-                                    .get("path")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("?");
+                                let path_val =
+                                    table.get("path").and_then(|v| v.as_str()).unwrap_or("?");
                                 println!("  Path dependency: {} -> {}", dep_name, path_val);
                                 has_path_deps = true;
                             }
@@ -1504,7 +1510,10 @@ impl RegistryClient {
 
         if dry_run {
             form = form.text("dry_run", "true");
-            println!(" {} Running in dry-run mode (no changes will be made)", "".cyan());
+            println!(
+                " {} Running in dry-run mode (no changes will be made)",
+                "".cyan()
+            );
         }
 
         // Sign package if signing key exists
@@ -1516,15 +1525,20 @@ impl RegistryClient {
             let key_bytes = fs::read(&signing_key_path)?;
             if key_bytes.len() == 32 {
                 let signing_key = SigningKey::from_bytes(
-                    key_bytes.as_slice().try_into()
-                        .map_err(|_| anyhow!("Invalid signing key format"))?
+                    key_bytes
+                        .as_slice()
+                        .try_into()
+                        .map_err(|_| anyhow!("Invalid signing key format"))?,
                 );
                 let signature = signing_key.sign(&package_data);
                 let sig_hex = hex::encode(signature.to_bytes());
                 form = form.text("signature", sig_hex);
                 println!(" {} Package signed with Ed25519 key", "".green());
             } else {
-                eprintln!(" {} Signing key has invalid length, skipping signature", "".yellow());
+                eprintln!(
+                    " {} Signing key has invalid length, skipping signature",
+                    "".yellow()
+                );
             }
         }
 
@@ -1600,7 +1614,12 @@ impl RegistryClient {
         // Handle dry-run response
         if dry_run {
             if response_json.get("dry_run") == Some(&serde_json::json!(true)) {
-                println!(" {} Dry run passed! Package {} v{} is valid and ready to publish.", "".green(), name, version);
+                println!(
+                    " {} Dry run passed! Package {} v{} is valid and ready to publish.",
+                    "".green(),
+                    name,
+                    version
+                );
                 if let Some(size) = response_json.get("size").and_then(|v| v.as_u64()) {
                     println!("   Package size: {:.2} MB", size as f64 / (1024.0 * 1024.0));
                 }
@@ -2787,12 +2806,7 @@ fn detect_package_info(dir: &Path) -> Result<PackageManifest> {
                         .to_string(),
                 );
             } else if trimmed.starts_with("categories:") {
-                categories = Some(
-                    trimmed
-                        .trim_start_matches("categories:")
-                        .trim()
-                        .to_string(),
-                );
+                categories = Some(trimmed.trim_start_matches("categories:").trim().to_string());
             }
         }
 
@@ -2812,8 +2826,8 @@ fn detect_package_info(dir: &Path) -> Result<PackageManifest> {
     let cargo_toml = dir.join("Cargo.toml");
     if cargo_toml.exists() {
         let content = fs::read_to_string(&cargo_toml)?;
-        let toml_value: toml::Value = toml::from_str(&content)
-            .map_err(|e| anyhow!("Failed to parse Cargo.toml: {}", e))?;
+        let toml_value: toml::Value =
+            toml::from_str(&content).map_err(|e| anyhow!("Failed to parse Cargo.toml: {}", e))?;
 
         let package = toml_value
             .get("package")
@@ -2847,9 +2861,7 @@ fn detect_package_info(dir: &Path) -> Result<PackageManifest> {
             .map(|s| s.to_string());
 
         // Check [package.metadata.horus] for horus-specific fields
-        let horus_meta = package
-            .get("metadata")
-            .and_then(|m| m.get("horus"));
+        let horus_meta = package.get("metadata").and_then(|m| m.get("horus"));
 
         let package_type = horus_meta
             .and_then(|h| h.get("package_type"))
@@ -2915,14 +2927,12 @@ fn detect_package_info(dir: &Path) -> Result<PackageManifest> {
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
 
-        let source_url = json
-            .get("repository")
-            .and_then(|v| {
-                // repository can be a string or an object with "url"
-                v.as_str()
-                    .map(|s| s.to_string())
-                    .or_else(|| v.get("url").and_then(|u| u.as_str()).map(|s| s.to_string()))
-            });
+        let source_url = json.get("repository").and_then(|v| {
+            // repository can be a string or an object with "url"
+            v.as_str()
+                .map(|s| s.to_string())
+                .or_else(|| v.get("url").and_then(|u| u.as_str()).map(|s| s.to_string()))
+        });
 
         return Ok(PackageManifest {
             name,
@@ -3995,7 +4005,12 @@ impl RegistryClient {
 
 impl RegistryClient {
     /// Update installed packages to their latest versions
-    pub fn update_packages(&self, package: Option<&str>, global: bool, dry_run: bool) -> Result<()> {
+    pub fn update_packages(
+        &self,
+        package: Option<&str>,
+        global: bool,
+        dry_run: bool,
+    ) -> Result<()> {
         let home = dirs::home_dir().ok_or_else(|| anyhow!("Could not find home directory"))?;
 
         // Determine which directories to scan
@@ -4045,7 +4060,10 @@ impl RegistryClient {
                 let metadata: serde_json::Value = serde_json::from_str(&metadata_str)?;
 
                 let pkg_name = metadata.get("name").and_then(|v| v.as_str()).unwrap_or("");
-                let pkg_version = metadata.get("version").and_then(|v| v.as_str()).unwrap_or("");
+                let pkg_version = metadata
+                    .get("version")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
 
                 if pkg_name.is_empty() || pkg_version.is_empty() {
                     continue;
@@ -4066,10 +4084,9 @@ impl RegistryClient {
                         if let Ok(info) = response.json::<serde_json::Value>() {
                             let latest = info.get("version").and_then(|v| v.as_str()).unwrap_or("");
                             if !latest.is_empty() {
-                                if let (Ok(current), Ok(latest_ver)) = (
-                                    Version::parse(pkg_version),
-                                    Version::parse(latest),
-                                ) {
+                                if let (Ok(current), Ok(latest_ver)) =
+                                    (Version::parse(pkg_version), Version::parse(latest))
+                                {
                                     if latest_ver > current {
                                         updates.push((
                                             pkg_name.to_string(),
@@ -4096,8 +4113,8 @@ impl RegistryClient {
 
         // Print summary
         println!("\n{} packages can be updated:\n", updates.len());
-        println!("  {:<30} {:<15} {}", "Package", "Current", "Latest");
-        println!("  {:<30} {:<15} {}", "-------", "-------", "------");
+        println!("  {:<30} {:<15} Latest", "Package", "Current");
+        println!("  {:<30} {:<15} ------", "-------", "-------");
         for (name, old_ver, new_ver, _) in &updates {
             println!(
                 "  {:<30} {:<15} {}",
@@ -4126,13 +4143,16 @@ impl RegistryClient {
                 crate::workspace::InstallTarget::Local(PathBuf::from("."))
             };
 
-            match self.install_from_registry(&name, Some(new_ver.as_str()), target) {
+            match self.install_from_registry(name, Some(new_ver.as_str()), target) {
                 Ok(_) => {
                     // Remove old version directory if it differs
                     if old_path.exists() {
                         let _ = fs::remove_dir_all(old_path);
                     }
-                    finish_success(&spinner, &format!("Updated {} {} -> {}", name, old_ver, new_ver));
+                    finish_success(
+                        &spinner,
+                        &format!("Updated {} {} -> {}", name, old_ver, new_ver),
+                    );
                 }
                 Err(e) => {
                     finish_error(&spinner, &format!("Failed to update {}: {}", name, e));
@@ -4156,7 +4176,11 @@ impl RegistryClient {
             return Ok(());
         }
 
-        println!("  {} Installing {} dependencies in parallel...", "".cyan(), deps.len());
+        println!(
+            "  {} Installing {} dependencies in parallel...",
+            "".cyan(),
+            deps.len()
+        );
 
         // Cap at 8 parallel threads
         let pool = rayon::ThreadPoolBuilder::new()
@@ -4165,24 +4189,34 @@ impl RegistryClient {
             .map_err(|e| anyhow!("Failed to create thread pool: {}", e))?;
 
         let results: Vec<Result<()>> = pool.install(|| {
-            deps.par_iter().map(|dep| {
-                // Each thread gets its own RegistryClient (cheap — just a reqwest::blocking::Client)
-                let client = RegistryClient::new();
-                let version_req = dep.requirement.to_string();
-                let version = if version_req == "*" { None } else { Some(version_req.as_str()) };
-                match client.install_from_registry(&dep.name, version, target.clone()) {
-                    Ok(_) => Ok(()),
-                    Err(e) => {
-                        eprintln!("  {} Failed to install {}: {}", "".red(), dep.name, e);
-                        Err(e)
+            deps.par_iter()
+                .map(|dep| {
+                    // Each thread gets its own RegistryClient (cheap — just a reqwest::blocking::Client)
+                    let client = RegistryClient::new();
+                    let version_req = dep.requirement.to_string();
+                    let version = if version_req == "*" {
+                        None
+                    } else {
+                        Some(version_req.as_str())
+                    };
+                    match client.install_from_registry(&dep.name, version, target.clone()) {
+                        Ok(_) => Ok(()),
+                        Err(e) => {
+                            eprintln!("  {} Failed to install {}: {}", "".red(), dep.name, e);
+                            Err(e)
+                        }
                     }
-                }
-            }).collect()
+                })
+                .collect()
         });
 
         let failures: Vec<_> = results.iter().filter(|r| r.is_err()).collect();
         if !failures.is_empty() {
-            eprintln!("  {} {} dependencies failed to install", "".yellow(), failures.len());
+            eprintln!(
+                "  {} {} dependencies failed to install",
+                "".yellow(),
+                failures.len()
+            );
         }
 
         Ok(())
@@ -4232,7 +4266,10 @@ pub fn generate_signing_keypair() -> Result<()> {
     println!("   Secret key: {}", secret_path.display());
     println!("   Public key: {}", public_path.display());
     println!("   Public key (hex): {}", pub_hex);
-    println!("\n   {} Keep your secret key safe! Anyone with it can sign packages as you.", "".yellow());
+    println!(
+        "\n   {} Keep your secret key safe! Anyone with it can sign packages as you.",
+        "".yellow()
+    );
 
     Ok(())
 }

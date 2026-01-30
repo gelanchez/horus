@@ -38,9 +38,9 @@ use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use crate::core::{LogSummary, NodeInfo};
-use std::time::Instant;
 use crate::error::{HorusError, HorusResult};
 use crate::memory::shm_region::ShmRegion;
+use std::time::Instant;
 
 // Re-export PodMessage for users
 pub use crate::communication::pod::PodMessage;
@@ -287,29 +287,19 @@ fn select_backend(config: &TopicConfig, is_pod: bool) -> SelectedBackend {
     // Auto-selection based on topology and pattern
     match (config.topology, config.access_pattern) {
         // Same-thread: DirectChannel (~3-5ns)
-        (ProcessTopology::SameThread, AccessPattern::Spsc) => {
-            SelectedBackend::DirectChannel
-        }
+        (ProcessTopology::SameThread, AccessPattern::Spsc) => SelectedBackend::DirectChannel,
 
         // Same-process SPSC: SpscIntra (~18ns)
-        (ProcessTopology::SameProcess, AccessPattern::Spsc) => {
-            SelectedBackend::SpscIntra
-        }
+        (ProcessTopology::SameProcess, AccessPattern::Spsc) => SelectedBackend::SpscIntra,
 
         // Same-process MPSC: MpscIntra (~26ns)
-        (ProcessTopology::SameProcess, AccessPattern::Mpsc) => {
-            SelectedBackend::MpscIntra
-        }
+        (ProcessTopology::SameProcess, AccessPattern::Mpsc) => SelectedBackend::MpscIntra,
 
         // Same-process SPMC: SpmcIntra (~40ns)
-        (ProcessTopology::SameProcess, AccessPattern::Spmc) => {
-            SelectedBackend::SpmcIntra
-        }
+        (ProcessTopology::SameProcess, AccessPattern::Spmc) => SelectedBackend::SpmcIntra,
 
         // Same-process MPMC: MpmcIntra (~80ns)
-        (ProcessTopology::SameProcess, AccessPattern::Mpmc) => {
-            SelectedBackend::MpmcIntra
-        }
+        (ProcessTopology::SameProcess, AccessPattern::Mpmc) => SelectedBackend::MpmcIntra,
 
         // Cross-process SPSC: PodShm (~50ns) for POD, SpscShm (~85ns) otherwise
         (ProcessTopology::CrossProcess, AccessPattern::Spsc) => {
@@ -321,14 +311,10 @@ fn select_backend(config: &TopicConfig, is_pod: bool) -> SelectedBackend {
         }
 
         // Cross-process MPSC: MpscShm (~65ns)
-        (ProcessTopology::CrossProcess, AccessPattern::Mpsc) => {
-            SelectedBackend::MpscShm
-        }
+        (ProcessTopology::CrossProcess, AccessPattern::Mpsc) => SelectedBackend::MpscShm,
 
         // Cross-process SPMC: SpmcShm (~70ns)
-        (ProcessTopology::CrossProcess, AccessPattern::Spmc) => {
-            SelectedBackend::SpmcShm
-        }
+        (ProcessTopology::CrossProcess, AccessPattern::Spmc) => SelectedBackend::SpmcShm,
 
         // Cross-process MPMC (and any remaining): MpmcShm (safe default)
         _ => SelectedBackend::MpmcShm,
@@ -340,8 +326,8 @@ fn select_backend(config: &TopicConfig, is_pod: bool) -> SelectedBackend {
 // ============================================================================
 
 use std::collections::HashMap;
-use std::sync::RwLock;
 use std::process;
+use std::sync::RwLock;
 
 /// Entry in the topic registry tracking participants
 #[derive(Debug, Clone)]
@@ -599,10 +585,9 @@ struct MpmcShmBackend<T> {
 
 impl<T> MpmcShmBackend<T> {
     fn new(name: &str, capacity: usize) -> HorusResult<Self> {
-        let shm_topic = crate::memory::shm_topic::ShmTopic::new(name, capacity)
-            .map_err(|e| HorusError::Communication(format!(
-                "Failed to create MPMC backend '{}': {}", name, e
-            )))?;
+        let shm_topic = crate::memory::shm_topic::ShmTopic::new(name, capacity).map_err(|e| {
+            HorusError::Communication(format!("Failed to create MPMC backend '{}': {}", name, e))
+        })?;
 
         Ok(Self {
             inner: Arc::new(shm_topic),
@@ -691,7 +676,9 @@ impl<T: Clone + Send + Sync + 'static> SpscShmBackend<T> {
 
         // Safety: validate pointer
         if header_ptr.is_null() {
-            return Err(HorusError::Communication("Null pointer for SPSC header".into()));
+            return Err(HorusError::Communication(
+                "Null pointer for SPSC header".into(),
+            ));
         }
 
         let header = unsafe { NonNull::new_unchecked(header_ptr) };
@@ -699,15 +686,16 @@ impl<T: Clone + Send + Sync + 'static> SpscShmBackend<T> {
         // Initialize header if owner
         if is_owner {
             unsafe {
-                (*header.as_ptr()).element_size.store(data_size, Ordering::Relaxed);
+                (*header.as_ptr())
+                    .element_size
+                    .store(data_size, Ordering::Relaxed);
                 (*header.as_ptr()).sequence.store(0, Ordering::Release);
             }
         }
 
         // Calculate data pointer (after header)
-        let data_ptr = unsafe {
-            NonNull::new_unchecked(region.as_ptr().add(header_size) as *mut u8)
-        };
+        let data_ptr =
+            unsafe { NonNull::new_unchecked(region.as_ptr().add(header_size) as *mut u8) };
 
         Ok(Self {
             region,
@@ -876,7 +864,7 @@ impl<T: Clone + Send + Sync + 'static> MpscShmBackend<T> {
         let slot_header_size = mem::size_of::<MpscShmSlot>();
         let data_size = mem::size_of::<T>();
         // Align slot stride to 64 bytes for cache efficiency
-        let slot_stride = ((slot_header_size + data_size + 63) / 64) * 64;
+        let slot_stride = (slot_header_size + data_size).div_ceil(64) * 64;
         let total_size = header_size + (slot_stride * capacity);
 
         let region = Arc::new(ShmRegion::new(name, total_size)?);
@@ -884,7 +872,9 @@ impl<T: Clone + Send + Sync + 'static> MpscShmBackend<T> {
 
         let header_ptr = region.as_ptr() as *mut MpscShmHeader;
         if header_ptr.is_null() {
-            return Err(HorusError::Communication("Null pointer for MpscShm header".into()));
+            return Err(HorusError::Communication(
+                "Null pointer for MpscShm header".into(),
+            ));
         }
         let header = unsafe { NonNull::new_unchecked(header_ptr) };
 
@@ -910,7 +900,9 @@ impl<T: Clone + Send + Sync + 'static> MpscShmBackend<T> {
             // Validate existing region
             let h = unsafe { header.as_ref() };
             if h.magic != MPSC_SHM_MAGIC {
-                return Err(HorusError::Communication("Invalid MpscShm magic number".into()));
+                return Err(HorusError::Communication(
+                    "Invalid MpscShm magic number".into(),
+                ));
             }
             if h.element_size != data_size as u64 {
                 return Err(HorusError::Communication(format!(
@@ -920,9 +912,8 @@ impl<T: Clone + Send + Sync + 'static> MpscShmBackend<T> {
             }
         }
 
-        let slots_ptr = unsafe {
-            NonNull::new_unchecked(region.as_ptr().add(header_size) as *mut u8)
-        };
+        let slots_ptr =
+            unsafe { NonNull::new_unchecked(region.as_ptr().add(header_size) as *mut u8) };
 
         Ok(Self {
             region,
@@ -944,16 +935,12 @@ impl<T: Clone + Send + Sync + 'static> MpscShmBackend<T> {
 
     #[inline]
     fn get_slot(&self, index: usize) -> *mut MpscShmSlot {
-        unsafe {
-            self.slots_ptr.as_ptr().add(index * self.slot_stride) as *mut MpscShmSlot
-        }
+        unsafe { self.slots_ptr.as_ptr().add(index * self.slot_stride) as *mut MpscShmSlot }
     }
 
     #[inline]
     fn get_data_ptr(&self, slot: *mut MpscShmSlot) -> *mut u8 {
-        unsafe {
-            (slot as *mut u8).add(mem::size_of::<MpscShmSlot>())
-        }
+        unsafe { (slot as *mut u8).add(mem::size_of::<MpscShmSlot>()) }
     }
 }
 
@@ -977,12 +964,11 @@ impl<T: Clone + Send + Sync + 'static> TopicBackendTrait<T> for MpscShmBackend<T
 
             if diff == 0 {
                 // Slot ready for writing, try to claim
-                if header.tail.compare_exchange_weak(
-                    tail,
-                    tail + 1,
-                    Ordering::Relaxed,
-                    Ordering::Relaxed,
-                ).is_ok() {
+                if header
+                    .tail
+                    .compare_exchange_weak(tail, tail + 1, Ordering::Relaxed, Ordering::Relaxed)
+                    .is_ok()
+                {
                     // Write data
                     unsafe {
                         let data_ptr = self.get_data_ptr(slot);
@@ -1033,7 +1019,9 @@ impl<T: Clone + Send + Sync + 'static> TopicBackendTrait<T> for MpscShmBackend<T
                     mem::size_of::<T>(),
                 );
                 // Mark slot as empty for producers
-                (*slot).sequence.store(head + capacity as u64, Ordering::Release);
+                (*slot)
+                    .sequence
+                    .store(head + capacity as u64, Ordering::Release);
                 result.assume_init()
             };
             // Advance head
@@ -1123,14 +1111,16 @@ impl<T: Clone + Send + Sync + 'static> SpmcShmBackend<T> {
         let header_size = mem::size_of::<SpmcShmHeader>();
         let data_size = mem::size_of::<T>();
         // Align data to 64 bytes for cache efficiency
-        let total_size = header_size + ((data_size + 63) / 64) * 64;
+        let total_size = header_size + data_size.div_ceil(64) * 64;
 
         let region = Arc::new(ShmRegion::new(name, total_size)?);
         let is_owner = region.is_owner();
 
         let header_ptr = region.as_ptr() as *mut SpmcShmHeader;
         if header_ptr.is_null() {
-            return Err(HorusError::Communication("Null pointer for SpmcShm header".into()));
+            return Err(HorusError::Communication(
+                "Null pointer for SpmcShm header".into(),
+            ));
         }
         let header = unsafe { NonNull::new_unchecked(header_ptr) };
 
@@ -1146,7 +1136,9 @@ impl<T: Clone + Send + Sync + 'static> SpmcShmBackend<T> {
             // Validate existing region
             let h = unsafe { header.as_ref() };
             if h.magic != SPMC_SHM_MAGIC {
-                return Err(HorusError::Communication("Invalid SpmcShm magic number".into()));
+                return Err(HorusError::Communication(
+                    "Invalid SpmcShm magic number".into(),
+                ));
             }
             if h.element_size != data_size as u64 {
                 return Err(HorusError::Communication(format!(
@@ -1156,9 +1148,8 @@ impl<T: Clone + Send + Sync + 'static> SpmcShmBackend<T> {
             }
         }
 
-        let data_ptr = unsafe {
-            NonNull::new_unchecked(region.as_ptr().add(header_size) as *mut u8)
-        };
+        let data_ptr =
+            unsafe { NonNull::new_unchecked(region.as_ptr().add(header_size) as *mut u8) };
 
         Ok(Self {
             region,
@@ -1343,7 +1334,9 @@ impl<T: PodMessage> PodShmBackend<T> {
 
         // Safety: validate pointer
         if header_ptr.is_null() {
-            return Err(HorusError::Communication("Null pointer for POD header".into()));
+            return Err(HorusError::Communication(
+                "Null pointer for POD header".into(),
+            ));
         }
 
         let header = unsafe { NonNull::new_unchecked(header_ptr) };
@@ -1376,9 +1369,8 @@ impl<T: PodMessage> PodShmBackend<T> {
         }
 
         // Calculate data pointer (after header)
-        let data_ptr = unsafe {
-            NonNull::new_unchecked(region.as_ptr().add(header_size) as *mut u8)
-        };
+        let data_ptr =
+            unsafe { NonNull::new_unchecked(region.as_ptr().add(header_size) as *mut u8) };
 
         Ok(Self {
             region,
@@ -1434,9 +1426,7 @@ impl<T: PodMessage> TopicBackendTrait<T> for PodShmBackend<T> {
         }
 
         // Zero-copy read using PodMessage trait
-        let msg = unsafe {
-            T::read_from_ptr(self.data_ptr.as_ptr())
-        };
+        let msg = unsafe { T::read_from_ptr(self.data_ptr.as_ptr()) };
 
         // Update last seen
         self.last_seen.store(current_seq, Ordering::Relaxed);
@@ -1506,11 +1496,7 @@ const CACHE_LINE_SIZE: usize = 128;
 /// the formula: padding = CACHE_LINE_SIZE - used_bytes
 #[allow(dead_code)]
 const fn cache_line_padding(used_bytes: usize) -> usize {
-    if used_bytes >= CACHE_LINE_SIZE {
-        0
-    } else {
-        CACHE_LINE_SIZE - used_bytes
-    }
+    CACHE_LINE_SIZE.saturating_sub(used_bytes)
 }
 
 // ============================================================================
@@ -1563,14 +1549,18 @@ fn cold() {}
 /// Mark a condition as unlikely (branch prediction hint)
 #[inline(always)]
 fn unlikely(b: bool) -> bool {
-    if b { cold() }
+    if b {
+        cold()
+    }
     b
 }
 
 /// Mark a condition as likely (branch prediction hint)
 #[inline(always)]
 fn likely(b: bool) -> bool {
-    if !b { cold() }
+    if !b {
+        cold()
+    }
     b
 }
 
@@ -1933,7 +1923,7 @@ impl<T: Clone + Send + Sync + 'static> TopicBackendTrait<T> for SpscIntraBackend
         // Optimized seqlock write protocol:
         // Use local sequence cache to avoid atomic read
         let seq = self.local_seq.load(Ordering::Relaxed);
-        debug_assert!(seq % 2 == 0, "Double push detected");
+        debug_assert!(seq.is_multiple_of(2), "Double push detected");
 
         // 1. Store odd sequence (signals write in progress)
         // Use Release to ensure previous writes are visible before odd marker
@@ -1979,9 +1969,7 @@ impl<T: Clone + Send + Sync + 'static> TopicBackendTrait<T> for SpscIntraBackend
 
         // 2. Read data
         // Safety: Sequence is even, so no write in progress
-        let data = unsafe {
-            (*self.slot.data.data.get()).assume_init_read()
-        };
+        let data = unsafe { (*self.slot.data.data.get()).assume_init_read() };
 
         // 3. Verify sequence didn't change during read (acquire fence)
         let seq2 = self.slot.sequence.value.load(Ordering::Acquire);
@@ -2103,9 +2091,7 @@ impl<T> MpscRing<T> {
         let mask = capacity - 1;
 
         // Initialize slots with their sequence numbers
-        let buffer: Vec<MpscSlot<T>> = (0..capacity)
-            .map(|i| MpscSlot::new(i as u64))
-            .collect();
+        let buffer: Vec<MpscSlot<T>> = (0..capacity).map(|i| MpscSlot::new(i as u64)).collect();
 
         Self {
             tail: MpscCounter::new(0),
@@ -2135,12 +2121,17 @@ impl<T> MpscRing<T> {
 
             if diff == 0 {
                 // Slot is ready for writing - try to claim it
-                if self.tail.value.compare_exchange_weak(
-                    tail,
-                    tail.wrapping_add(1),
-                    Ordering::Relaxed,
-                    Ordering::Relaxed,
-                ).is_ok() {
+                if self
+                    .tail
+                    .value
+                    .compare_exchange_weak(
+                        tail,
+                        tail.wrapping_add(1),
+                        Ordering::Relaxed,
+                        Ordering::Relaxed,
+                    )
+                    .is_ok()
+                {
                     // We claimed the slot, write the data
                     unsafe {
                         slot.data.get().write(mem::MaybeUninit::new(value));
@@ -2180,11 +2171,10 @@ impl<T> MpscRing<T> {
 
         if likely(seq == expected) {
             // Fast path: data is ready, prefetch already brought it into cache
-            let value = unsafe {
-                (*slot.data.get()).assume_init_read()
-            };
+            let value = unsafe { (*slot.data.get()).assume_init_read() };
             // Mark slot as empty for next round (sequence = head + capacity)
-            slot.sequence.store(head.wrapping_add(self.capacity as u64), Ordering::Release);
+            slot.sequence
+                .store(head.wrapping_add(self.capacity as u64), Ordering::Release);
             // Advance head
             self.head.value.store(expected, Ordering::Relaxed);
             Some(value)
@@ -2468,7 +2458,7 @@ impl<T: Clone + Send + Sync + 'static> TopicBackendTrait<T> for SpmcIntraBackend
         // Seqlock write protocol:
         // 1. Increment to odd (signals write in progress)
         let seq = self.slot.sequence.fetch_add(1, Ordering::Acquire);
-        debug_assert!(seq % 2 == 0, "Double push detected");
+        debug_assert!(seq.is_multiple_of(2), "Double push detected");
 
         // 2. Write data
         // Safety: We're the only producer, sequence is odd so consumers will retry
@@ -2507,9 +2497,7 @@ impl<T: Clone + Send + Sync + 'static> TopicBackendTrait<T> for SpmcIntraBackend
 
             // 2. Read data
             // Safety: Sequence is even, so no write in progress
-            let data = unsafe {
-                (*self.slot.data.get()).assume_init_read()
-            };
+            let data = unsafe { (*self.slot.data.get()).assume_init_read() };
 
             // 3. Verify sequence didn't change during read
             let seq2 = self.slot.sequence.load(Ordering::Acquire);
@@ -2662,9 +2650,7 @@ impl<T> MpmcRing<T> {
         let mask = capacity - 1;
 
         // Initialize slots with their sequence numbers
-        let buffer: Vec<MpmcSlot<T>> = (0..capacity)
-            .map(|i| MpmcSlot::new(i as u64))
-            .collect();
+        let buffer: Vec<MpmcSlot<T>> = (0..capacity).map(|i| MpmcSlot::new(i as u64)).collect();
 
         Self {
             tail: MpmcCounter::new(0),
@@ -2697,12 +2683,12 @@ impl<T> MpmcRing<T> {
 
             if diff == 0 {
                 // Slot is ready for writing - try to claim it
-                if self.tail.value.compare_exchange_weak(
-                    tail,
-                    tail + 1,
-                    Ordering::Relaxed,
-                    Ordering::Relaxed,
-                ).is_ok() {
+                if self
+                    .tail
+                    .value
+                    .compare_exchange_weak(tail, tail + 1, Ordering::Relaxed, Ordering::Relaxed)
+                    .is_ok()
+                {
                     // We claimed the slot, write the data
                     unsafe {
                         slot.data.get().write(mem::MaybeUninit::new(value));
@@ -2743,18 +2729,17 @@ impl<T> MpmcRing<T> {
 
             if diff == 0 {
                 // Slot has data ready - try to claim it
-                if self.head.value.compare_exchange_weak(
-                    head,
-                    head + 1,
-                    Ordering::Relaxed,
-                    Ordering::Relaxed,
-                ).is_ok() {
+                if self
+                    .head
+                    .value
+                    .compare_exchange_weak(head, head + 1, Ordering::Relaxed, Ordering::Relaxed)
+                    .is_ok()
+                {
                     // We claimed the slot, read the data (already in cache)
-                    let value = unsafe {
-                        (*slot.data.get()).assume_init_read()
-                    };
+                    let value = unsafe { (*slot.data.get()).assume_init_read() };
                     // Mark slot as empty for next round
-                    slot.sequence.store(head + self.capacity as u64, Ordering::Release);
+                    slot.sequence
+                        .store(head + self.capacity as u64, Ordering::Release);
                     return Some(value);
                 }
                 // CAS failed, another consumer got it - fast retry
@@ -3002,9 +2987,10 @@ where
 // ============================================================================
 
 /// Connection state for Topic connections
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ConnectionState {
     /// Not connected
+    #[default]
     Disconnected,
     /// Connection in progress
     Connecting,
@@ -3039,12 +3025,6 @@ impl ConnectionState {
             3 => ConnectionState::Reconnecting,
             _ => ConnectionState::Failed,
         }
-    }
-}
-
-impl Default for ConnectionState {
-    fn default() -> Self {
-        ConnectionState::Disconnected
     }
 }
 
@@ -3265,9 +3245,7 @@ impl<T: Clone> Clone for Topic<T> {
                 }
             },
             metrics: self.metrics.clone(),
-            state: std::sync::atomic::AtomicU8::new(
-                self.state.load(Ordering::Relaxed),
-            ),
+            state: std::sync::atomic::AtomicU8::new(self.state.load(Ordering::Relaxed)),
             _marker: PhantomData,
         }
     }
@@ -3347,7 +3325,9 @@ where
 
         log::info!(
             "Topic '{}': Created with AdaptiveTopic (mode={:?}, latency=~{}ns)",
-            name, adaptive.mode(), adaptive.mode().expected_latency_ns()
+            name,
+            adaptive.mode(),
+            adaptive.mode().expected_latency_ns()
         );
 
         Ok(Self {
@@ -3390,9 +3370,7 @@ where
         let selected = select_backend(&config, is_pod);
 
         match selected {
-            SelectedBackend::DirectChannel => {
-                Ok(Self::direct(config.name))
-            }
+            SelectedBackend::DirectChannel => Ok(Self::direct(config.name)),
             SelectedBackend::SpscIntra => {
                 // SpscIntra returns (producer, consumer) - for now return producer
                 // TODO: Better API for SPSC where you need both ends
@@ -3432,22 +3410,16 @@ where
                     Ok(consumer)
                 }
             }
-            SelectedBackend::SpscShm => {
-                Self::spsc_shm(config.name, config.is_producer)
-            }
+            SelectedBackend::SpscShm => Self::spsc_shm(config.name, config.is_producer),
             SelectedBackend::PodShm => {
                 // PodShm requires PodMessage trait - fall back to SpscShm
                 Self::spsc_shm(config.name, config.is_producer)
             }
-            SelectedBackend::MpmcShm => {
-                Self::with_capacity(config.name, config.capacity as usize)
-            }
+            SelectedBackend::MpmcShm => Self::with_capacity(config.name, config.capacity as usize),
             SelectedBackend::MpscShm => {
                 Self::mpsc_shm(config.name, config.capacity as usize, config.is_producer)
             }
-            SelectedBackend::SpmcShm => {
-                Self::spmc_shm(config.name, config.is_producer)
-            }
+            SelectedBackend::SpmcShm => Self::spmc_shm(config.name, config.is_producer),
             SelectedBackend::Network => {
                 // Network backend requires Serialize + DeserializeOwned - use from_endpoint() instead
                 Err(HorusError::Communication(
@@ -3751,7 +3723,11 @@ where
     ///
     /// Only one consumer should exist across all processes. Multiple consumers
     /// will corrupt the queue state.
-    pub fn mpsc_shm(name: impl Into<String>, capacity: usize, is_producer: bool) -> HorusResult<Self> {
+    pub fn mpsc_shm(
+        name: impl Into<String>,
+        capacity: usize,
+        is_producer: bool,
+    ) -> HorusResult<Self> {
         let name = name.into();
         let backend = if is_producer {
             MpscShmBackend::producer(&name, capacity)?
@@ -4244,7 +4220,8 @@ where
         match &result {
             Ok(()) => {
                 self.metrics.inc_sent();
-                self.state.store(ConnectionState::Connected.into_u8(), Ordering::Relaxed);
+                self.state
+                    .store(ConnectionState::Connected.into_u8(), Ordering::Relaxed);
             }
             Err(_) => {
                 self.metrics.inc_send_failures();
@@ -4293,7 +4270,8 @@ where
         match &result {
             Ok(()) => {
                 self.metrics.inc_sent();
-                self.state.store(ConnectionState::Connected.into_u8(), Ordering::Relaxed);
+                self.state
+                    .store(ConnectionState::Connected.into_u8(), Ordering::Relaxed);
 
                 // Write to introspection log buffer using thread-local node context
                 use crate::core::hlog::{current_node_name, current_tick_number};
@@ -4798,7 +4776,10 @@ mod tests {
 
     impl crate::core::LogSummary for TestMessage {
         fn log_summary(&self) -> String {
-            format!("TestMessage{{id: {}, payload: {:?}}}", self.id, self.payload)
+            format!(
+                "TestMessage{{id: {}, payload: {:?}}}",
+                self.id, self.payload
+            )
         }
     }
 
@@ -4942,7 +4923,8 @@ mod tests {
         let backend = topic1.backend_type();
         assert!(
             backend.contains("Adaptive") || backend.contains("Shm") || backend.contains("Intra"),
-            "Expected adaptive/shm/intra backend, got: {}", backend
+            "Expected adaptive/shm/intra backend, got: {}",
+            backend
         );
 
         let msg = TestMessage {
@@ -5131,13 +5113,23 @@ mod tests {
         }
         let elapsed = start.elapsed();
         let per_op_unchecked_ns = elapsed.as_nanos() as f64 / (iterations as f64 * 2.0);
-        println!("DirectChannel unchecked API per-op latency: {:.2}ns", per_op_unchecked_ns);
+        println!(
+            "DirectChannel unchecked API per-op latency: {:.2}ns",
+            per_op_unchecked_ns
+        );
 
         // Sanity check - safe API should be under 5µs (generous for parallel test execution)
-        assert!(per_op_ns < 5000.0, "DirectChannel safe too slow: {:.2}ns", per_op_ns);
+        assert!(
+            per_op_ns < 5000.0,
+            "DirectChannel safe too slow: {:.2}ns",
+            per_op_ns
+        );
 
         // Unchecked should be significantly faster than safe
-        assert!(per_op_unchecked_ns < per_op_ns, "Unchecked should be faster than safe");
+        assert!(
+            per_op_unchecked_ns < per_op_ns,
+            "Unchecked should be faster than safe"
+        );
     }
 
     // ========================================================================
@@ -5220,7 +5212,10 @@ mod tests {
                 // Due to single-slot design, we may skip some messages
                 // but IDs should be monotonically increasing
                 if let Some(last) = last_id {
-                    assert!(msg.id > last || msg.id == last, "ID should not go backwards");
+                    assert!(
+                        msg.id > last || msg.id == last,
+                        "ID should not go backwards"
+                    );
                 }
                 last_id = Some(msg.id);
             }
@@ -5230,7 +5225,10 @@ mod tests {
         producer_handle.join().unwrap();
 
         // We should have received at least one message
-        assert!(received_count > 0, "Should have received at least one message");
+        assert!(
+            received_count > 0,
+            "Should have received at least one message"
+        );
     }
 
     #[test]
@@ -5327,8 +5325,18 @@ mod tests {
         let producer2 = producer1.clone();
 
         // Send from both producers
-        producer1.send(TestMessage { id: 1, payload: "from_1".to_string() }).unwrap();
-        producer2.send(TestMessage { id: 2, payload: "from_2".to_string() }).unwrap();
+        producer1
+            .send(TestMessage {
+                id: 1,
+                payload: "from_1".to_string(),
+            })
+            .unwrap();
+        producer2
+            .send(TestMessage {
+                id: 2,
+                payload: "from_2".to_string(),
+            })
+            .unwrap();
 
         // Consumer should receive both
         let msg1 = consumer.recv().unwrap();
@@ -5343,7 +5351,12 @@ mod tests {
     fn test_mpsc_intra_producer_cannot_receive() {
         let (producer, _consumer) = Topic::<TestMessage>::mpsc_intra("mpsc_prod_recv", 64);
 
-        producer.send(TestMessage { id: 1, payload: "test".to_string() }).unwrap();
+        producer
+            .send(TestMessage {
+                id: 1,
+                payload: "test".to_string(),
+            })
+            .unwrap();
 
         // Producer should not be able to receive
         let result = producer.recv();
@@ -5354,7 +5367,10 @@ mod tests {
     fn test_mpsc_intra_consumer_cannot_send() {
         let (_producer, consumer) = Topic::<TestMessage>::mpsc_intra("mpsc_cons_send", 64);
 
-        let msg = TestMessage { id: 1, payload: "test".to_string() };
+        let msg = TestMessage {
+            id: 1,
+            payload: "test".to_string(),
+        };
         let result = consumer.send(msg);
 
         // Consumer should not be able to send
@@ -5368,12 +5384,18 @@ mod tests {
 
         // Fill the queue (capacity is rounded to power of 2, so 4)
         for i in 0..4 {
-            let result = producer.send(TestMessage { id: i, payload: format!("msg_{}", i) });
+            let result = producer.send(TestMessage {
+                id: i,
+                payload: format!("msg_{}", i),
+            });
             assert!(result.is_ok(), "Should be able to send message {}", i);
         }
 
         // Next send should fail (queue full)
-        let result = producer.send(TestMessage { id: 99, payload: "overflow".to_string() });
+        let result = producer.send(TestMessage {
+            id: 99,
+            payload: "overflow".to_string(),
+        });
         assert!(result.is_err(), "Queue should be full");
     }
 
@@ -5391,7 +5413,12 @@ mod tests {
 
         assert!(!consumer.has_messages());
 
-        producer.send(TestMessage { id: 1, payload: "test".to_string() }).unwrap();
+        producer
+            .send(TestMessage {
+                id: 1,
+                payload: "test".to_string(),
+            })
+            .unwrap();
 
         assert!(consumer.has_messages());
 
@@ -5470,8 +5497,12 @@ mod tests {
         consumer_handle.join().unwrap();
 
         let total_received = received_count.load(Ordering::SeqCst);
-        assert_eq!(total_received, num_producers * msgs_per_producer,
-            "Should receive all {} messages", num_producers * msgs_per_producer);
+        assert_eq!(
+            total_received,
+            num_producers * msgs_per_producer,
+            "Should receive all {} messages",
+            num_producers * msgs_per_producer
+        );
     }
 
     #[test]
@@ -5713,9 +5744,21 @@ mod tests {
         let r1 = received1.load(Ordering::SeqCst);
         let r2 = received2.load(Ordering::SeqCst);
         let r3 = received3.load(Ordering::SeqCst);
-        assert!(r1 >= 50, "Consumer 1 only saw value {} (expected >= 50)", r1);
-        assert!(r2 >= 50, "Consumer 2 only saw value {} (expected >= 50)", r2);
-        assert!(r3 >= 50, "Consumer 3 only saw value {} (expected >= 50)", r3);
+        assert!(
+            r1 >= 50,
+            "Consumer 1 only saw value {} (expected >= 50)",
+            r1
+        );
+        assert!(
+            r2 >= 50,
+            "Consumer 2 only saw value {} (expected >= 50)",
+            r2
+        );
+        assert!(
+            r3 >= 50,
+            "Consumer 3 only saw value {} (expected >= 50)",
+            r3
+        );
     }
 
     #[test]
@@ -5763,8 +5806,7 @@ mod tests {
 
     #[test]
     fn test_select_backend_explicit_spmc_intra() {
-        let config = TopicConfig::new("test")
-            .with_backend(BackendHint::SpmcIntra);
+        let config = TopicConfig::new("test").with_backend(BackendHint::SpmcIntra);
         let selected = Topic::<TestMessage>::selected_backend_for(&config);
         assert_eq!(selected, SelectedBackend::SpmcIntra);
     }
@@ -6054,8 +6096,7 @@ mod tests {
 
     #[test]
     fn test_select_backend_explicit_mpmc_intra() {
-        let config = TopicConfig::new("test")
-            .with_backend(BackendHint::MpmcIntra);
+        let config = TopicConfig::new("test").with_backend(BackendHint::MpmcIntra);
         let selected = Topic::<TestMessage>::selected_backend_for(&config);
         assert_eq!(selected, SelectedBackend::MpmcIntra);
     }
@@ -6080,8 +6121,7 @@ mod tests {
 
     #[test]
     fn test_select_backend_explicit_mpsc_intra() {
-        let config = TopicConfig::new("test")
-            .with_backend(BackendHint::MpscIntra);
+        let config = TopicConfig::new("test").with_backend(BackendHint::MpscIntra);
         let selected = Topic::<TestMessage>::selected_backend_for(&config);
         assert_eq!(selected, SelectedBackend::MpscIntra);
     }
@@ -6130,8 +6170,7 @@ mod tests {
 
     #[test]
     fn test_select_backend_explicit_hint() {
-        let config = TopicConfig::new("test")
-            .with_backend(BackendHint::SpscIntra);
+        let config = TopicConfig::new("test").with_backend(BackendHint::SpscIntra);
         let selected = Topic::<TestMessage>::selected_backend_for(&config);
         assert_eq!(selected, SelectedBackend::SpscIntra);
     }
@@ -6155,9 +6194,7 @@ mod tests {
     #[test]
     fn test_from_config_cross_process_mpmc() {
         let unique_name = format!("config_cross_mpmc_{}", std::process::id());
-        let config = TopicConfig::new(&unique_name)
-            .cross_process()
-            .mpmc();
+        let config = TopicConfig::new(&unique_name).cross_process().mpmc();
         let topic: Topic<TestMessage> = Topic::from_config(config).unwrap();
         // AdaptiveTopic is now used - starts as Unknown before first send/recv
         assert_eq!(topic.backend_type(), "Unknown (Adaptive)");
@@ -6379,7 +6416,10 @@ mod tests {
         assert_eq!(consumer.backend_type(), "MpscShm");
 
         // Send message
-        let msg = TestMessage { id: 42, payload: "test".to_string() };
+        let msg = TestMessage {
+            id: 42,
+            payload: "test".to_string(),
+        };
         producer.send(msg.clone()).unwrap();
 
         // Receive message
@@ -6406,7 +6446,12 @@ mod tests {
 
         assert!(!consumer.has_messages());
 
-        producer.send(TestMessage { id: 1, payload: "msg".to_string() }).unwrap();
+        producer
+            .send(TestMessage {
+                id: 1,
+                payload: "msg".to_string(),
+            })
+            .unwrap();
         assert!(consumer.has_messages());
 
         consumer.recv();
@@ -6420,7 +6465,12 @@ mod tests {
         let producer = Topic::<TestMessage>::mpsc_shm(&unique_name, 64, true).unwrap();
 
         // Send to self
-        producer.send(TestMessage { id: 1, payload: "msg".to_string() }).unwrap();
+        producer
+            .send(TestMessage {
+                id: 1,
+                payload: "msg".to_string(),
+            })
+            .unwrap();
 
         // Producer cannot receive
         assert!(producer.recv().is_none());
@@ -6433,7 +6483,10 @@ mod tests {
         let consumer = Topic::<TestMessage>::mpsc_shm(&unique_name, 64, false).unwrap();
 
         // Consumer cannot send
-        let result = consumer.send(TestMessage { id: 1, payload: "msg".to_string() });
+        let result = consumer.send(TestMessage {
+            id: 1,
+            payload: "msg".to_string(),
+        });
         assert!(result.is_err());
     }
 
@@ -6446,7 +6499,12 @@ mod tests {
 
         // Send multiple messages
         for i in 0..10 {
-            producer.send(TestMessage { id: i, payload: format!("msg{}", i) }).unwrap();
+            producer
+                .send(TestMessage {
+                    id: i,
+                    payload: format!("msg{}", i),
+                })
+                .unwrap();
         }
 
         // Receive in order (FIFO)
@@ -6468,12 +6526,18 @@ mod tests {
 
         // Fill the queue (capacity will be rounded to power of 2 = 4)
         for i in 0..4u64 {
-            let result = producer.send(TestMessage { id: i, payload: format!("msg{}", i) });
+            let result = producer.send(TestMessage {
+                id: i,
+                payload: format!("msg{}", i),
+            });
             assert!(result.is_ok(), "Failed to send message {}", i);
         }
 
         // Next send should fail
-        let result = producer.send(TestMessage { id: 999, payload: "overflow".to_string() });
+        let result = producer.send(TestMessage {
+            id: 999,
+            payload: "overflow".to_string(),
+        });
         assert!(result.is_err(), "Queue should be full");
     }
 
@@ -6496,8 +6560,18 @@ mod tests {
         let producer2 = producer.clone();
 
         // Both producers should work
-        producer.send(TestMessage { id: 1, payload: "p1".to_string() }).unwrap();
-        producer2.send(TestMessage { id: 2, payload: "p2".to_string() }).unwrap();
+        producer
+            .send(TestMessage {
+                id: 1,
+                payload: "p1".to_string(),
+            })
+            .unwrap();
+        producer2
+            .send(TestMessage {
+                id: 2,
+                payload: "p2".to_string(),
+            })
+            .unwrap();
 
         let consumer = Topic::<TestMessage>::mpsc_shm(&unique_name, 64, false).unwrap();
         let msg1 = consumer.recv().unwrap();
@@ -6520,8 +6594,7 @@ mod tests {
 
     #[test]
     fn test_select_backend_explicit_mpsc_shm() {
-        let config = TopicConfig::new("test")
-            .with_backend(BackendHint::MpscShm);
+        let config = TopicConfig::new("test").with_backend(BackendHint::MpscShm);
         let selected = Topic::<TestMessage>::selected_backend_for(&config);
         assert_eq!(selected, SelectedBackend::MpscShm);
     }
@@ -6665,7 +6738,10 @@ mod tests {
         let consumer = Topic::<SpmcTestMsg>::spmc_shm(&unique_name, false).unwrap();
 
         // Send a message
-        let msg = SpmcTestMsg { id: 42, value: 3.14 };
+        let msg = SpmcTestMsg {
+            id: 42,
+            value: 3.14,
+        };
         producer.send(msg.clone()).unwrap();
 
         // Receive the message
@@ -6674,7 +6750,6 @@ mod tests {
         let received = received.unwrap();
         assert_eq!(received.id, 42);
         assert!((received.value - 3.14).abs() < 0.001);
-
     }
 
     #[test]
@@ -6725,7 +6800,10 @@ mod tests {
         let consumer3 = Topic::<SpmcTestMsg>::spmc_shm(&unique_name, false).unwrap();
 
         // Send a message
-        let msg = SpmcTestMsg { id: 100, value: 2.71 };
+        let msg = SpmcTestMsg {
+            id: 100,
+            value: 2.71,
+        };
         producer.send(msg.clone()).unwrap();
 
         // All consumers should receive the same message
@@ -6747,7 +6825,12 @@ mod tests {
 
         // Send multiple messages - consumers get latest
         for i in 0..10 {
-            producer.send(SpmcTestMsg { id: i, value: i as f64 }).unwrap();
+            producer
+                .send(SpmcTestMsg {
+                    id: i,
+                    value: i as f64,
+                })
+                .unwrap();
         }
 
         // Consumer should see the latest value (SPMC is broadcast, not queue)
@@ -6869,7 +6952,12 @@ mod tests {
             let c = count.load(Ordering::Relaxed);
             println!("Consumer {} received {} messages", i, c);
             // Each consumer should receive at least some messages (generous for parallel test load)
-            assert!(c >= 50, "Consumer {} received only {} messages (expected >= 50)", i, c);
+            assert!(
+                c >= 50,
+                "Consumer {} received only {} messages (expected >= 50)",
+                i,
+                c
+            );
         }
     }
 

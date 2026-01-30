@@ -134,21 +134,9 @@ fn test_scenario_4_message_buffering_same_hub() {
     hub.send(3).expect("Failed to send message 3");
 
     // Read buffered messages from the same hub
-    assert_eq!(
-        hub.recv(),
-        Some(1),
-        "Should receive buffered message 1"
-    );
-    assert_eq!(
-        hub.recv(),
-        Some(2),
-        "Should receive buffered message 2"
-    );
-    assert_eq!(
-        hub.recv(),
-        Some(3),
-        "Should receive buffered message 3"
-    );
+    assert_eq!(hub.recv(), Some(1), "Should receive buffered message 1");
+    assert_eq!(hub.recv(), Some(2), "Should receive buffered message 2");
+    assert_eq!(hub.recv(), Some(3), "Should receive buffered message 3");
 }
 
 #[test]
@@ -200,9 +188,7 @@ fn test_scenario_7_large_messages() {
         .send(msg.clone())
         .expect("Failed to send large message");
 
-    let received = sub_hub
-        .recv()
-        .expect("Should receive large message");
+    let received = sub_hub.recv().expect("Should receive large message");
     assert_eq!(received, msg, "Large message should be received completely");
     assert_eq!(received.data.len(), 1000, "Vec should have correct length");
 }
@@ -272,11 +258,7 @@ fn test_edge_case_topic_name_with_special_chars() {
     hub.send(42)
         .expect("Should be able to send on topic with special chars");
 
-    assert_eq!(
-        hub.recv(),
-        Some(42),
-        "Should receive message on same topic"
-    );
+    assert_eq!(hub.recv(), Some(42), "Should receive message on same topic");
 }
 
 #[test]
@@ -321,9 +303,7 @@ fn test_resource_cleanup() {
     let hub2 = Topic::<i32>::new(&topic).expect("Failed to create hub2 after hub1 dropped");
     hub2.send(100).expect("Failed to send on hub2");
 
-    let msg = hub2
-        .recv()
-        .expect("Should receive message on hub2");
+    let msg = hub2.recv().expect("Should receive message on hub2");
     assert_eq!(msg, 100, "New hub should work after old hub dropped");
 }
 
@@ -338,10 +318,7 @@ fn test_different_message_types() {
     hub_string
         .send("Hello, HORUS!".to_string())
         .expect("Failed to send String");
-    assert_eq!(
-        hub_string.recv(),
-        Some("Hello, HORUS!".to_string())
-    );
+    assert_eq!(hub_string.recv(), Some("Hello, HORUS!".to_string()));
 
     // Test with Vec
     let hub_vec = Topic::<Vec<i32>>::new(&topic_vec).expect("Failed to create Vec hub");
@@ -381,9 +358,7 @@ fn test_custom_struct() {
         pressure: 1013.25,
     };
 
-    pub_hub
-        .send(data.clone())
-        .expect("Failed to send struct");
+    pub_hub.send(data.clone()).expect("Failed to send struct");
 
     let received = sub_hub.recv().expect("Should receive struct");
     assert_eq!(received, data, "Struct should be received correctly");

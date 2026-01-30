@@ -107,7 +107,9 @@ impl SmartTopicHeader {
     /// Decrement publisher count and return new count
     #[inline]
     pub fn remove_publisher(&self) -> u32 {
-        self.publisher_count.fetch_sub(1, Ordering::AcqRel).saturating_sub(1)
+        self.publisher_count
+            .fetch_sub(1, Ordering::AcqRel)
+            .saturating_sub(1)
     }
 
     /// Increment subscriber count and return new count
@@ -119,7 +121,9 @@ impl SmartTopicHeader {
     /// Decrement subscriber count and return new count
     #[inline]
     pub fn remove_subscriber(&self) -> u32 {
-        self.subscriber_count.fetch_sub(1, Ordering::AcqRel).saturating_sub(1)
+        self.subscriber_count
+            .fetch_sub(1, Ordering::AcqRel)
+            .saturating_sub(1)
     }
 }
 
@@ -343,8 +347,8 @@ pub unsafe fn join_smart_header(
 #[inline]
 pub fn type_hash<T: 'static>() -> u64 {
     use std::any::TypeId;
-    use std::hash::{Hash, Hasher};
     use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
 
     let type_id = TypeId::of::<T>();
     let mut hasher = DefaultHasher::new();

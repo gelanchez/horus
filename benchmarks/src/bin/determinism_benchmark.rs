@@ -23,9 +23,9 @@
 
 use horus::prelude::Topic;
 use horus_benchmarks::{
-    coefficient_of_variation, detect_platform, set_cpu_affinity,
-    set_performance_governor, timing::PrecisionTimer, write_json_report, BenchmarkConfig,
-    BenchmarkReport, BenchmarkResult, DeterminismMetrics, Statistics, ThroughputMetrics,
+    coefficient_of_variation, detect_platform, set_cpu_affinity, set_performance_governor,
+    timing::PrecisionTimer, write_json_report, BenchmarkConfig, BenchmarkReport, BenchmarkResult,
+    DeterminismMetrics, Statistics, ThroughputMetrics,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -112,7 +112,10 @@ fn main() {
 
     // Detect platform
     let platform = detect_platform();
-    println!("Platform: {} ({} cores)", platform.cpu.model, platform.cpu.logical_cores);
+    println!(
+        "Platform: {} ({} cores)",
+        platform.cpu.model, platform.cpu.logical_cores
+    );
     if let Some(gov) = &platform.cpu_governor {
         println!("CPU Governor: {}", gov);
     }
@@ -132,7 +135,11 @@ fn main() {
     println!("  Iterations:     {}", config.iterations);
     println!("  Runs:           {}", config.runs);
     println!("  Warmup:         {}", config.warmup_iterations);
-    println!("  Deadline:       {} ns ({:.2} µs)", deadline_ns, deadline_ns as f64 / 1000.0);
+    println!(
+        "  Deadline:       {} ns ({:.2} µs)",
+        deadline_ns,
+        deadline_ns as f64 / 1000.0
+    );
     println!("  CPU Affinity:   {:?}", config.cpu_affinity);
     println!();
 
@@ -143,12 +150,7 @@ fn main() {
     println!("Running benchmarks...\n");
 
     // AdaptiveTopic (auto-selects optimal backend via Topic::new())
-    let result = run_determinism_benchmark(
-        "AdaptiveTopic",
-        &config,
-        &platform,
-        deadline_ns,
-    );
+    let result = run_determinism_benchmark("AdaptiveTopic", &config, &platform, deadline_ns);
     print_determinism_result(&result);
     report.add_result(result);
 
@@ -201,11 +203,17 @@ fn run_determinism_benchmark(
     platform: &horus_benchmarks::PlatformInfo,
     deadline_ns: u64,
 ) -> BenchmarkResult {
-    println!("[{}] Running {} runs of {} iterations each...", name, config.runs, config.iterations);
+    println!(
+        "[{}] Running {} runs of {} iterations each...",
+        name, config.runs, config.iterations
+    );
 
     // Calibrate timer
     let timer = PrecisionTimer::new();
-    println!("  Timer calibrated: {:.2} MHz", timer.calibration().freq_hz / 1_000_000.0);
+    println!(
+        "  Timer calibrated: {:.2} MHz",
+        timer.calibration().freq_hz / 1_000_000.0
+    );
 
     let mut all_latencies: Vec<u64> = Vec::new();
     let mut run_medians: Vec<f64> = Vec::new();
@@ -348,7 +356,11 @@ fn run_determinism_benchmark(
     println!(" done");
 
     // Compute statistics
-    let statistics = Statistics::from_samples(&all_latencies, config.confidence_level, config.filter_outliers);
+    let statistics = Statistics::from_samples(
+        &all_latencies,
+        config.confidence_level,
+        config.filter_outliers,
+    );
 
     // Compute determinism metrics
     let cv = coefficient_of_variation(&all_latencies);
@@ -423,12 +435,12 @@ fn print_determinism_result(result: &BenchmarkResult) {
     println!("  ├── Determinism:");
     println!("  │   ├── CV:      {:>8.4} (lower is better)", det.cv);
     println!("  │   ├── Jitter:  {:>8} ns (max-min)", det.max_jitter_ns);
-    println!("  │   └── Run CV:  {:>8.4} (run-to-run variance)", det.run_variance);
-    println!("  └── Real-Time:");
     println!(
-        "      ├── Deadline: {:>6} ns",
-        det.deadline_threshold_ns
+        "  │   └── Run CV:  {:>8.4} (run-to-run variance)",
+        det.run_variance
     );
+    println!("  └── Real-Time:");
+    println!("      ├── Deadline: {:>6} ns", det.deadline_threshold_ns);
     println!(
         "      ├── Misses:   {:>6} ({:.4}%)",
         det.deadline_misses,

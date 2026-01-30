@@ -293,10 +293,7 @@ impl HusarnetDiscovery {
 
     /// Quick probe of the daemon API
     fn probe_daemon_api() -> Result<(), HusarnetError> {
-        let url = format!(
-            "http://{}:{}/hi",
-            HUSARNET_API_HOST, HUSARNET_API_PORT
-        );
+        let url = format!("http://{}:{}/hi", HUSARNET_API_HOST, HUSARNET_API_PORT);
 
         // Use blocking reqwest for simplicity (this is a quick check)
         let client = reqwest::blocking::Client::builder()

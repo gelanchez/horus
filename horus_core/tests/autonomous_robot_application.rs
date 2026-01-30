@@ -985,7 +985,7 @@ fn test_autonomous_robot_complete_system() {
     // Critical control loop (highest priority - will be JIT compiled)
     scheduler
         .add(MotorControllerNode::new().expect("Failed to create motor controller"))
-        .order(0)  // Highest priority
+        .order(0) // Highest priority
         .done();
 
     // Sensor fusion (high priority)
@@ -1032,7 +1032,7 @@ fn test_autonomous_robot_complete_system() {
     // Battery monitor (prone to failures - will test circuit breaker)
     scheduler
         .add(BatteryMonitorNode::new().expect("Failed to create battery monitor"))
-        .order(100)  // Lower priority
+        .order(100) // Lower priority
         .done();
 
     println!("Robot system configuration:");

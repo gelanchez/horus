@@ -54,8 +54,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 /// - `Nta`: Non-temporal - data used once, don't pollute caches
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(i32)]
+#[derive(Default)]
 pub enum PrefetchHint {
     /// Prefetch to all cache levels (L1, L2, L3) - for immediate reuse
+    #[default]
     T0 = 3,
     /// Prefetch to L2 and L3 - for moderate reuse
     T1 = 2,
@@ -63,12 +65,6 @@ pub enum PrefetchHint {
     T2 = 1,
     /// Non-temporal prefetch - for streaming/single-use data
     Nta = 0,
-}
-
-impl Default for PrefetchHint {
-    fn default() -> Self {
-        PrefetchHint::T0
-    }
 }
 
 /// Prefetch a single cache line from the specified address.
@@ -151,7 +147,7 @@ pub unsafe fn prefetch_range(addr: *const u8, len: usize, hint: PrefetchHint) {
         return;
     }
 
-    let num_lines = (len + CACHE_LINE_SIZE - 1) / CACHE_LINE_SIZE;
+    let num_lines = len.div_ceil(CACHE_LINE_SIZE);
 
     // Limit prefetch count to avoid instruction cache pressure
     let max_prefetches = 16;
@@ -834,7 +830,7 @@ mod tests {
     fn test_prefetch_range_large() {
         // Large range should be limited to max prefetches
         let buffer = vec![0u8; 1024 * 1024]; // 1MB
-        // SAFETY: buffer is valid for the specified length
+                                             // SAFETY: buffer is valid for the specified length
         unsafe {
             prefetch_range(buffer.as_ptr(), 1024 * 1024, PrefetchHint::T0);
         }
@@ -848,13 +844,7 @@ mod tests {
         // SAFETY: buffer is valid for buffer_size bytes
         unsafe {
             // Access at beginning - no wrap
-            prefetch_ring_segment(
-                buffer.as_ptr(),
-                buffer_size,
-                0,
-                4096,
-                PrefetchHint::T0,
-            );
+            prefetch_ring_segment(buffer.as_ptr(), buffer_size, 0, 4096, PrefetchHint::T0);
 
             // Access in middle - no wrap
             prefetch_ring_segment(

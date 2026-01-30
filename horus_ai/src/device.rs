@@ -67,8 +67,8 @@ impl Device {
     #[inline]
     pub const fn to_dlpack_device_type(&self) -> i32 {
         match self {
-            Device::Cpu => 1,      // kDLCPU
-            Device::Cuda(_) => 2,  // kDLCUDA
+            Device::Cpu => 1,     // kDLCPU
+            Device::Cuda(_) => 2, // kDLCUDA
         }
     }
 
@@ -84,7 +84,7 @@ impl Device {
     /// Create from DLPack device type and id
     pub const fn from_dlpack(device_type: i32, device_id: i32) -> Option<Self> {
         match device_type {
-            1 => Some(Device::Cpu),           // kDLCPU
+            1 => Some(Device::Cpu),                    // kDLCPU
             2 => Some(Device::Cuda(device_id as u32)), // kDLCUDA
             _ => None,
         }

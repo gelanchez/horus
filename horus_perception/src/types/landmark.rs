@@ -25,12 +25,22 @@ pub struct Landmark {
 impl Landmark {
     /// Create a new landmark
     pub fn new(x: f32, y: f32, visibility: f32, index: u32) -> Self {
-        Self { x, y, visibility, index }
+        Self {
+            x,
+            y,
+            visibility,
+            index,
+        }
     }
 
     /// Create without visibility (assumed visible)
     pub fn visible(x: f32, y: f32, index: u32) -> Self {
-        Self { x, y, visibility: 1.0, index }
+        Self {
+            x,
+            y,
+            visibility: 1.0,
+            index,
+        }
     }
 
     /// Check if landmark is visible
@@ -69,12 +79,24 @@ pub struct Landmark3D {
 impl Landmark3D {
     /// Create a new 3D landmark
     pub fn new(x: f32, y: f32, z: f32, visibility: f32, index: u32) -> Self {
-        Self { x, y, z, visibility, index }
+        Self {
+            x,
+            y,
+            z,
+            visibility,
+            index,
+        }
     }
 
     /// Create without visibility (assumed visible)
     pub fn visible(x: f32, y: f32, z: f32, index: u32) -> Self {
-        Self { x, y, z, visibility: 1.0, index }
+        Self {
+            x,
+            y,
+            z,
+            visibility: 1.0,
+            index,
+        }
     }
 
     /// Check if landmark is visible

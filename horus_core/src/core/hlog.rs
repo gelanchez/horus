@@ -67,12 +67,7 @@ pub fn current_node_name() -> String {
 
 /// Get the current tick number if set, otherwise 0.
 pub fn current_tick_number() -> u64 {
-    CURRENT_NODE.with(|ctx| {
-        ctx.borrow()
-            .as_ref()
-            .map(|c| c.tick_number)
-            .unwrap_or(0)
-    })
+    CURRENT_NODE.with(|ctx| ctx.borrow().as_ref().map(|c| c.tick_number).unwrap_or(0))
 }
 
 /// Internal function used by the hlog!() macro.

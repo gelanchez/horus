@@ -781,10 +781,7 @@ pub fn parse_cloud_location(location: &str) -> Result<(CloudMode, CloudConfig), 
             CloudConfig::horus_cloud(&room)
         };
 
-        return Ok((
-            CloudMode::HorusCloud { room, auth_key },
-            config,
-        ));
+        return Ok((CloudMode::HorusCloud { room, auth_key }, config));
     }
 
     // Parse relay:host or relay:host:port
@@ -821,9 +818,9 @@ pub fn parse_cloud_location(location: &str) -> Result<(CloudMode, CloudConfig), 
 
     // Parse vpn:peer or vpn/type:peer
     if let Some(rest) = location.strip_prefix("vpn") {
-        if rest.starts_with('/') {
+        if let Some(rest) = rest.strip_prefix('/') {
             // vpn/type:peer format
-            let rest = &rest[1..]; // Skip the '/'
+            // Skip the '/'
             if let Some(colon_pos) = rest.find(':') {
                 let vpn_type_str = &rest[..colon_pos];
                 let peer = &rest[colon_pos + 1..];
@@ -848,9 +845,8 @@ pub fn parse_cloud_location(location: &str) -> Result<(CloudMode, CloudConfig), 
                     location
                 ));
             }
-        } else if rest.starts_with(':') {
+        } else if let Some(peer) = rest.strip_prefix(':') {
             // vpn:peer format (auto-detect VPN type)
-            let peer = &rest[1..];
             if peer.is_empty() {
                 return Err("VPN peer identifier cannot be empty".to_string());
             }
@@ -1168,7 +1164,9 @@ mod tests {
         let registry = RoomRegistry::new();
 
         // Join with auth
-        let _handle = registry.join_room("secure-room", Some("secret123")).unwrap();
+        let _handle = registry
+            .join_room("secure-room", Some("secret123"))
+            .unwrap();
 
         // Validate correct auth
         assert!(registry.validate_auth("secure-room", Some("secret123")));
@@ -1269,7 +1267,10 @@ mod tests {
         assert!(!is_room_scoped("regular/topic"));
 
         // extract_room_name
-        assert_eq!(extract_room_name("__room::fleet-1::sensor"), Some("fleet-1"));
+        assert_eq!(
+            extract_room_name("__room::fleet-1::sensor"),
+            Some("fleet-1")
+        );
         assert_eq!(extract_room_name("regular/topic"), None);
 
         // extract_original_topic

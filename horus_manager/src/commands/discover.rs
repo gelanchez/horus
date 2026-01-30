@@ -87,7 +87,10 @@ fn scan_nodes(
 /// Continuously watch for nodes joining and leaving
 fn watch_nodes(topic: Option<String>, name: Option<String>, format: &str) -> HorusResult<()> {
     if format != "json" {
-        println!("{} Watching for HORUS nodes (Ctrl+C to stop)...", "👁".cyan());
+        println!(
+            "{} Watching for HORUS nodes (Ctrl+C to stop)...",
+            "👁".cyan()
+        );
         if let Some(ref t) = topic {
             println!("  {} topic: {}", "Filter:".dimmed(), t);
         }
@@ -234,11 +237,7 @@ fn print_event_colored(event: &DiscoveryEvent) {
                 node.port
             );
             if !node.topics.is_empty() {
-                println!(
-                    "         {} {}",
-                    "Topics:".dimmed(),
-                    node.topics.join(", ")
-                );
+                println!("         {} {}", "Topics:".dimmed(), node.topics.join(", "));
             }
         }
         DiscoveryEvent::NodeLeft(name) => {

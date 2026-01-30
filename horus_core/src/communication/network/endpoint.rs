@@ -587,9 +587,10 @@ pub fn parse_endpoint(input: &str) -> Result<Endpoint, String> {
         // Parse comma-separated routers
         let routers: Vec<&str> = rest.split(',').collect();
         if routers.is_empty() {
-            return Err(format!(
+            return Err(
                 "Invalid zenoh:cloud endpoint: no router specified after 'zenoh:cloud:'"
-            ));
+                    .to_string(),
+            );
         }
 
         // Create config with the specified routers
@@ -857,14 +858,32 @@ pub struct EndpointBuilder {
 #[derive(Debug, Clone)]
 enum EndpointConfig {
     Local,
-    Localhost { port: Option<u16> },
-    Direct { host: IpAddr, port: u16 },
+    Localhost {
+        port: Option<u16>,
+    },
+    Direct {
+        host: IpAddr,
+        port: u16,
+    },
     Multicast,
-    Mdns { hostname: String, port: Option<u16> },
-    Router { host: Option<IpAddr>, port: Option<u16> },
-    Zenoh { ros2_mode: bool, connect: Option<String> },
-    ZenohCloud { config: ZenohCloudConfig },
-    Cloud { mode: CloudMode },
+    Mdns {
+        hostname: String,
+        port: Option<u16>,
+    },
+    Router {
+        host: Option<IpAddr>,
+        port: Option<u16>,
+    },
+    Zenoh {
+        ros2_mode: bool,
+        connect: Option<String>,
+    },
+    ZenohCloud {
+        config: ZenohCloudConfig,
+    },
+    Cloud {
+        mode: CloudMode,
+    },
 }
 
 impl EndpointBuilder {
@@ -962,7 +981,6 @@ impl EndpointBuilder {
         self
     }
 
-
     /// Build a cloud room endpoint.
     ///
     /// # Example
@@ -1023,7 +1041,6 @@ impl EndpointBuilder {
         }
         self
     }
-
 
     /// Scope the topic to a room for isolation.
     ///
@@ -1105,10 +1122,7 @@ impl EndpointBuilder {
                 host,
                 port,
             },
-            EndpointConfig::Zenoh {
-                ros2_mode,
-                connect,
-            } => Endpoint::Zenoh {
+            EndpointConfig::Zenoh { ros2_mode, connect } => Endpoint::Zenoh {
                 topic: self.topic,
                 ros2_mode,
                 connect,
@@ -1213,7 +1227,10 @@ impl std::fmt::Display for Endpoint {
                 }
             }
             Endpoint::Cloud { topic, mode } => match mode {
-                CloudMode::HorusCloud { room, auth_key: None } => {
+                CloudMode::HorusCloud {
+                    room,
+                    auth_key: None,
+                } => {
                     write!(f, "{}@cloud:{}", topic, room)
                 }
                 CloudMode::HorusCloud {
@@ -1585,7 +1602,6 @@ mod tests {
         ));
     }
 
-
     // Cloud endpoint tests
     #[test]
     fn test_parse_cloud_horus() {
@@ -1803,16 +1819,17 @@ mod tests {
 
     #[test]
     fn test_parse_zenoh_cloud_multiple_routers_failover() {
-        let ep =
-            parse_endpoint("data@zenoh:cloud:tcp/router1.local:7447,tcp/router2.local:7447")
-                .unwrap();
+        let ep = parse_endpoint("data@zenoh:cloud:tcp/router1.local:7447,tcp/router2.local:7447")
+            .unwrap();
         match ep {
             Endpoint::ZenohCloud { topic, config } => {
                 assert_eq!(topic, "data");
                 // First router becomes primary
                 assert_eq!(config.primary_router, "tcp/router1.local:7447");
                 // Second router should be in backup list
-                assert!(config.backup_routers.contains(&"tcp/router2.local:7447".to_string()));
+                assert!(config
+                    .backup_routers
+                    .contains(&"tcp/router2.local:7447".to_string()));
             }
             _ => panic!("Expected ZenohCloud endpoint"),
         }

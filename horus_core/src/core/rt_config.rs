@@ -369,9 +369,7 @@ impl RtConfig {
         if self.scheduler != RtScheduler::Normal && !kernel_info.preempt_rt {
             degradations.push(RtDegradation::NoPreemptRt);
             if self.warn_on_degradation {
-                eprintln!(
-                    "Warning: PREEMPT_RT kernel not detected, RT guarantees may not be met"
-                );
+                eprintln!("Warning: PREEMPT_RT kernel not detected, RT guarantees may not be met");
             }
         }
 
@@ -407,10 +405,7 @@ impl RtConfig {
                         actual,
                     });
                     if self.warn_on_degradation {
-                        eprintln!(
-                            "Warning: Priority clamped from {} to {}",
-                            priority, actual
-                        );
+                        eprintln!("Warning: Priority clamped from {} to {}", priority, actual);
                     }
                 }
                 Ok(_) => {}
@@ -572,11 +567,8 @@ impl RtConfig {
             }
 
             // 0 = current thread
-            let result = libc::sched_setaffinity(
-                0,
-                std::mem::size_of::<libc::cpu_set_t>(),
-                &cpuset,
-            );
+            let result =
+                libc::sched_setaffinity(0, std::mem::size_of::<libc::cpu_set_t>(), &cpuset);
 
             if result == 0 {
                 Ok(())
@@ -623,11 +615,8 @@ impl RtConfig {
         unsafe {
             let mut cpuset: libc::cpu_set_t = std::mem::zeroed();
 
-            let result = libc::sched_getaffinity(
-                0,
-                std::mem::size_of::<libc::cpu_set_t>(),
-                &mut cpuset,
-            );
+            let result =
+                libc::sched_getaffinity(0, std::mem::size_of::<libc::cpu_set_t>(), &mut cpuset);
 
             if result < 0 {
                 return Err(io::Error::last_os_error());
@@ -690,7 +679,7 @@ pub fn prefault_stack(size: usize) {
     const PAGE_SIZE: usize = 4096;
 
     // Calculate number of pages to touch
-    let num_pages = (size + PAGE_SIZE - 1) / PAGE_SIZE;
+    let num_pages = size.div_ceil(PAGE_SIZE);
 
     // We use a recursive approach with a small fixed-size buffer per call
     // to avoid stack overflow from trying to allocate too much at once
@@ -752,7 +741,7 @@ pub fn prefault_stack_linear(size: usize) {
     let capped_size = size.min(8 * 1024 * 1024); // 8MB max
 
     // Number of pages to touch
-    let num_pages = (capped_size + PAGE_SIZE - 1) / PAGE_SIZE;
+    let num_pages = capped_size.div_ceil(PAGE_SIZE);
 
     // Use a volatile write to each page to ensure they're faulted in
     // We can't actually allocate variable-sized arrays on stack in safe Rust,
@@ -869,7 +858,7 @@ pub fn pin_thread_to_core(_cpu: usize) -> Result<(), io::Error> {
 pub fn detect_isolated_cpus() -> Vec<usize> {
     // Read from /sys/devices/system/cpu/isolated
     match std::fs::read_to_string("/sys/devices/system/cpu/isolated") {
-        Ok(content) => parse_cpu_list(&content.trim()),
+        Ok(content) => parse_cpu_list(content.trim()),
         Err(_) => Vec::new(), // File doesn't exist or not readable
     }
 }
@@ -889,7 +878,7 @@ pub fn detect_isolated_cpus() -> Vec<usize> {
 #[cfg(target_os = "linux")]
 pub fn detect_nohz_full_cpus() -> Vec<usize> {
     match std::fs::read_to_string("/sys/devices/system/cpu/nohz_full") {
-        Ok(content) => parse_cpu_list(&content.trim()),
+        Ok(content) => parse_cpu_list(content.trim()),
         Err(_) => Vec::new(),
     }
 }
@@ -1187,9 +1176,7 @@ mod tests {
 
     #[test]
     fn test_builder_with_prefault() {
-        let config = RtConfig::new()
-            .prefault_stack(256 * 1024)
-            .build();
+        let config = RtConfig::new().prefault_stack(256 * 1024).build();
 
         assert_eq!(config.prefault_stack_size, Some(256 * 1024));
     }
@@ -1206,9 +1193,7 @@ mod tests {
     #[test]
     fn test_config_with_prefault_apply() {
         // Config with prefault should apply successfully
-        let config = RtConfig::new()
-            .prefault_stack(64 * 1024)
-            .build();
+        let config = RtConfig::new().prefault_stack(64 * 1024).build();
 
         let result = config.apply();
         assert!(result.is_ok());

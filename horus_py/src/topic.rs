@@ -348,7 +348,8 @@ impl PyTopic {
                 TopicType::Odometry(Arc::new(RwLock::new(topic)))
             }
             "LaserScan" => {
-                let topic = create_topic::<LaserScan>(&effective_endpoint, cap, backend.as_deref())?;
+                let topic =
+                    create_topic::<LaserScan>(&effective_endpoint, cap, backend.as_deref())?;
                 TopicType::LaserScan(Arc::new(RwLock::new(topic)))
             }
             _ => {
@@ -396,11 +397,8 @@ impl PyTopic {
                     let ipc_ns = start.elapsed().as_nanos() as u64;
                     if let Ok(info) = node_obj.getattr(py, "info") {
                         if !info.is_none(py) {
-                            let _ = info.call_method1(
-                                py,
-                                "register_publisher",
-                                (&self.name, "CmdVel"),
-                            );
+                            let _ =
+                                info.call_method1(py, "register_publisher", (&self.name, "CmdVel"));
                             use horus::core::LogSummary;
                             let _ = info.call_method1(
                                 py,
@@ -424,11 +422,8 @@ impl PyTopic {
                     let ipc_ns = start.elapsed().as_nanos() as u64;
                     if let Ok(info) = node_obj.getattr(py, "info") {
                         if !info.is_none(py) {
-                            let _ = info.call_method1(
-                                py,
-                                "register_publisher",
-                                (&self.name, "Pose2D"),
-                            );
+                            let _ =
+                                info.call_method1(py, "register_publisher", (&self.name, "Pose2D"));
                             use horus::core::LogSummary;
                             let _ = info.call_method1(
                                 py,
@@ -513,11 +508,8 @@ impl PyTopic {
                                 "register_publisher",
                                 (&self.name, "LaserScan"),
                             );
-                            let _ = info.call_method1(
-                                py,
-                                "log_pub",
-                                (&self.name, log_summary, ipc_ns),
-                            );
+                            let _ =
+                                info.call_method1(py, "log_pub", (&self.name, log_summary, ipc_ns));
                         }
                     }
                 }
@@ -560,11 +552,8 @@ impl PyTopic {
                                 "register_publisher",
                                 (&self.name, "GenericMessage"),
                             );
-                            let _ = info.call_method1(
-                                py,
-                                "log_pub",
-                                (&self.name, log_summary, ipc_ns),
-                            );
+                            let _ =
+                                info.call_method1(py, "log_pub", (&self.name, log_summary, ipc_ns));
                         }
                     }
                 }
@@ -761,11 +750,8 @@ impl PyTopic {
                                 );
                                 use horus::core::LogSummary;
                                 let log_msg = msg.log_summary();
-                                let _ = info.call_method1(
-                                    py,
-                                    "log_sub",
-                                    (&self.name, log_msg, ipc_ns),
-                                );
+                                let _ =
+                                    info.call_method1(py, "log_sub", (&self.name, log_msg, ipc_ns));
                             }
                         }
                     }
@@ -870,13 +856,15 @@ impl PyTopic {
 // Helper functions
 // ============================================================================
 
-fn create_topic<T>(
-    endpoint: &str,
-    capacity: usize,
-    backend: Option<&str>,
-) -> PyResult<Topic<T>>
+fn create_topic<T>(endpoint: &str, capacity: usize, backend: Option<&str>) -> PyResult<Topic<T>>
 where
-    T: Clone + Send + Sync + 'static + serde::Serialize + serde::de::DeserializeOwned + std::fmt::Debug,
+    T: Clone
+        + Send
+        + Sync
+        + 'static
+        + serde::Serialize
+        + serde::de::DeserializeOwned
+        + std::fmt::Debug,
 {
     use horus::communication::topic::{BackendHint, TopicConfig};
 

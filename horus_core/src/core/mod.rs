@@ -35,8 +35,8 @@ pub use node::{
 pub use presence::NodePresence;
 pub use rt_config::{
     detect_isolated_cpus, detect_nohz_full_cpus, get_rt_recommended_cpus, pin_thread_to_core,
-    prefault_stack, prefault_stack_linear, RtApplyResult, RtConfig, RtConfigBuilder,
-    RtCpuInfo, RtDegradation, RtKernelInfo, RtScheduler,
+    prefault_stack, prefault_stack_linear, RtApplyResult, RtConfig, RtConfigBuilder, RtCpuInfo,
+    RtDegradation, RtKernelInfo, RtScheduler,
 };
 pub use rt_node::{
     DeadlineMissPolicy, RtClass, RtNode, RtNodeWrapper, RtPriority, RtStats, WCETViolation,

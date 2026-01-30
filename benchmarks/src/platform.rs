@@ -123,7 +123,13 @@ fn detect_cpu_info_linux() -> CpuInfo {
                     // Relevant features for benchmarking
                     matches!(
                         *f,
-                        "sse4_2" | "avx" | "avx2" | "avx512f" | "rdtsc" | "constant_tsc" | "nonstop_tsc"
+                        "sse4_2"
+                            | "avx"
+                            | "avx2"
+                            | "avx512f"
+                            | "rdtsc"
+                            | "constant_tsc"
+                            | "nonstop_tsc"
                     )
                 })
                 .map(|s| s.to_string())
@@ -151,18 +157,16 @@ fn detect_cpu_info_linux() -> CpuInfo {
 
 #[cfg(target_os = "linux")]
 fn read_cache_size(path: &str) -> Option<usize> {
-    fs::read_to_string(path)
-        .ok()
-        .and_then(|s| {
-            let s = s.trim();
-            if s.ends_with('K') {
-                s[..s.len() - 1].parse::<usize>().ok()
-            } else if s.ends_with('M') {
-                s[..s.len() - 1].parse::<usize>().ok().map(|v| v * 1024)
-            } else {
-                s.parse::<usize>().ok().map(|v| v / 1024)
-            }
-        })
+    fs::read_to_string(path).ok().and_then(|s| {
+        let s = s.trim();
+        if s.ends_with('K') {
+            s[..s.len() - 1].parse::<usize>().ok()
+        } else if s.ends_with('M') {
+            s[..s.len() - 1].parse::<usize>().ok().map(|v| v * 1024)
+        } else {
+            s.parse::<usize>().ok().map(|v| v / 1024)
+        }
+    })
 }
 
 /// Detect CPU frequency by measuring RDTSC cycles over a known duration
@@ -225,9 +229,11 @@ fn detect_os() -> String {
         fs::read_to_string("/etc/os-release")
             .ok()
             .and_then(|s| {
-                s.lines()
-                    .find(|l| l.starts_with("PRETTY_NAME="))
-                    .map(|l| l.trim_start_matches("PRETTY_NAME=").trim_matches('"').to_string())
+                s.lines().find(|l| l.starts_with("PRETTY_NAME=")).map(|l| {
+                    l.trim_start_matches("PRETTY_NAME=")
+                        .trim_matches('"')
+                        .to_string()
+                })
             })
             .unwrap_or_else(|| "Linux".to_string())
     }

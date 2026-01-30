@@ -465,10 +465,11 @@ impl SchedulerBuilder {
             if let Some(priority) = self.rt_priority {
                 match scheduler.set_os_priority(priority) {
                     Ok(()) => {
-                        print_line(&format!(
-                            "[BUILDER] RT priority {} applied",
-                            priority
-                        ).green().to_string());
+                        print_line(
+                            &format!("[BUILDER] RT priority {} applied", priority)
+                                .green()
+                                .to_string(),
+                        );
                     }
                     Err(e) => {
                         let msg = format!("RT priority {}: {}", priority, e);
@@ -511,10 +512,11 @@ impl SchedulerBuilder {
                 if let Some(cpu) = cpus.first() {
                     match scheduler.pin_to_cpu(*cpu) {
                         Ok(()) => {
-                            print_line(&format!(
-                                "[BUILDER] Pinned to CPU {:?}",
-                                cpus
-                            ).green().to_string());
+                            print_line(
+                                &format!("[BUILDER] Pinned to CPU {:?}", cpus)
+                                    .green()
+                                    .to_string(),
+                            );
                         }
                         Err(e) => {
                             let msg = format!("CPU affinity: {}", e);
@@ -537,10 +539,14 @@ impl SchedulerBuilder {
                 // Check if NUMA is available
                 if let Some(ref caps) = caps {
                     if caps.numa_node_count > 1 {
-                        print_line(&format!(
-                            "[BUILDER] NUMA-aware ({} nodes detected)",
-                            caps.numa_node_count
-                        ).green().to_string());
+                        print_line(
+                            &format!(
+                                "[BUILDER] NUMA-aware ({} nodes detected)",
+                                caps.numa_node_count
+                            )
+                            .green()
+                            .to_string(),
+                        );
                     } else {
                         let msg = "NUMA: System has only 1 NUMA node".to_string();
                         if self.strict {
@@ -567,12 +573,17 @@ impl SchedulerBuilder {
             det_config.record_trace = self.enable_tracing;
 
             // Create deterministic clock and set it on the scheduler
-            let clock = std::sync::Arc::new(super::deterministic::DeterministicClock::new(&det_config));
+            let clock =
+                std::sync::Arc::new(super::deterministic::DeterministicClock::new(&det_config));
             scheduler.set_deterministic_clock(clock);
             scheduler.set_deterministic_config(det_config);
 
             scheduler = scheduler.enable_determinism();
-            print_line(&"[BUILDER] Deterministic mode enabled (simulation mode)".cyan().to_string());
+            print_line(
+                &"[BUILDER] Deterministic mode enabled (simulation mode)"
+                    .cyan()
+                    .to_string(),
+            );
         }
 
         if self.enable_tracing && !self.deterministic && !self.virtual_time {
@@ -588,18 +599,23 @@ impl SchedulerBuilder {
         // === Apply Safety ===
         if let Some(max_misses) = self.safety_monitor_max_misses {
             scheduler = scheduler.with_safety_monitor(max_misses);
-            print_line(&format!(
-                "[BUILDER] Safety monitor enabled (max {} misses)",
-                max_misses
-            ).yellow().to_string());
+            print_line(
+                &format!(
+                    "[BUILDER] Safety monitor enabled (max {} misses)",
+                    max_misses
+                )
+                .yellow()
+                .to_string(),
+            );
         }
 
         if let Some(timeout_ms) = self.watchdog_timeout_ms {
             // Watchdog is configured via safety monitor
-            print_line(&format!(
-                "[BUILDER] Watchdog enabled ({}ms timeout)",
-                timeout_ms
-            ).yellow().to_string());
+            print_line(
+                &format!("[BUILDER] Watchdog enabled ({}ms timeout)", timeout_ms)
+                    .yellow()
+                    .to_string(),
+            );
         }
 
         if self.wcet_enforcement {
@@ -607,36 +623,50 @@ impl SchedulerBuilder {
         }
 
         if let Some(ref cb) = self.circuit_breaker {
-            print_line(&format!(
-                "[BUILDER] Circuit breaker enabled ({} failures, {} successes)",
-                cb.failure_threshold, cb.success_threshold
-            ).yellow().to_string());
+            print_line(
+                &format!(
+                    "[BUILDER] Circuit breaker enabled ({} failures, {} successes)",
+                    cb.failure_threshold, cb.success_threshold
+                )
+                .yellow()
+                .to_string(),
+            );
         }
 
         // === Apply Recording ===
         if let Some(size_mb) = self.blackbox_mb {
             let bb = super::blackbox::BlackBox::new(size_mb);
             scheduler.set_blackbox(bb);
-            print_line(&format!(
-                "[BUILDER] BlackBox enabled ({}MB buffer)",
-                size_mb
-            ).blue().to_string());
+            print_line(
+                &format!("[BUILDER] BlackBox enabled ({}MB buffer)", size_mb)
+                    .blue()
+                    .to_string(),
+            );
         }
 
         if let Some(ref session) = self.auto_record_session {
             scheduler = scheduler.enable_recording(session);
-            print_line(&format!(
-                "[BUILDER] Auto-recording enabled: {}",
-                session
-            ).blue().to_string());
+            print_line(
+                &format!("[BUILDER] Auto-recording enabled: {}", session)
+                    .blue()
+                    .to_string(),
+            );
         }
 
         // === Apply Executors ===
         if let Some(workers) = self.parallel_workers {
-            print_line(&format!(
-                "[BUILDER] Parallel executor enabled ({} workers)",
-                if workers == 0 { "auto".to_string() } else { workers.to_string() }
-            ).white().to_string());
+            print_line(
+                &format!(
+                    "[BUILDER] Parallel executor enabled ({} workers)",
+                    if workers == 0 {
+                        "auto".to_string()
+                    } else {
+                        workers.to_string()
+                    }
+                )
+                .white()
+                .to_string(),
+            );
         }
 
         if self.isolated_executor {
@@ -653,7 +683,7 @@ impl SchedulerBuilder {
 
         // === Handle Errors ===
         if !errors.is_empty() {
-            return Err(HorusError::config(&format!(
+            return Err(HorusError::config(format!(
                 "Strict mode enabled, {} feature(s) failed:\n  - {}",
                 errors.len(),
                 errors.join("\n  - ")
@@ -680,7 +710,8 @@ impl SchedulerBuilder {
     /// # Panics
     /// Panics if strict mode is enabled and a feature fails.
     pub fn build_or_panic(self) -> Scheduler {
-        self.build().expect("SchedulerBuilder::build_or_panic failed")
+        self.build()
+            .expect("SchedulerBuilder::build_or_panic failed")
     }
 }
 
@@ -731,7 +762,7 @@ impl SchedulerBuilder {
             .name("SafetyCriticalScheduler")
             .rt_priority(99)
             .memory_lock()
-            .safety_monitor(0)  // Zero tolerance
+            .safety_monitor(0) // Zero tolerance
             .watchdog(100)
             .wcet_enforcement()
             .circuit_breaker(3, 5)

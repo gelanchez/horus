@@ -27,12 +27,12 @@ use horus_benchmarks::{
     write_json_report, BenchmarkConfig, BenchmarkReport, BenchmarkResult, DeterminismMetrics,
     Statistics, ThroughputMetrics,
 };
+use horus_library::messages::CmdVel;
 use horus_library::messages::{
     control::JointCommand,
     perception::PointCloud,
     sensor::{Imu, LaserScan},
 };
-use horus_library::messages::CmdVel;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::thread;
@@ -160,9 +160,16 @@ fn main() {
     println!("║              REAL-TIME SUITABILITY ANALYSIS                      ║");
     println!("╠══════════════════════════════════════════════════════════════════╣");
 
-    let cmdvel_results: Vec<_> = report.results.iter().filter(|r| r.name.contains("CmdVel")).collect();
+    let cmdvel_results: Vec<_> = report
+        .results
+        .iter()
+        .filter(|r| r.name.contains("CmdVel"))
+        .collect();
     if let Some(best) = cmdvel_results.iter().min_by(|a, b| {
-        a.statistics.median.partial_cmp(&b.statistics.median).unwrap()
+        a.statistics
+            .median
+            .partial_cmp(&b.statistics.median)
+            .unwrap()
     }) {
         let meets_1khz = best.statistics.p99 < 1_000_000; // 1ms = 1MHz rate
         let meets_10khz = best.statistics.p99 < 100_000; // 100µs = 10kHz rate
@@ -178,9 +185,16 @@ fn main() {
         );
     }
 
-    let imu_results: Vec<_> = report.results.iter().filter(|r| r.name.contains("Imu")).collect();
+    let imu_results: Vec<_> = report
+        .results
+        .iter()
+        .filter(|r| r.name.contains("Imu"))
+        .collect();
     if let Some(best) = imu_results.iter().min_by(|a, b| {
-        a.statistics.median.partial_cmp(&b.statistics.median).unwrap()
+        a.statistics
+            .median
+            .partial_cmp(&b.statistics.median)
+            .unwrap()
     }) {
         let meets_500hz = best.statistics.p99 < 2_000_000; // 2ms = 500Hz rate
         println!(
@@ -190,9 +204,16 @@ fn main() {
         );
     }
 
-    let lidar_results: Vec<_> = report.results.iter().filter(|r| r.name.contains("LaserScan")).collect();
+    let lidar_results: Vec<_> = report
+        .results
+        .iter()
+        .filter(|r| r.name.contains("LaserScan"))
+        .collect();
     if let Some(best) = lidar_results.iter().min_by(|a, b| {
-        a.statistics.median.partial_cmp(&b.statistics.median).unwrap()
+        a.statistics
+            .median
+            .partial_cmp(&b.statistics.median)
+            .unwrap()
     }) {
         let meets_40hz = best.statistics.p99 < 25_000_000; // 25ms = 40Hz rate
         println!(
@@ -202,9 +223,16 @@ fn main() {
         );
     }
 
-    let pc_results: Vec<_> = report.results.iter().filter(|r| r.name.contains("PointCloud")).collect();
+    let pc_results: Vec<_> = report
+        .results
+        .iter()
+        .filter(|r| r.name.contains("PointCloud"))
+        .collect();
     if let Some(best) = pc_results.iter().min_by(|a, b| {
-        a.statistics.median.partial_cmp(&b.statistics.median).unwrap()
+        a.statistics
+            .median
+            .partial_cmp(&b.statistics.median)
+            .unwrap()
     }) {
         let meets_30hz = best.statistics.p99 < 33_000_000; // 33ms = 30Hz rate
         println!(
@@ -321,10 +349,7 @@ fn benchmark_cmdvel(
     )
 }
 
-fn benchmark_imu(
-    iterations: usize,
-    platform: &horus_benchmarks::PlatformInfo,
-) -> BenchmarkResult {
+fn benchmark_imu(iterations: usize, platform: &horus_benchmarks::PlatformInfo) -> BenchmarkResult {
     let topic_name = format!("bench_imu_{}", std::process::id());
     let topic_name_clone = topic_name.clone();
     let timer = PrecisionTimer::new();

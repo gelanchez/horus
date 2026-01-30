@@ -195,7 +195,10 @@ fn check_python(verbose: bool) -> (CheckStatus, String) {
         Ok(output) => {
             if output.status.success() {
                 let version = String::from_utf8_lossy(&output.stdout);
-                (CheckStatus::Ok, format!("horus-robotics {}", version.trim()))
+                (
+                    CheckStatus::Ok,
+                    format!("horus-robotics {}", version.trim()),
+                )
             } else {
                 // Try to check if maturin is available for building
                 match Command::new("pip3").args(["show", "maturin"]).output() {

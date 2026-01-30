@@ -330,10 +330,11 @@ impl Scheduler {
             let priority = caps.recommended_rt_priority();
             match scheduler.apply_rt_priority_internal(priority) {
                 Ok(()) => {
-                    print_line(&format!(
-                        "[AUTO] RT priority {} applied (SCHED_FIFO)",
-                        priority
-                    ).green().to_string());
+                    print_line(
+                        &format!("[AUTO] RT priority {} applied (SCHED_FIFO)", priority)
+                            .green()
+                            .to_string(),
+                    );
                 }
                 Err(e) => {
                     degradations.push(RtDegradation {
@@ -735,7 +736,10 @@ impl Scheduler {
 
     /// Check if the scheduler has full RT capabilities (no high-severity degradations).
     pub fn has_full_rt(&self) -> bool {
-        !self.rt_degradations.iter().any(|d| d.severity == DegradationSeverity::High)
+        !self
+            .rt_degradations
+            .iter()
+            .any(|d| d.severity == DegradationSeverity::High)
     }
 
     /// Record a degradation (used internally by SchedulerBuilder).
@@ -1027,12 +1031,20 @@ impl Scheduler {
             ));
             lines.push(format!(
                 "  [{}] Isolated CPUs: {:?}",
-                if !caps.isolated_cpus.is_empty() { "x" } else { " " },
+                if !caps.isolated_cpus.is_empty() {
+                    "x"
+                } else {
+                    " "
+                },
                 caps.isolated_cpus
             ));
             lines.push(format!(
                 "  [{}] Tickless CPUs (nohz_full): {:?}",
-                if !caps.nohz_full_cpus.is_empty() { "x" } else { " " },
+                if !caps.nohz_full_cpus.is_empty() {
+                    "x"
+                } else {
+                    " "
+                },
                 caps.nohz_full_cpus
             ));
         } else {
@@ -1057,7 +1069,11 @@ impl Scheduler {
         lines.push("Safety Features:".to_string());
         lines.push(format!(
             "  [{}] Safety Monitor",
-            if self.safety_monitor.is_some() { "x" } else { " " }
+            if self.safety_monitor.is_some() {
+                "x"
+            } else {
+                " "
+            }
         ));
         lines.push(format!(
             "  [{}] BlackBox Recorder",
@@ -1065,7 +1081,11 @@ impl Scheduler {
         ));
         lines.push(format!(
             "  [{}] Checkpoint Manager",
-            if self.checkpoint_manager.is_some() { "x" } else { " " }
+            if self.checkpoint_manager.is_some() {
+                "x"
+            } else {
+                " "
+            }
         ));
         lines.push(format!(
             "  [{}] Telemetry",
@@ -1078,8 +1098,8 @@ impl Scheduler {
         // Circuit breakers are always enabled per-node
         lines.push("  [x] Circuit Breakers (5 failures, 30s timeout)".to_string());
         // WCET enforcement is enabled when SafetyMonitor is present
-        let has_wcet = self.safety_monitor.is_some()
-            && self.nodes.iter().any(|n| n.wcet_budget.is_some());
+        let has_wcet =
+            self.safety_monitor.is_some() && self.nodes.iter().any(|n| n.wcet_budget.is_some());
         lines.push(format!(
             "  [{}] WCET Enforcement (RT nodes)",
             if has_wcet { "x" } else { " " }
@@ -1097,7 +1117,10 @@ impl Scheduler {
                     lines.push("  [OK] No WCET overruns".to_string());
                 }
                 if stats.deadline_misses > 0 {
-                    lines.push(format!("  [WARN] {} deadline misses", stats.deadline_misses));
+                    lines.push(format!(
+                        "  [WARN] {} deadline misses",
+                        stats.deadline_misses
+                    ));
                 } else {
                     lines.push("  [OK] No deadline misses".to_string());
                 }
@@ -1433,7 +1456,10 @@ impl Scheduler {
             let mut tm = super::telemetry::TelemetryManager::new(endpoint, interval_ms);
             tm.set_scheduler_name(&self.scheduler_name);
             self.telemetry = Some(tm);
-            print_line(&format!("[SCHEDULER] Telemetry enabled (endpoint: {})", endpoint_str));
+            print_line(&format!(
+                "[SCHEDULER] Telemetry enabled (endpoint: {})",
+                endpoint_str
+            ));
         }
 
         // 5. Redundancy (TMR)
@@ -1472,7 +1498,10 @@ impl Scheduler {
             // CPU core affinity
             if let Some(ref cores) = config.resources.cpu_cores {
                 if super::runtime::set_thread_affinity(cores).is_ok() {
-                    print_line(&format!("[SCHEDULER] CPU affinity set to cores {:?}", cores));
+                    print_line(&format!(
+                        "[SCHEDULER] CPU affinity set to cores {:?}",
+                        cores
+                    ));
                 }
             }
 
@@ -1863,7 +1892,10 @@ impl Scheduler {
             let node_path = session_dir.join(relative_path);
             if node_path.exists() {
                 if let Err(e) = scheduler.add_replay(node_path, 0) {
-                    print_line(&format!("Warning: Failed to load node '{}': {}", node_id, e));
+                    print_line(&format!(
+                        "Warning: Failed to load node '{}': {}",
+                        node_id, e
+                    ));
                 }
             }
         }
@@ -1913,7 +1945,10 @@ impl Scheduler {
             .or_default()
             .insert(output_name.to_string(), value);
 
-        print_line(&format!("[REPLAY] Override set: {}.{}", node_name, output_name));
+        print_line(&format!(
+            "[REPLAY] Override set: {}.{}",
+            node_name, output_name
+        ));
         self
     }
 
@@ -2237,7 +2272,10 @@ impl Scheduler {
                 )));
             }
 
-            print_line(&format!("[OK] OS priority set to {} (SCHED_FIFO)", priority));
+            print_line(&format!(
+                "[OK] OS priority set to {} (SCHED_FIFO)",
+                priority
+            ));
             Ok(())
         }
 
@@ -2362,7 +2400,10 @@ impl Scheduler {
             }
         }
 
-        print_line(&format!("[OK] Pre-faulted {} KB of stack", stack_size / 1024));
+        print_line(&format!(
+            "[OK] Pre-faulted {} KB of stack",
+            stack_size / 1024
+        ));
         Ok(())
     }
 
@@ -2534,13 +2575,19 @@ impl Scheduler {
                                 (true, Some(compiled))
                             }
                             Err(e) => {
-                                print_line(&format!("[JIT] Failed to compile '{}': {}", node_name, e));
+                                print_line(&format!(
+                                    "[JIT] Failed to compile '{}': {}",
+                                    node_name, e
+                                ));
                                 (false, None)
                             }
                         }
                     }
                     Err(e) => {
-                        print_line(&format!("[JIT] Compiler init failed for '{}': {}", node_name, e));
+                        print_line(&format!(
+                            "[JIT] Compiler init failed for '{}': {}",
+                            node_name, e
+                        ));
                         (false, None)
                     }
                 }
@@ -2551,7 +2598,10 @@ impl Scheduler {
                 ));
                 (true, None)
             } else {
-                print_line(&format!("[JIT] Node '{}' is JIT-capable (tracking stats)", node_name));
+                print_line(&format!(
+                    "[JIT] Node '{}' is JIT-capable (tracking stats)",
+                    node_name
+                ));
                 (true, Some(CompiledDataflow::new_stats_only(&node_name)))
             }
         } else {
@@ -2827,7 +2877,10 @@ impl Scheduler {
                 // Check if duration limit has been reached
                 if let Some(max_duration) = duration {
                     if start_time.elapsed() >= max_duration {
-                        print_line(&format!("Scheduler reached time limit of {:?}", max_duration));
+                        print_line(&format!(
+                            "Scheduler reached time limit of {:?}",
+                            max_duration
+                        ));
                         break;
                     }
                 }
@@ -2928,7 +2981,10 @@ impl Scheduler {
                             match init_result {
                                 Ok(()) => {
                                     registered.initialized = true;
-                                    print_line(&format!("[CONTROL] Node '{}' re-initialized", node_name));
+                                    print_line(&format!(
+                                        "[CONTROL] Node '{}' re-initialized",
+                                        node_name
+                                    ));
                                 }
                                 Err(e) => {
                                     print_line(&format!(
@@ -2960,7 +3016,10 @@ impl Scheduler {
                     // Check all watchdogs
                     let expired_watchdogs = monitor.check_watchdogs();
                     if !expired_watchdogs.is_empty() {
-                        print_line(&format!(" Watchdog expired for nodes: {:?}", expired_watchdogs));
+                        print_line(&format!(
+                            " Watchdog expired for nodes: {:?}",
+                            expired_watchdogs
+                        ));
                     }
 
                     // Check if emergency stop was triggered
@@ -3170,7 +3229,10 @@ impl Scheduler {
                             Err(e) => {
                                 // Still try to remove presence file on error
                                 let _ = NodePresence::remove(node_name);
-                                print_line(&format!("Error shutting down node '{}': {}", node_name, e));
+                                print_line(&format!(
+                                    "Error shutting down node '{}': {}",
+                                    node_name, e
+                                ));
                             }
                         }
                     }
@@ -3446,11 +3508,17 @@ impl Scheduler {
                                         }
                                         "pause" => {
                                             registered.is_paused = true;
-                                            print_line(&format!("[CONTROL] Node '{}' paused", node_name));
+                                            print_line(&format!(
+                                                "[CONTROL] Node '{}' paused",
+                                                node_name
+                                            ));
                                         }
                                         "resume" => {
                                             registered.is_paused = false;
-                                            print_line(&format!("[CONTROL] Node '{}' resumed", node_name));
+                                            print_line(&format!(
+                                                "[CONTROL] Node '{}' resumed",
+                                                node_name
+                                            ));
                                         }
                                         _ => {
                                             print_line(&format!(
@@ -4247,7 +4315,10 @@ impl Scheduler {
                 if let Err(e) =
                     async_executor.spawn_node(registered.node, registered.context, tx.clone())
                 {
-                    print_line(&format!("Failed to move {} to async tier: {}", node_name, e));
+                    print_line(&format!(
+                        "Failed to move {} to async tier: {}",
+                        node_name, e
+                    ));
                     // Note: Can't put it back since we've moved ownership
                     // This is acceptable as the node would be dropped anyway
                 }
@@ -4264,7 +4335,10 @@ impl Scheduler {
             while let Ok(result) = rx.try_recv() {
                 if !result.success {
                     if let Some(ref error) = result.error {
-                        print_line(&format!("Async node {} failed: {}", result.node_name, error));
+                        print_line(&format!(
+                            "Async node {} failed: {}",
+                            result.node_name, error
+                        ));
                     }
                 }
             }
@@ -4306,7 +4380,10 @@ impl Scheduler {
 
                 // Spawn in background executor
                 if let Err(e) = bg_executor.spawn_node(registered.node, registered.context) {
-                    print_line(&format!("Failed to move {} to background tier: {}", node_name, e));
+                    print_line(&format!(
+                        "Failed to move {} to background tier: {}",
+                        node_name, e
+                    ));
                 }
             }
 
@@ -4327,7 +4404,10 @@ impl Scheduler {
             for result in executor.poll_results() {
                 if !result.success {
                     if let Some(ref error) = result.error {
-                        print_line(&format!("[Background] Node {} failed: {}", result.node_name, error));
+                        print_line(&format!(
+                            "[Background] Node {} failed: {}",
+                            result.node_name, error
+                        ));
                     }
                 }
             }
@@ -4381,7 +4461,10 @@ impl Scheduler {
                 if let Err(e) =
                     iso_executor.spawn_node(registered.node, &node_name, registered.context)
                 {
-                    print_line(&format!("Failed to move {} to isolated tier: {}", node_name, e));
+                    print_line(&format!(
+                        "Failed to move {} to isolated tier: {}",
+                        node_name, e
+                    ));
                 }
             }
 
@@ -4567,9 +4650,18 @@ mod tests {
     fn test_scheduler_node_priority_ordering() {
         let mut scheduler = Scheduler::new();
         // Add nodes with different priorities
-        scheduler.add(CounterNode::new("low_priority")).order(10).done();
-        scheduler.add(CounterNode::new("high_priority")).order(0).done();
-        scheduler.add(CounterNode::new("medium_priority")).order(5).done();
+        scheduler
+            .add(CounterNode::new("low_priority"))
+            .order(10)
+            .done();
+        scheduler
+            .add(CounterNode::new("high_priority"))
+            .order(0)
+            .done();
+        scheduler
+            .add(CounterNode::new("medium_priority"))
+            .order(5)
+            .done();
 
         // After sorting by priority, high_priority should come first
         let nodes = scheduler.get_node_list();
@@ -4580,7 +4672,10 @@ mod tests {
     #[test]
     fn test_scheduler_add_basic() {
         let mut scheduler = Scheduler::new();
-        scheduler.add(CounterNode::new("basic_node")).order(0).done();
+        scheduler
+            .add(CounterNode::new("basic_node"))
+            .order(0)
+            .done();
 
         let info = scheduler.get_node_info("basic_node");
         assert!(info.is_some());
@@ -4642,8 +4737,14 @@ mod tests {
     #[test]
     fn test_scheduler_collect_topology() {
         let mut scheduler = Scheduler::new();
-        scheduler.add(PublisherNode::new("publisher", "topic1")).order(0).done();
-        scheduler.add(SubscriberNode::new("subscriber", "topic1")).order(1).done();
+        scheduler
+            .add(PublisherNode::new("publisher", "topic1"))
+            .order(0)
+            .done();
+        scheduler
+            .add(SubscriberNode::new("subscriber", "topic1"))
+            .order(1)
+            .done();
 
         let (publishers, subscribers) = scheduler.get_topology();
         assert_eq!(publishers.len(), 1);
@@ -4657,8 +4758,14 @@ mod tests {
     #[test]
     fn test_scheduler_validate_topology_matching() {
         let mut scheduler = Scheduler::new();
-        scheduler.add(PublisherNode::new("pub", "data_topic")).order(0).done();
-        scheduler.add(SubscriberNode::new("sub", "data_topic")).order(1).done();
+        scheduler
+            .add(PublisherNode::new("pub", "data_topic"))
+            .order(0)
+            .done();
+        scheduler
+            .add(SubscriberNode::new("sub", "data_topic"))
+            .order(1)
+            .done();
 
         let errors = scheduler.validate_topology();
         // No errors when publisher and subscriber match
@@ -4839,7 +4946,10 @@ mod tests {
             .with_capacity(10)
             .disable_learning();
 
-        scheduler.add(CounterNode::new("chain_node")).order(0).done();
+        scheduler
+            .add(CounterNode::new("chain_node"))
+            .order(0)
+            .done();
 
         assert!(scheduler.is_running());
         assert_eq!(scheduler.get_node_list().len(), 1);
@@ -4903,7 +5013,10 @@ mod tests {
 
         // Verify capabilities structure
         assert!(caps.cpu_count > 0, "Should detect at least 1 CPU");
-        assert!(!caps.kernel_version.is_empty(), "Should detect kernel version");
+        assert!(
+            !caps.kernel_version.is_empty(),
+            "Should detect kernel version"
+        );
 
         // Should have safety monitor enabled by default
         // Safety monitor is now disabled by default (prototyping-friendly)

@@ -17,10 +17,7 @@ pub enum MessageInput {
     /// Tuple-style: `Position = (f32, f32)`
     Tuple { name: Ident, types: Vec<Type> },
     /// Struct-style: `MyMessage { x: u8, y: u8 }`
-    Struct {
-        name: Ident,
-        fields: Vec<FieldInfo>,
-    },
+    Struct { name: Ident, fields: Vec<FieldInfo> },
 }
 
 /// Field information including attributes
@@ -109,10 +106,7 @@ fn generate_tuple_message(name: Ident, types: Vec<Type>) -> TokenStream {
 /// Generate a struct-style message with named fields
 fn generate_struct_message(name: Ident, fields: Vec<FieldInfo>) -> TokenStream {
     // Process fields: detect String types and convert to FixedString<N>
-    let processed_fields: Vec<_> = fields
-        .iter()
-        .map(|f| process_field(f))
-        .collect();
+    let processed_fields: Vec<_> = fields.iter().map(process_field).collect();
 
     // Internal struct fields (String becomes FixedString<N>)
     let internal_field_defs = processed_fields.iter().map(|pf| {
@@ -186,7 +180,7 @@ fn process_field(field: &FieldInfo) -> ProcessedField {
             field_name: field.name.clone(),
             internal_type,
             is_string: true,
-            is_pod: true,  // FixedString is Pod
+            is_pod: true, // FixedString is Pod
             max_len: Some(max_len),
         }
     } else {
@@ -341,9 +335,17 @@ fn is_pod_type(ty: &Type) -> bool {
                 // Primitives
                 if matches!(
                     ident.to_string().as_str(),
-                    "u8" | "u16" | "u32" | "u64" | "u128"
-                        | "i8" | "i16" | "i32" | "i64" | "i128"
-                        | "f32" | "f64"
+                    "u8" | "u16"
+                        | "u32"
+                        | "u64"
+                        | "u128"
+                        | "i8"
+                        | "i16"
+                        | "i32"
+                        | "i64"
+                        | "i128"
+                        | "f32"
+                        | "f64"
                         | "bool"
                 ) {
                     return true;

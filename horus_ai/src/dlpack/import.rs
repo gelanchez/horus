@@ -50,7 +50,9 @@ pub enum DLPackImportError {
 ///
 /// A TensorDescriptor describing the tensor, or an error if the tensor
 /// format is not supported.
-pub unsafe fn from_dlpack(managed: *const DLManagedTensor) -> Result<TensorDescriptor, DLPackImportError> {
+pub unsafe fn from_dlpack(
+    managed: *const DLManagedTensor,
+) -> Result<TensorDescriptor, DLPackImportError> {
     if managed.is_null() {
         return Err(DLPackImportError::NullPointer);
     }
@@ -60,7 +62,9 @@ pub unsafe fn from_dlpack(managed: *const DLManagedTensor) -> Result<TensorDescr
 
     // Validate data pointer
     if tensor.data.is_null() {
-        return Err(DLPackImportError::InvalidTensor("data pointer is null".into()));
+        return Err(DLPackImportError::InvalidTensor(
+            "data pointer is null".into(),
+        ));
     }
 
     // Convert device
@@ -71,7 +75,9 @@ pub unsafe fn from_dlpack(managed: *const DLManagedTensor) -> Result<TensorDescr
 
     // Extract shape
     if tensor.shape.is_null() && tensor.ndim > 0 {
-        return Err(DLPackImportError::InvalidTensor("shape pointer is null".into()));
+        return Err(DLPackImportError::InvalidTensor(
+            "shape pointer is null".into(),
+        ));
     }
 
     let shape: Vec<u64> = if tensor.ndim > 0 {
@@ -162,7 +168,10 @@ impl OwnedDLPackTensor {
     #[allow(dead_code)]
     pub unsafe fn from_raw(managed: *mut DLManagedTensor) -> Result<Self, DLPackImportError> {
         let descriptor = from_dlpack(managed)?;
-        Ok(Self { managed, descriptor })
+        Ok(Self {
+            managed,
+            descriptor,
+        })
     }
 
     /// Get the tensor descriptor

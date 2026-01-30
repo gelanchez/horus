@@ -308,10 +308,7 @@ impl RuntimeCapabilities {
     ///
     /// Returns empty vec if node doesn't exist or on non-NUMA systems.
     pub fn cpus_on_numa_node(&self, node: usize) -> Vec<usize> {
-        self.numa_topology
-            .get(&node)
-            .cloned()
-            .unwrap_or_default()
+        self.numa_topology.get(&node).cloned().unwrap_or_default()
     }
 
     /// Get a human-readable summary of capabilities.
@@ -322,7 +319,11 @@ impl RuntimeCapabilities {
             "RuntimeCapabilities (detected in {}μs):\n",
             self.detection_time_us
         ));
-        s.push_str(&format!("  Platform: {:?} ({})\n", self.platform, self.platform.name()));
+        s.push_str(&format!(
+            "  Platform: {:?} ({})\n",
+            self.platform,
+            self.platform.name()
+        ));
         s.push_str(&format!(
             "  Kernel: {} {}\n",
             if self.preempt_rt {
@@ -496,7 +497,7 @@ impl RuntimeCapabilities {
                     if rlim.rlim_cur == libc::RLIM_INFINITY {
                         u64::MAX
                     } else {
-                        rlim.rlim_cur as u64
+                        rlim.rlim_cur
                     }
                 } else {
                     0
@@ -597,14 +598,8 @@ mod tests {
 
     #[test]
     fn test_parse_cpu_list() {
-        assert_eq!(
-            RuntimeCapabilities::parse_cpu_list("0-3"),
-            vec![0, 1, 2, 3]
-        );
-        assert_eq!(
-            RuntimeCapabilities::parse_cpu_list("0,2,4"),
-            vec![0, 2, 4]
-        );
+        assert_eq!(RuntimeCapabilities::parse_cpu_list("0-3"), vec![0, 1, 2, 3]);
+        assert_eq!(RuntimeCapabilities::parse_cpu_list("0,2,4"), vec![0, 2, 4]);
         assert_eq!(
             RuntimeCapabilities::parse_cpu_list("0-2,5,7-8"),
             vec![0, 1, 2, 5, 7, 8]

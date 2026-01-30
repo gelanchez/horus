@@ -1,6 +1,8 @@
 use crate::config::PySchedulerConfig;
 use crate::node::PyNodeInfo;
-use horus::{announce_started, announce_stopped, NodeInfo as CoreNodeInfo, NodePresence, TopicMetadata};
+use horus::{
+    announce_started, announce_stopped, NodeInfo as CoreNodeInfo, NodePresence, TopicMetadata,
+};
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
@@ -556,11 +558,21 @@ impl PyScheduler {
                     eprintln!("Failed to initialize node '{}': {:?}", registered.name, e);
                 } else {
                     // Announce to discovery topic
-                    let pubs: Vec<TopicMetadata> = registered.publishers.iter()
-                        .map(|t| TopicMetadata { topic_name: t.clone(), type_name: "unknown".into() })
+                    let pubs: Vec<TopicMetadata> = registered
+                        .publishers
+                        .iter()
+                        .map(|t| TopicMetadata {
+                            topic_name: t.clone(),
+                            type_name: "unknown".into(),
+                        })
                         .collect();
-                    let subs: Vec<TopicMetadata> = registered.subscribers.iter()
-                        .map(|t| TopicMetadata { topic_name: t.clone(), type_name: "unknown".into() })
+                    let subs: Vec<TopicMetadata> = registered
+                        .subscribers
+                        .iter()
+                        .map(|t| TopicMetadata {
+                            topic_name: t.clone(),
+                            type_name: "unknown".into(),
+                        })
                         .collect();
                     announce_started(&registered.name, &pubs, &subs);
 
@@ -898,11 +910,21 @@ impl PyScheduler {
                     eprintln!("Failed to initialize node '{}': {:?}", registered.name, e);
                 } else {
                     // Announce to discovery topic
-                    let pubs: Vec<TopicMetadata> = registered.publishers.iter()
-                        .map(|t| TopicMetadata { topic_name: t.clone(), type_name: "unknown".into() })
+                    let pubs: Vec<TopicMetadata> = registered
+                        .publishers
+                        .iter()
+                        .map(|t| TopicMetadata {
+                            topic_name: t.clone(),
+                            type_name: "unknown".into(),
+                        })
                         .collect();
-                    let subs: Vec<TopicMetadata> = registered.subscribers.iter()
-                        .map(|t| TopicMetadata { topic_name: t.clone(), type_name: "unknown".into() })
+                    let subs: Vec<TopicMetadata> = registered
+                        .subscribers
+                        .iter()
+                        .map(|t| TopicMetadata {
+                            topic_name: t.clone(),
+                            type_name: "unknown".into(),
+                        })
                         .collect();
                     announce_started(&registered.name, &pubs, &subs);
 
@@ -1143,7 +1165,6 @@ impl PyScheduler {
                             }
                         }
                     }
-
                 }
             }
 
@@ -1453,7 +1474,6 @@ impl PyScheduler {
                     if let Ok(mut ctx) = registered.context.lock() {
                         ctx.record_tick();
                     }
-
                 }
             }
 
@@ -1654,7 +1674,6 @@ impl PyScheduler {
                     if let Ok(mut ctx) = registered.context.lock() {
                         ctx.record_tick();
                     }
-
                 }
             }
 

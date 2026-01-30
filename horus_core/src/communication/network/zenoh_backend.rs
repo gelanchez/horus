@@ -291,7 +291,7 @@ where
             key_expr: self.key_expr.clone(),
             has_publisher: self.publisher.is_some(),
             pending_messages: self.pending_count(),
-            connection_state: quality.state.clone(),
+            connection_state: quality.state,
             health_score: quality.health_score(),
             latency_ms: quality.latency_ms,
             connected_router: quality.connected_router.clone(),
@@ -324,7 +324,7 @@ where
 
     /// Get the current connection state
     pub fn connection_state(&self) -> ConnectionQualityState {
-        self.connection_quality.lock().state.clone()
+        self.connection_quality.lock().state
     }
 
     /// Check if the connection is established and healthy
@@ -413,11 +413,9 @@ where
 
         // Spawn a task to respond to the query
         let queryable_handle = tokio::spawn(async move {
-            if let Ok(query) = tokio::time::timeout(
-                std::time::Duration::from_secs(5),
-                queryable.recv_async(),
-            )
-            .await
+            if let Ok(query) =
+                tokio::time::timeout(std::time::Duration::from_secs(5), queryable.recv_async())
+                    .await
             {
                 if let Ok(query) = query {
                     let _ = query.reply(&health_key_reply, "pong").await;
@@ -641,11 +639,10 @@ where
             if let Err(e) = zenoh_config.insert_json5("connect/endpoints", &endpoints_json) {
                 log::warn!("Invalid router endpoint {}: {}", router, e);
                 last_error = Some(
-                    NetworkError::invalid_endpoint(router, e.to_string())
-                        .with_suggestion(format!(
-                            "Use format 'tcp/host:port' or 'udp/host:port'. Got: {}",
-                            router
-                        )),
+                    NetworkError::invalid_endpoint(router, e.to_string()).with_suggestion(format!(
+                        "Use format 'tcp/host:port' or 'udp/host:port'. Got: {}",
+                        router
+                    )),
                 );
                 continue;
             }
@@ -696,7 +693,12 @@ where
             "Check network connectivity and router availability. \
             Ensure routers are running and accessible from your network.",
         )
-        .with_cli_hint(format!("horus net check {}", routers.first().unwrap_or(&"cloud.horus.dev:7447".to_string())));
+        .with_cli_hint(format!(
+            "horus net check {}",
+            routers
+                .first()
+                .unwrap_or(&"cloud.horus.dev:7447".to_string())
+        ));
 
         Err(final_err.into())
     }

@@ -190,7 +190,8 @@ impl PyDevice {
             Ok(Self::cpu())
         } else if s.starts_with("cuda") {
             let id = if s.contains(':') {
-                s.split(':').nth(1)
+                s.split(':')
+                    .nth(1)
                     .and_then(|id| id.parse().ok())
                     .unwrap_or(0)
             } else {
@@ -199,7 +200,8 @@ impl PyDevice {
             Ok(Self::cuda(id))
         } else {
             Err(pyo3::exceptions::PyValueError::new_err(format!(
-                "Unknown device: {}. Use 'cpu' or 'cuda:N'", s
+                "Unknown device: {}. Use 'cpu' or 'cuda:N'",
+                s
             )))
         }
     }
@@ -271,7 +273,10 @@ pub fn register_ai_module(parent: &Bound<'_, PyModule>) -> PyResult<()> {
     ai.add_function(wrap_pyfunction!(dlpack_supported, &ai)?)?;
 
     // Add docstring
-    ai.setattr("__doc__", "HORUS AI/ML tensor utilities with DLPack support")?;
+    ai.setattr(
+        "__doc__",
+        "HORUS AI/ML tensor utilities with DLPack support",
+    )?;
 
     // Add to parent module
     parent.add_submodule(&ai)?;

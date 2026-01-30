@@ -221,7 +221,10 @@ impl PluginDiscovery {
             PluginCategory::Camera
         } else if name_lower.contains("lidar") || name_lower.contains("rplidar") {
             PluginCategory::Lidar
-        } else if name_lower.contains("imu") || name_lower.contains("bno") || name_lower.contains("mpu") {
+        } else if name_lower.contains("imu")
+            || name_lower.contains("bno")
+            || name_lower.contains("mpu")
+        {
             PluginCategory::Imu
         } else if name_lower.contains("motor") || name_lower.contains("roboclaw") {
             PluginCategory::Motor
@@ -387,9 +390,7 @@ impl PluginDiscovery {
             PluginSourceType::CratesIo => {
                 format!("cargo install {}", plugin.name)
             }
-            PluginSourceType::Git => {
-                format!("horus plugins install --git <repository-url>")
-            }
+            PluginSourceType::Git => "horus plugins install --git <repository-url>".to_string(),
         }
     }
 }

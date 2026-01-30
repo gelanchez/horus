@@ -5,13 +5,14 @@ name: CI
 
 on:
   pull_request:
-    branches: [main, master]
+    branches: [main, master, dev]
   push:
-    branches: [main, master]
+    branches: [main, master, dev]
 
 env:
   CARGO_TERM_COLOR: always
-  RUSTFLAGS: -D warnings
+  # Allow warnings on dev branch, strict on main
+  RUSTFLAGS: ${{ github.ref == 'refs/heads/main' && '-D warnings' || '-W warnings' }}
 
 jobs:
   check:
@@ -76,7 +77,12 @@ jobs:
           restore-keys: ${{ runner.os }}-cargo-clippy-
 
       - name: Clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            cargo clippy --workspace --all-targets -- -D warnings
+          else
+            cargo clippy --workspace --all-targets
+          fi
 
   test:
     name: Test
@@ -135,7 +141,7 @@ jobs:
       - name: Check Documentation
         run: cargo doc --workspace --no-deps
         env:
-          RUSTDOCFLAGS: -D warnings
+          RUSTDOCFLAGS: ${{ github.ref == 'refs/heads/main' && '-D warnings' || '' }}
 
   # Final status check
   ci-success:

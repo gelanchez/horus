@@ -106,8 +106,9 @@ impl DependencySpec {
             let requirement = if constraint == "latest" || constraint == "*" {
                 VersionReq::STAR
             } else {
-                VersionReq::parse(constraint)
-                    .map_err(|e| anyhow!("Invalid pip version constraint '{}': {}", constraint, e))?
+                VersionReq::parse(constraint).map_err(|e| {
+                    anyhow!("Invalid pip version constraint '{}': {}", constraint, e)
+                })?
             };
 
             Ok(Self {

@@ -158,7 +158,8 @@ mod tests {
     fn test_fixed_string_pod() {
         let s = FixedString::<16>::from_str("test");
         let bytes = bytemuck::bytes_of(&s);
-        let restored: &FixedString<16> = bytemuck::from_bytes(&bytes[..std::mem::size_of::<FixedString<16>>()]);
+        let restored: &FixedString<16> =
+            bytemuck::from_bytes(&bytes[..std::mem::size_of::<FixedString<16>>()]);
         assert_eq!(restored.as_str(), "test");
     }
 }

@@ -29,7 +29,12 @@ impl PyBoundingBox2D {
     #[new]
     #[pyo3(signature = (x=0.0, y=0.0, width=0.0, height=0.0))]
     fn new(x: f32, y: f32, width: f32, height: f32) -> Self {
-        Self { x, y, width, height }
+        Self {
+            x,
+            y,
+            width,
+            height,
+        }
     }
 
     /// Create from center coordinates (YOLO format)
@@ -71,20 +76,32 @@ impl PyBoundingBox2D {
         let intersection = (x2 - x1).max(0.0) * (y2 - y1).max(0.0);
         let union = self.area() + other.area() - intersection;
 
-        if union > 0.0 { intersection / union } else { 0.0 }
+        if union > 0.0 {
+            intersection / union
+        } else {
+            0.0
+        }
     }
 
     #[getter]
-    fn x(&self) -> f32 { self.x }
+    fn x(&self) -> f32 {
+        self.x
+    }
 
     #[getter]
-    fn y(&self) -> f32 { self.y }
+    fn y(&self) -> f32 {
+        self.y
+    }
 
     #[getter]
-    fn width(&self) -> f32 { self.width }
+    fn width(&self) -> f32 {
+        self.width
+    }
 
     #[getter]
-    fn height(&self) -> f32 { self.height }
+    fn height(&self) -> f32 {
+        self.height
+    }
 
     /// Convert to tuple (x, y, w, h)
     fn as_tuple(&self) -> (f32, f32, f32, f32) {
@@ -97,8 +114,10 @@ impl PyBoundingBox2D {
     }
 
     fn __repr__(&self) -> String {
-        format!("BoundingBox2D(x={:.1}, y={:.1}, w={:.1}, h={:.1})",
-                self.x, self.y, self.width, self.height)
+        format!(
+            "BoundingBox2D(x={:.1}, y={:.1}, w={:.1}, h={:.1})",
+            self.x, self.y, self.width, self.height
+        )
     }
 }
 
@@ -223,9 +242,10 @@ impl PyDetection {
     #[staticmethod]
     fn from_bytes(data: &[u8]) -> PyResult<Self> {
         if data.len() < 72 {
-            return Err(pyo3::exceptions::PyValueError::new_err(
-                format!("Detection requires 72 bytes, got {}", data.len())
-            ));
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Detection requires 72 bytes, got {}",
+                data.len()
+            )));
         }
 
         let x = f32::from_le_bytes(data[0..4].try_into().unwrap());
@@ -252,8 +272,12 @@ impl PyDetection {
     fn __repr__(&self) -> String {
         format!(
             "Detection('{}', conf={:.2}, bbox=({:.0}, {:.0}, {:.0}, {:.0}))",
-            self.class_name, self.confidence,
-            self.bbox.x, self.bbox.y, self.bbox.width, self.bbox.height
+            self.class_name,
+            self.confidence,
+            self.bbox.x,
+            self.bbox.y,
+            self.bbox.width,
+            self.bbox.height
         )
     }
 }
@@ -280,13 +304,19 @@ impl PyPointXYZ {
     }
 
     #[getter]
-    fn x(&self) -> f32 { self.x }
+    fn x(&self) -> f32 {
+        self.x
+    }
 
     #[getter]
-    fn y(&self) -> f32 { self.y }
+    fn y(&self) -> f32 {
+        self.y
+    }
 
     #[getter]
-    fn z(&self) -> f32 { self.z }
+    fn z(&self) -> f32 {
+        self.z
+    }
 
     /// Distance from origin
     fn distance(&self) -> f32 {
@@ -343,22 +373,34 @@ impl PyPointXYZRGB {
     }
 
     #[getter]
-    fn x(&self) -> f32 { self.x }
+    fn x(&self) -> f32 {
+        self.x
+    }
 
     #[getter]
-    fn y(&self) -> f32 { self.y }
+    fn y(&self) -> f32 {
+        self.y
+    }
 
     #[getter]
-    fn z(&self) -> f32 { self.z }
+    fn z(&self) -> f32 {
+        self.z
+    }
 
     #[getter]
-    fn r(&self) -> u8 { self.r }
+    fn r(&self) -> u8 {
+        self.r
+    }
 
     #[getter]
-    fn g(&self) -> u8 { self.g }
+    fn g(&self) -> u8 {
+        self.g
+    }
 
     #[getter]
-    fn b(&self) -> u8 { self.b }
+    fn b(&self) -> u8 {
+        self.b
+    }
 
     /// Get RGB as tuple
     fn rgb(&self) -> (u8, u8, u8) {
@@ -367,12 +409,18 @@ impl PyPointXYZRGB {
 
     /// Get XYZ as PointXYZ
     fn xyz(&self) -> PyPointXYZ {
-        PyPointXYZ { x: self.x, y: self.y, z: self.z }
+        PyPointXYZ {
+            x: self.x,
+            y: self.y,
+            z: self.z,
+        }
     }
 
     fn __repr__(&self) -> String {
-        format!("PointXYZRGB({:.3}, {:.3}, {:.3}, rgb=({}, {}, {}))",
-                self.x, self.y, self.z, self.r, self.g, self.b)
+        format!(
+            "PointXYZRGB({:.3}, {:.3}, {:.3}, rgb=({}, {}, {}))",
+            self.x, self.y, self.z, self.r, self.g, self.b
+        )
     }
 }
 
@@ -395,20 +443,33 @@ impl PyLandmark {
     #[new]
     #[pyo3(signature = (x, y, visibility=1.0, index=0))]
     fn new(x: f32, y: f32, visibility: f32, index: u32) -> Self {
-        Self { x, y, visibility, index }
+        Self {
+            x,
+            y,
+            visibility,
+            index,
+        }
     }
 
     #[getter]
-    fn x(&self) -> f32 { self.x }
+    fn x(&self) -> f32 {
+        self.x
+    }
 
     #[getter]
-    fn y(&self) -> f32 { self.y }
+    fn y(&self) -> f32 {
+        self.y
+    }
 
     #[getter]
-    fn visibility(&self) -> f32 { self.visibility }
+    fn visibility(&self) -> f32 {
+        self.visibility
+    }
 
     #[getter]
-    fn index(&self) -> u32 { self.index }
+    fn index(&self) -> u32 {
+        self.index
+    }
 
     /// Check if landmark is visible
     fn is_visible(&self, threshold: f32) -> bool {
@@ -423,8 +484,10 @@ impl PyLandmark {
     }
 
     fn __repr__(&self) -> String {
-        format!("Landmark({:.1}, {:.1}, vis={:.2}, idx={})",
-                self.x, self.y, self.visibility, self.index)
+        format!(
+            "Landmark({:.1}, {:.1}, vis={:.2}, idx={})",
+            self.x, self.y, self.visibility, self.index
+        )
     }
 }
 
@@ -443,7 +506,9 @@ pub struct PyDetectionList {
 impl PyDetectionList {
     #[new]
     fn new() -> Self {
-        Self { detections: Vec::new() }
+        Self {
+            detections: Vec::new(),
+        }
     }
 
     /// Create from list of detections
@@ -464,28 +529,33 @@ impl PyDetectionList {
 
     /// Get detection by index
     fn __getitem__(&self, index: usize) -> PyResult<PyDetection> {
-        self.detections.get(index).cloned().ok_or_else(|| {
-            pyo3::exceptions::PyIndexError::new_err("Index out of range")
-        })
+        self.detections
+            .get(index)
+            .cloned()
+            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("Index out of range"))
     }
 
     /// Filter by confidence threshold
     fn filter_confidence(&self, threshold: f32) -> Self {
         Self {
-            detections: self.detections.iter()
+            detections: self
+                .detections
+                .iter()
                 .filter(|d| d.confidence >= threshold)
                 .cloned()
-                .collect()
+                .collect(),
         }
     }
 
     /// Filter by class name
     fn filter_class(&self, class_name: &str) -> Self {
         Self {
-            detections: self.detections.iter()
+            detections: self
+                .detections
+                .iter()
                 .filter(|d| d.class_name == class_name)
                 .cloned()
-                .collect()
+                .collect(),
         }
     }
 
@@ -653,28 +723,44 @@ impl PyTrackedObject {
     }
 
     #[getter]
-    fn bbox(&self) -> PyBoundingBox2D { self.bbox.clone() }
+    fn bbox(&self) -> PyBoundingBox2D {
+        self.bbox.clone()
+    }
 
     #[getter]
-    fn track_id(&self) -> u64 { self.track_id }
+    fn track_id(&self) -> u64 {
+        self.track_id
+    }
 
     #[getter]
-    fn confidence(&self) -> f32 { self.confidence }
+    fn confidence(&self) -> f32 {
+        self.confidence
+    }
 
     #[getter]
-    fn class_id(&self) -> u32 { self.class_id }
+    fn class_id(&self) -> u32 {
+        self.class_id
+    }
 
     #[getter]
-    fn class_name(&self) -> &str { &self.class_name }
+    fn class_name(&self) -> &str {
+        &self.class_name
+    }
 
     #[getter]
-    fn velocity(&self) -> (f32, f32) { (self.velocity_x, self.velocity_y) }
+    fn velocity(&self) -> (f32, f32) {
+        (self.velocity_x, self.velocity_y)
+    }
 
     #[getter]
-    fn age(&self) -> u32 { self.age }
+    fn age(&self) -> u32 {
+        self.age
+    }
 
     #[getter]
-    fn hits(&self) -> u32 { self.hits }
+    fn hits(&self) -> u32 {
+        self.hits
+    }
 
     /// Speed magnitude
     fn speed(&self) -> f32 {
@@ -682,13 +768,19 @@ impl PyTrackedObject {
     }
 
     /// Check if track is tentative
-    fn is_tentative(&self) -> bool { self.state == 0 }
+    fn is_tentative(&self) -> bool {
+        self.state == 0
+    }
 
     /// Check if track is confirmed
-    fn is_confirmed(&self) -> bool { self.state == 1 }
+    fn is_confirmed(&self) -> bool {
+        self.state == 1
+    }
 
     /// Check if track is deleted
-    fn is_deleted(&self) -> bool { self.state == 2 }
+    fn is_deleted(&self) -> bool {
+        self.state == 2
+    }
 
     /// Update with new detection
     fn update(&mut self, bbox: &PyBoundingBox2D, confidence: f32) {
@@ -733,9 +825,9 @@ impl PyTrackedObject {
 #[pyclass(name = "PointCloudBuffer")]
 #[derive(Debug)]
 pub struct PyPointCloudBuffer {
-    points: Vec<f32>,  // Flat array: [x0, y0, z0, x1, y1, z1, ...]
+    points: Vec<f32>, // Flat array: [x0, y0, z0, x1, y1, z1, ...]
     num_points: usize,
-    point_type: u32,   // 0=XYZ, 1=XYZRGB, 2=XYZI
+    point_type: u32, // 0=XYZ, 1=XYZRGB, 2=XYZI
     frame_id: String,
 }
 
@@ -767,7 +859,7 @@ impl PyPointCloudBuffer {
         let shape: Vec<usize> = arr.getattr("shape")?.extract()?;
         if shape.len() != 2 || shape[1] < 3 {
             return Err(pyo3::exceptions::PyValueError::new_err(
-                "Array must be (N, 3) or (N, 4)"
+                "Array must be (N, 3) or (N, 4)",
             ));
         }
 
@@ -811,7 +903,9 @@ impl PyPointCloudBuffer {
     /// Get point by index
     fn __getitem__(&self, index: usize) -> PyResult<PyPointXYZ> {
         if index >= self.num_points {
-            return Err(pyo3::exceptions::PyIndexError::new_err("Index out of range"));
+            return Err(pyo3::exceptions::PyIndexError::new_err(
+                "Index out of range",
+            ));
         }
         let base = index * 3;
         Ok(PyPointXYZ {
@@ -863,7 +957,10 @@ impl PyPointCloudBuffer {
     }
 
     fn __repr__(&self) -> String {
-        format!("PointCloudBuffer({} points, frame='{}')", self.num_points, self.frame_id)
+        format!(
+            "PointCloudBuffer({} points, frame='{}')",
+            self.num_points, self.frame_id
+        )
     }
 }
 
@@ -897,8 +994,10 @@ pub fn register_perception_module(parent: &Bound<'_, PyModule>) -> PyResult<()> 
     perception.add_class::<PyCOCOPose>()?;
 
     // Add docstring
-    perception.setattr("__doc__",
-        "HORUS perception types - Detection, PointCloud, Landmark for AI/ML pipelines")?;
+    perception.setattr(
+        "__doc__",
+        "HORUS perception types - Detection, PointCloud, Landmark for AI/ML pipelines",
+    )?;
 
     parent.add_submodule(&perception)?;
 

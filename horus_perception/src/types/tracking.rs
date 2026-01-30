@@ -2,8 +2,8 @@
 //!
 //! Types for multi-object tracking (MOT) and tracked object state.
 
-use bytemuck::{Pod, Zeroable};
 use super::detection::BoundingBox2D;
+use bytemuck::{Pod, Zeroable};
 
 /// Tracked object state
 ///
@@ -223,12 +223,8 @@ mod tests {
 
     #[test]
     fn test_track_lifecycle() {
-        let mut track = TrackedObject::new(
-            1,
-            BoundingBox2D::new(100.0, 100.0, 50.0, 50.0),
-            0,
-            0.95,
-        );
+        let mut track =
+            TrackedObject::new(1, BoundingBox2D::new(100.0, 100.0, 50.0, 50.0), 0, 0.95);
 
         assert!(track.is_tentative());
 

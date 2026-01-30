@@ -73,9 +73,9 @@ pub use communication::{PodMessage, Topic};
 pub use core::{
     announce_crashed, announce_started, announce_stopped, detect_isolated_cpus,
     detect_nohz_full_cpus, get_rt_recommended_cpus, pin_thread_to_core, read_announcements,
-    HealthStatus, LogSummary, Node, NodeAnnouncement, NodeConfig, NodeEvent, NodeInfo,
-    NodeMetrics, NodePresence, NodeState, RtApplyResult, RtConfig, RtConfigBuilder, RtCpuInfo,
-    RtDegradation, RtKernelInfo, RtScheduler, TopicMetadata, DISCOVERY_TOPIC,
+    HealthStatus, LogSummary, Node, NodeAnnouncement, NodeConfig, NodeEvent, NodeInfo, NodeMetrics,
+    NodePresence, NodeState, RtApplyResult, RtConfig, RtConfigBuilder, RtCpuInfo, RtDegradation,
+    RtKernelInfo, RtScheduler, TopicMetadata, DISCOVERY_TOPIC,
 };
 pub use error::{HorusError, HorusResult};
 // Clean aliases for user-facing API
@@ -147,4 +147,3 @@ pub use bytemuck;
 // Internal types used by macros (not part of public API)
 #[doc(hidden)]
 pub use types::FixedString;
-

@@ -324,10 +324,10 @@ pub struct FrequencyTrackerConfig {
 impl Default for FrequencyTrackerConfig {
     fn default() -> Self {
         Self {
-            ema_alpha: 0.1,                           // Smooth, stable EMA
+            ema_alpha: 0.1, // Smooth, stable EMA
             min_sample_interval: Duration::from_millis(100),
-            high_freq_threshold: 1000.0,              // >1000 msg/s = high throughput
-            low_freq_threshold: 10.0,                 // <10 msg/s = disable batching
+            high_freq_threshold: 1000.0, // >1000 msg/s = high throughput
+            low_freq_threshold: 10.0,    // <10 msg/s = disable batching
         }
     }
 }
@@ -522,13 +522,13 @@ impl AdaptiveBatcherConfig {
     pub fn robotics() -> Self {
         Self {
             frequency_config: FrequencyTrackerConfig {
-                ema_alpha: 0.05,                        // More stable
-                high_freq_threshold: 500.0,            // Lower threshold for robotics
+                ema_alpha: 0.05,            // More stable
+                high_freq_threshold: 500.0, // Lower threshold for robotics
                 low_freq_threshold: 5.0,
                 ..Default::default()
             },
             high_freq_config: BatchConfig {
-                max_messages: 200,                      // Not too aggressive
+                max_messages: 200, // Not too aggressive
                 flush_timeout: Duration::from_millis(10),
                 ..BatchConfig::high_throughput()
             },
