@@ -133,11 +133,6 @@ fn bench_unix_socket() {
 fn bench_direct_backend() {
     println!("\n=== Direct Backend (TCP 1P1C) ===");
 
-    use horus_core::communication::network::{DirectBackend, DirectRole};
-    use std::net::SocketAddr;
-    use std::thread;
-    use std::time::Duration;
-
     // DirectBackend uses TCP for 1P1C connections
     // This requires both producer and consumer to be running
     // For now, just print info about the backend
