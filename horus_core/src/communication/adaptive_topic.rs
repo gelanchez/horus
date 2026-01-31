@@ -417,7 +417,8 @@ impl AdaptiveTopicHeader {
         // Ensure capacity is power of 2 for fast modulo
         let capacity = capacity.next_power_of_two();
 
-        self.magic = ADAPTIVE_MAGIC;
+        // Initialize all fields BEFORE setting magic (race condition fix)
+        // Another process might check magic to determine if header is initialized
         self.version = ADAPTIVE_VERSION;
         self.type_size = type_size;
         self.type_align = type_align;
@@ -453,6 +454,13 @@ impl AdaptiveTopicHeader {
         for p in &self.participants {
             p.clear();
         }
+
+        // CRITICAL: Set magic LAST with a memory fence to ensure all prior writes
+        // are visible to other processes before they see the magic value.
+        // This prevents the race where another process sees magic but reads
+        // uninitialized slot_size, capacity, etc.
+        std::sync::atomic::fence(Ordering::Release);
+        self.magic = ADAPTIVE_MAGIC;
     }
 
     /// Check if the header has valid magic number
@@ -1372,16 +1380,40 @@ impl<T: Clone + Send + Sync + Serialize + DeserializeOwned + 'static> AdaptiveTo
         // Initialize header if we're the creator
         let header = unsafe { &mut *(storage.as_ptr() as *mut AdaptiveTopicHeader) };
 
+        // Use Acquire fence before checking magic to ensure we see all initialized fields
+        // if another process has already set it (pairs with Release fence in init())
+        std::sync::atomic::fence(Ordering::Acquire);
+
         let final_slot_size = if header.magic != ADAPTIVE_MAGIC {
-            // We're the creator - initialize the header
-            header.init(
-                type_size,
-                type_align,
-                is_pod,
-                capacity,
-                actual_slot_size as u32,
-            );
-            actual_slot_size
+            // We might be the creator, or another process is still initializing
+            // Use is_owner from ShmRegion to determine who should initialize
+            if storage.is_owner() {
+                // We created the shared memory - initialize the header
+                header.init(
+                    type_size,
+                    type_align,
+                    is_pod,
+                    capacity,
+                    actual_slot_size as u32,
+                );
+                actual_slot_size
+            } else {
+                // Another process created it but hasn't finished initializing
+                // Wait briefly for initialization to complete
+                for _ in 0..100 {
+                    std::thread::sleep(std::time::Duration::from_millis(1));
+                    std::sync::atomic::fence(Ordering::Acquire);
+                    if header.magic == ADAPTIVE_MAGIC {
+                        break;
+                    }
+                }
+                if header.magic != ADAPTIVE_MAGIC {
+                    return Err(HorusError::Communication(
+                        "Timeout waiting for topic header initialization".to_string(),
+                    ));
+                }
+                header.slot_size as usize
+            }
         } else {
             // Validate existing header
             if header.version != ADAPTIVE_VERSION {
