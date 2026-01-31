@@ -9,7 +9,7 @@
 /// - Path planning and navigation
 /// - Obstacle avoidance
 /// - Battery monitoring with fault tolerance
-use horus_core::{hlog, Node, Result, Scheduler, Topic, TopicMetadata};
+use horus_core::{Node, Result, Scheduler, Topic, TopicMetadata};
 use std::f64::consts::PI;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -972,8 +972,30 @@ impl Node for IMUSensorNode {
 
 // ============ Main Test ============
 
+/// Clean up stale shared memory topics from previous test runs
+fn cleanup_test_topics() {
+    let topics_dir = std::path::PathBuf::from("/dev/shm/horus/topics");
+    let test_topics = [
+        "cmd_vel",
+        "odometry",
+        "scan",
+        "imu.data",
+        "path",
+        "battery_status",
+    ];
+    for topic in test_topics {
+        let path = topics_dir.join(format!("horus_{}", topic));
+        if path.exists() {
+            let _ = std::fs::remove_file(&path);
+        }
+    }
+}
+
 #[test]
 fn test_autonomous_robot_complete_system() {
+    // Clean up any stale shared memory from previous runs
+    cleanup_test_topics();
+
     println!("\n=== AUTONOMOUS MOBILE ROBOT APPLICATION ===");
     println!("Demonstrating enhanced HORUS scheduler with real robotics system\n");
 
@@ -1074,6 +1096,9 @@ fn test_autonomous_robot_complete_system() {
 #[test]
 fn test_robot_performance_metrics() {
     use std::sync::atomic::{AtomicUsize, Ordering};
+
+    // Clean up any stale shared memory from previous tests
+    cleanup_test_topics();
 
     println!("\n=== ROBOT PERFORMANCE METRICS TEST ===");
 

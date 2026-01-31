@@ -200,13 +200,13 @@ const MAX_PARTICIPANTS: usize = 16;
 // DirectChannel Thread-Local Indices
 // ============================================================================
 
-/// Thread-local storage for DirectChannel head/tail indices.
-///
-/// This enables DirectChannel to work with separate Topic::new() instances
-/// on the same thread. Both instances share the same slot_index (assigned
-/// per pid+thread_id), so they access the same entry in this array.
-///
-/// Format: (head, tail) pairs indexed by slot_index
+// Thread-local storage for DirectChannel head/tail indices.
+//
+// This enables DirectChannel to work with separate Topic::new() instances
+// on the same thread. Both instances share the same slot_index (assigned
+// per pid+thread_id), so they access the same entry in this array.
+//
+// Format: (head, tail) pairs indexed by slot_index
 thread_local! {
     static DIRECT_INDICES: RefCell<[(u64, u64); MAX_PARTICIPANTS]> =
         const { RefCell::new([(0, 0); MAX_PARTICIPANTS]) };
@@ -742,11 +742,13 @@ impl AdaptiveTopicHeader {
             // No participants yet - stay Unknown
             (_, _, 0, 0, _) => AdaptiveBackendMode::Unknown,
 
-            // DirectChannel: Same thread, 1 producer, 1 consumer (~3-5ns)
+            // DirectChannel: Same thread, 1 producer, 1 consumer, POD only (~3-5ns)
             // Uses thread-local DIRECT_INDICES array indexed by slot_index.
             // Both separate Topic::new() instances share the same slot_index
             // (assigned per pid+thread_id), so they access the same entry.
-            (true, _, 1, 1, _) => AdaptiveBackendMode::DirectChannel,
+            // IMPORTANT: Only for POD types - DirectChannel uses ptr::read which
+            // corrupts non-POD types (Vec, String, etc.). Non-POD falls to SpscIntra.
+            (true, _, 1, 1, true) => AdaptiveBackendMode::DirectChannel,
 
             // Same process - use intra-process backends
             // Single-ended topics use SpscIntra (thread-safe, no migration needed when other joins)
