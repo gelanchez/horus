@@ -80,6 +80,22 @@ pub struct EnvironmentManifest {
     pub horus_version: String,
 }
 
+/// Environment list item from registry API (includes full manifest)
+#[derive(Debug, Serialize, Deserialize)]
+pub struct EnvironmentListItem {
+    pub horus_id: String,
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub manifest: EnvironmentManifest,
+    pub created_at: String,
+}
+
+/// Response wrapper for environment list
+#[derive(Debug, Serialize, Deserialize)]
+pub struct EnvironmentListResponse {
+    pub environments: Vec<EnvironmentListItem>,
+}
+
 /// Driver metadata from the registry API
 /// Contains required features and dependencies for automatic installation
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -2142,6 +2158,57 @@ impl RegistryClient {
             manifest.horus_id
         );
         Ok(())
+    }
+
+    /// List all published environments from the registry
+    /// List all published environments from the registry (requires authentication)
+    pub fn list_environments(&self) -> Result<Vec<EnvironmentListItem>> {
+        let api_key = get_api_key()?;
+        let url = format!("{}/api/environments", self.base_url);
+        let response = self
+            .client
+            .get(&url)
+            .header("Authorization", format!("Bearer {}", api_key))
+            .send()?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_text = response
+                .text()
+                .unwrap_or_else(|_| "Unknown error".to_string());
+            return Err(anyhow!(
+                "Failed to list environments ({}): {}",
+                status,
+                error_text
+            ));
+        }
+
+        let list_response: EnvironmentListResponse = response.json()?;
+        Ok(list_response.environments)
+    }
+
+    /// Get details of a specific environment by ID
+    pub fn get_environment(&self, horus_id: &str) -> Result<EnvironmentManifest> {
+        let url = format!("{}/api/environments/{}", self.base_url, horus_id);
+        let response = self.client.get(&url).send()?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            if status == reqwest::StatusCode::NOT_FOUND {
+                return Err(anyhow!("Environment not found: {}", horus_id));
+            }
+            let error_text = response
+                .text()
+                .unwrap_or_else(|_| "Unknown error".to_string());
+            return Err(anyhow!(
+                "Failed to get environment ({}): {}",
+                status,
+                error_text
+            ));
+        }
+
+        let manifest: EnvironmentManifest = response.json()?;
+        Ok(manifest)
     }
 }
 

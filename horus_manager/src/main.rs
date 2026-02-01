@@ -755,6 +755,15 @@ enum CacheCommands {
 
 #[derive(Subcommand)]
 enum EnvCommands {
+    /// List all published environments
+    List,
+
+    /// Show details of an environment
+    Show {
+        /// Environment ID (e.g., horus-env-abc123)
+        id: String,
+    },
+
     /// Freeze current environment to a manifest file
     Freeze {
         /// Output file path (default: horus-freeze.yaml)
@@ -4247,6 +4256,131 @@ except ImportError as e:
 
                         println!(" Environment {} restored successfully!", source);
                     }
+
+                    Ok(())
+                }
+
+                EnvCommands::List => {
+                    println!("{} Fetching published environments...", "".cyan());
+
+                    let client = registry::RegistryClient::new();
+                    let environments = client
+                        .list_environments()
+                        .map_err(|e| HorusError::Config(e.to_string()))?;
+
+                    if environments.is_empty() {
+                        println!("\n{}", "No published environments found.".dimmed());
+                        println!(
+                            "{}",
+                            "Publish one with: horus env freeze --publish".dimmed()
+                        );
+                    } else {
+                        println!("\n{} Published Environments:\n", "".green());
+                        for env in &environments {
+                            let name = env
+                                .name
+                                .as_deref()
+                                .unwrap_or("(unnamed)");
+                            println!(
+                                "  {} {}",
+                                "•".cyan(),
+                                env.horus_id.bold()
+                            );
+                            println!("    Name: {}", name);
+                            if let Some(desc) = &env.description {
+                                println!("    Description: {}", desc.dimmed());
+                            }
+                            println!(
+                                "    Packages: {} | Created: {}",
+                                env.manifest.packages.len(),
+                                env.created_at
+                            );
+                            println!(
+                                "    System: {} ({})",
+                                env.manifest.system.os,
+                                env.manifest.system.arch
+                            );
+                            println!("    HORUS: v{}", env.manifest.horus_version);
+                            println!();
+                        }
+                        println!(
+                            "{} To restore: horus env restore <ID>",
+                            "Tip:".dimmed()
+                        );
+                        println!(
+                            "{} For details: horus env show <ID>",
+                            "    ".dimmed()
+                        );
+                    }
+
+                    Ok(())
+                }
+
+                EnvCommands::Show { id } => {
+                    println!("{} Fetching environment {}...", "".cyan(), id);
+
+                    let client = registry::RegistryClient::new();
+                    let manifest = client
+                        .get_environment(&id)
+                        .map_err(|e| HorusError::Config(e.to_string()))?;
+
+                    // Display environment details
+                    println!("\n{} Environment Details\n", "".green());
+                    println!("  ID:          {}", manifest.horus_id.bold());
+                    println!(
+                        "  Name:        {}",
+                        manifest.name.as_deref().unwrap_or("(unnamed)")
+                    );
+                    if let Some(desc) = &manifest.description {
+                        println!("  Description: {}", desc);
+                    }
+                    println!(
+                        "  Created:     {}",
+                        manifest.created_at.format("%Y-%m-%d %H:%M:%S UTC")
+                    );
+                    println!("  HORUS:       v{}", manifest.horus_version);
+
+                    // System info
+                    println!("\n{} System\n", "".cyan());
+                    println!("  OS:          {}", manifest.system.os);
+                    println!("  Arch:        {}", manifest.system.arch);
+                    if let Some(py) = &manifest.system.python_version {
+                        println!("  Python:      {}", py);
+                    }
+                    if let Some(rs) = &manifest.system.rust_version {
+                        println!("  Rust:        {}", rs);
+                    }
+                    if let Some(gcc) = &manifest.system.gcc_version {
+                        println!("  GCC:         {}", gcc);
+                    }
+                    if let Some(cuda) = &manifest.system.cuda_version {
+                        println!("  CUDA:        {}", cuda);
+                    }
+
+                    // Packages
+                    println!("\n{} Packages ({})\n", "".cyan(), manifest.packages.len());
+                    for pkg in &manifest.packages {
+                        let source_str = match &pkg.source {
+                            registry::PackageSource::Registry => "registry".to_string(),
+                            registry::PackageSource::PyPI => "pypi".to_string(),
+                            registry::PackageSource::CratesIO => "crates.io".to_string(),
+                            registry::PackageSource::System => "system".to_string(),
+                            registry::PackageSource::Path { path } => format!("path:{}", path),
+                        };
+                        println!(
+                            "  {} {} v{} ({})",
+                            "•".cyan(),
+                            pkg.name.bold(),
+                            pkg.version,
+                            source_str.dimmed()
+                        );
+                    }
+
+                    println!(
+                        "\n{} To restore: horus env restore {}",
+                        "Tip:".dimmed(),
+                        manifest.horus_id
+                    );
 
                     Ok(())
                 }
