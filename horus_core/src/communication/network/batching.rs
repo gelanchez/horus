@@ -864,7 +864,7 @@ mod tests {
         std::thread::sleep(Duration::from_micros(10));
         tracker.record_message();
 
-        let freq1 = tracker.frequency();
+        let _freq1 = tracker.frequency();
 
         // Subsequent samples are smoothed
         tracker.record_message();

@@ -703,7 +703,7 @@ mod tests {
 
     #[test]
     fn test_build_task_dag() {
-        use crate::mission_planner::types::{TaskExecutor, TaskSpec};
+        use crate::mission_planner::types::TaskSpec;
 
         let t1 = TaskSpec::noop("t1", "Task 1");
         let t2 = TaskSpec::noop("t2", "Task 2");

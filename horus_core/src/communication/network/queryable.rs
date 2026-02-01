@@ -539,6 +539,7 @@ mod tests {
             value: i32,
         }
 
+        #[allow(dead_code)]
         #[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq)]
         struct MyResponse {
             result: i32,
