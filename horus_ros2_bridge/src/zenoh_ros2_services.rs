@@ -893,7 +893,7 @@ mod tests {
 
         // Create and respond to some requests
         let (seq1, _) = tracker.create_request(Duration::from_secs(5));
-        let (seq2, _) = tracker.create_request(Duration::from_secs(5));
+        let (_seq2, _) = tracker.create_request(Duration::from_secs(5));
 
         tracker.handle_response(seq1, vec![]);
 
