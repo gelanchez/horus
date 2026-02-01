@@ -2810,7 +2810,10 @@ impl Scheduler {
             // Set up SIGTERM handler for graceful termination (e.g., from `kill` or `timeout`)
             #[cfg(unix)]
             unsafe {
-                libc::signal(libc::SIGTERM, sigterm_handler as libc::sighandler_t);
+                libc::signal(
+                    libc::SIGTERM,
+                    sigterm_handler as *const () as libc::sighandler_t,
+                );
             }
 
             // Initialize nodes
