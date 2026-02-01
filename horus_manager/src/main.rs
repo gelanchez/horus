@@ -4277,15 +4277,8 @@ except ImportError as e:
                     } else {
                         println!("\n{} Published Environments:\n", "".green());
                         for env in &environments {
-                            let name = env
-                                .name
-                                .as_deref()
-                                .unwrap_or("(unnamed)");
-                            println!(
-                                "  {} {}",
-                                "•".cyan(),
-                                env.horus_id.bold()
-                            );
+                            let name = env.name.as_deref().unwrap_or("(unnamed)");
+                            println!("  {} {}", "•".cyan(), env.horus_id.bold());
                             println!("    Name: {}", name);
                             if let Some(desc) = &env.description {
                                 println!("    Description: {}", desc.dimmed());
@@ -4297,20 +4290,13 @@ except ImportError as e:
                             );
                             println!(
                                 "    System: {} ({})",
-                                env.manifest.system.os,
-                                env.manifest.system.arch
+                                env.manifest.system.os, env.manifest.system.arch
                             );
                             println!("    HORUS: v{}", env.manifest.horus_version);
                             println!();
                         }
-                        println!(
-                            "{} To restore: horus env restore <ID>",
-                            "Tip:".dimmed()
-                        );
-                        println!(
-                            "{} For details: horus env show <ID>",
-                            "    ".dimmed()
-                        );
+                        println!("{} To restore: horus env restore <ID>", "Tip:".dimmed());
+                        println!("{} For details: horus env show <ID>", "    ".dimmed());
                     }
 
                     Ok(())
