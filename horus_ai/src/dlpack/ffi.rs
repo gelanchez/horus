@@ -1,7 +1,7 @@
 //! DLPack FFI definitions
 //!
 //! These structs match the DLPack C header exactly for ABI compatibility.
-//! See: https://github.com/dmlc/dlpack/blob/main/include/dlpack/dlpack.h
+//! See: <https://github.com/dmlc/dlpack/blob/main/include/dlpack/dlpack.h>
 
 use std::ffi::c_void;
 use std::os::raw::c_int;

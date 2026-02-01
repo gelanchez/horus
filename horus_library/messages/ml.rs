@@ -25,7 +25,7 @@ pub enum DataType {
 /// Generic tensor for ML model inputs and outputs
 ///
 /// Supports multi-dimensional arrays with various data types.
-/// Data is stored as flattened Vec<f32> for simplicity - conversion
+/// Data is stored as flattened `Vec<f32>` for simplicity - conversion
 /// from other types should happen at the node level.
 ///
 /// # Example
