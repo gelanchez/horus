@@ -4,7 +4,7 @@
 //! It communicates with the main scheduler via shared memory IPC.
 //!
 //! Usage:
-//!   horus-isolated-runner --node-name <name> --factory <factory> --ipc-path <path>
+//!   `horus-isolated-runner --node-name <name> --factory <factory> --ipc-path <path>`
 //!
 //! The runner:
 //! 1. Opens the IPC shared memory region

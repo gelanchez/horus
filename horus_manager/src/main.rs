@@ -156,7 +156,7 @@ enum Commands {
         #[arg(long = "sim")]
         simulation: bool,
 
-        /// Run integration tests (tests marked #[ignore])
+        /// Run integration tests (tests marked `#[ignore]`)
         #[arg(long = "integration")]
         integration: bool,
 
