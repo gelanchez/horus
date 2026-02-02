@@ -619,8 +619,8 @@ mod tests {
 
         let trans = dag.transitive_dependencies(&"c".to_string());
         assert_eq!(trans.len(), 2);
-        assert!(trans.contains(&"a".to_string()));
-        assert!(trans.contains(&"b".to_string()));
+        assert!(trans.contains("a"));
+        assert!(trans.contains("b"));
     }
 
     #[test]

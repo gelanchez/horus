@@ -819,7 +819,7 @@ mod tests {
     #[test]
     fn test_prefetch_range_small() {
         // Small range (< cache line) should be a no-op but not panic
-        let buffer = vec![0u8; 32];
+        let buffer = [0u8; 32];
         // SAFETY: buffer is valid for the specified length
         unsafe {
             prefetch_range(buffer.as_ptr(), 32, PrefetchHint::T0);

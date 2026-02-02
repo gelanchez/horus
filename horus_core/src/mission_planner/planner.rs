@@ -1610,7 +1610,7 @@ mod tests {
 
         shared.start(&id).unwrap();
         let progress = shared.get_progress(&id).unwrap();
-        assert!(progress >= 0.0 && progress <= 1.0);
+        assert!((0.0..=1.0).contains(&progress));
     }
 
     #[test]
