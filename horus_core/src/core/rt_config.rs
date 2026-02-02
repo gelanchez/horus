@@ -308,6 +308,7 @@ pub struct RtConfig {
 
 impl RtConfig {
     /// Create a new RT configuration builder.
+    #[allow(clippy::new_ret_no_self)]
     pub fn new() -> RtConfigBuilder {
         RtConfigBuilder::new()
     }

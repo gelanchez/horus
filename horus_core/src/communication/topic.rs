@@ -3119,6 +3119,7 @@ pub struct TopicMetrics {
 // ============================================================================
 
 /// Internal backend enum that holds the actual IPC implementation
+#[allow(clippy::large_enum_variant)]
 enum TopicBackend<T> {
     /// DirectChannel - same-thread only (~3-5ns)
     Direct(DirectChannelBackend<T>),

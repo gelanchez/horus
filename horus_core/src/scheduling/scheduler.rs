@@ -2506,6 +2506,7 @@ impl Scheduler {
     }
 
     /// Internal method to add a fully configured node.
+    #[allow(clippy::too_many_arguments)]
     fn add_configured_internal(
         &mut self,
         node: Box<dyn Node>,

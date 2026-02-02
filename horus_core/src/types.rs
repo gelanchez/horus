@@ -37,6 +37,7 @@ impl<const N: usize> FixedString<N> {
     ///
     /// If the string is longer than capacity, it will be truncated.
     #[inline]
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Self {
         let mut result = Self::new();
         let bytes = s.as_bytes();

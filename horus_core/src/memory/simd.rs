@@ -583,6 +583,10 @@ unsafe fn simd_copy_from_shm_avx2(src: *const u8, dst: *mut u8, len: usize) {
 /// Zero-initialize a buffer using SIMD.
 ///
 /// Useful for pre-initializing shared memory regions.
+///
+/// # Safety
+///
+/// Caller must ensure `dst` is valid for writing `len` bytes.
 #[inline]
 pub unsafe fn simd_zero_memory(dst: *mut u8, len: usize) {
     if len < SIMD_COPY_THRESHOLD {
