@@ -155,10 +155,10 @@ jobs:
 
       - name: Check ARM64 Build
         run: |
-          # Exclude horus_manager which has OpenSSL dependency via reqwest
+          # Exclude horus_manager (OpenSSL dependency) and horus_benchmarks
           # Cross-compiling OpenSSL requires ARM64 development headers
           cargo check --workspace --target aarch64-unknown-linux-gnu --lib \
-            --exclude horus_manager --exclude benchmarks
+            --exclude horus_manager --exclude horus_benchmarks
         env:
           PKG_CONFIG_ALLOW_CROSS: 1
 
