@@ -15,15 +15,15 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  # Minimum Supported Rust Version (must support Cargo.lock v4)
-  MSRV: "1.80.0"
+  # Minimum Supported Rust Version
+  # Requires 1.85.0+ due to transitive dependency on `home` crate using edition 2024
+  MSRV: "1.85.0"
 
 jobs:
   # macOS Testing
   macos:
     name: macOS
     runs-on: macos-latest
-    continue-on-error: true  # macOS may have platform-specific issues
     steps:
       - uses: actions/checkout@v4
 
@@ -154,7 +154,11 @@ jobs:
           EOF
 
       - name: Check ARM64 Build
-        run: cargo check --workspace --target aarch64-unknown-linux-gnu --lib
+        run: |
+          # Exclude horus_manager which has OpenSSL dependency via reqwest
+          # Cross-compiling OpenSSL requires ARM64 development headers
+          cargo check --workspace --target aarch64-unknown-linux-gnu --lib \
+            --exclude horus_manager --exclude benchmarks
         env:
           PKG_CONFIG_ALLOW_CROSS: 1
 
@@ -164,7 +168,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        rust: ["1.80.0"]  # MSRV - must support Cargo.lock v4
+        rust: ["1.85.0"]  # MSRV - requires edition 2024 support
     steps:
       - uses: actions/checkout@v4
 
@@ -190,6 +194,12 @@ jobs:
           key: ${{ runner.os }}-msrv-${{ matrix.rust }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-msrv-${{ matrix.rust }}-
 
+      - name: Setup Shared Memory
+        run: |
+          sudo mkdir -p /dev/shm/horus/topics
+          sudo mkdir -p /dev/shm/horus/heartbeats
+          sudo chmod 777 /dev/shm/horus /dev/shm/horus/topics /dev/shm/horus/heartbeats
+
       - name: Check MSRV Compatibility
         run: cargo check --workspace
 
@@ -213,10 +223,33 @@ jobs:
           echo "Linux ARM64: ${{ needs.linux-arm64.result }}"
           echo "MSRV: ${{ needs.msrv.result }}"
 
-          # Only MSRV must pass (others have platform-specific issues)
+          # All Unix platforms and MSRV must pass
+          FAILURES=""
+
+          if [[ "${{ needs.macos.result }}" != "success" ]]; then
+            FAILURES="$FAILURES macOS"
+          fi
+
+          if [[ "${{ needs.macos-arm64.result }}" != "success" ]]; then
+            FAILURES="$FAILURES macOS-ARM64"
+          fi
+
+          if [[ "${{ needs.linux-arm64.result }}" != "success" ]]; then
+            FAILURES="$FAILURES Linux-ARM64"
+          fi
+
           if [[ "${{ needs.msrv.result }}" != "success" ]]; then
-            echo "MSRV build failed"
+            FAILURES="$FAILURES MSRV"
+          fi
+
+          # Windows is informational (has continue-on-error)
+          if [[ "${{ needs.windows.result }}" != "success" ]]; then
+            echo "Windows build has issues (informational): ${{ needs.windows.result }}"
+          fi
+
+          if [[ -n "$FAILURES" ]]; then
+            echo "Platform failures:$FAILURES"
             exit 1
           fi
 
-          echo "MSRV check passed - platform checks are informational"
+          echo "All required platforms passed!"
